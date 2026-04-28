@@ -2,18 +2,29 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { requireAdmin } from "@/src/lib/roles";
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+type Params = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+export async function DELETE(req: Request, { params }: Params) {
   const { denied } = await requireAdmin();
   if (denied) return denied;
 
   try {
-    const id = Number(params.id);
+    const { id } = await params;
+    const facturaId = Number(id);
+
+    if (!facturaId) {
+      return NextResponse.json(
+        { error: "ID de factura inválido" },
+        { status: 400 }
+      );
+    }
 
     const factura = await prisma.facturaMultiple.findUnique({
-      where: { id },
+      where: { id: facturaId },
       include: { items: true },
     });
 
@@ -36,11 +47,13 @@ export async function DELETE(
     });
 
     await prisma.facturaMultiple.delete({
-      where: { id },
+      where: { id: facturaId },
     });
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    console.error("Error DELETE /api/facturas-multiples/[id]:", error);
+
     return NextResponse.json(
       { error: "Error anulando factura" },
       { status: 500 }
