@@ -24,6 +24,9 @@ function validarTipoCarpa(tipoCarpa: string) {
   );
 }
 
+// ===============================
+// 🔍 GET
+// ===============================
 export async function GET(req: Request) {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -74,6 +77,9 @@ export async function GET(req: Request) {
   }
 }
 
+// ===============================
+// ➕ POST
+// ===============================
 export async function POST(req: Request) {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -113,16 +119,20 @@ export async function POST(req: Request) {
     const tipoCarpa = limpiarTexto(body.tipoCarpa);
     const formaPago = limpiarTexto(body.formaPago || "credito");
 
+    // 🔥 CORRECCIÓN AQUÍ
     if (
       !tarifaId ||
       !seccionId ||
+      cantidad <= 0 ||
       !clienteId ||
       !vehiculoId ||
-      !centroOperacionId ||
-      !validarNumeroPositivo(cantidad)
+      !centroOperacionId
     ) {
       return NextResponse.json(
-        { error: "Todos los campos son obligatorios y la cantidad debe ser mayor a 0" },
+        {
+          error:
+            "Todos los campos son obligatorios y la cantidad debe ser mayor a 0",
+        },
         { status: 400 }
       );
     }
@@ -252,6 +262,9 @@ export async function POST(req: Request) {
   }
 }
 
+// ===============================
+// ❌ DELETE
+// ===============================
 export async function DELETE(req: Request) {
   const { denied } = await requireAdmin();
   if (denied) return denied;
