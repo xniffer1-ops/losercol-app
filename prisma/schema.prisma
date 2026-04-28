@@ -1,0 +1,170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Cliente {
+  id        Int        @id @default(autoincrement())
+  ccNit     String     @unique
+  nombre    String
+  correo    String
+  telefono  String
+  formaPago String
+  vehiculos Vehiculo[]
+  servicios Servicio[]
+  soportes  Soporte[]
+  createdAt DateTime   @default(now())
+}
+
+model Vehiculo {
+  id           Int        @id @default(autoincrement())
+  placa        String     @unique
+  tipoVehiculo String
+  clienteId    Int
+  cliente      Cliente    @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  servicios    Servicio[]
+  soportes     Soporte[]
+  createdAt    DateTime   @default(now())
+}
+
+model CentroOperacion {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  ciudad    String
+  servicios Servicio[]
+  soportes  Soporte[]
+  createdAt DateTime   @default(now())
+}
+
+model Servicio {
+  id            Int     @id @default(autoincrement())
+  numeroSoporte String? @unique
+  descripcion   String
+  valorUnitario Float
+  cantidad      Float
+  subtotal      Float
+
+  clienteId         Int
+  vehiculoId        Int
+  centroOperacionId Int
+  tarifaId          Int?
+  seccionId         Int?
+  soporteId         Int?
+
+  unidadMedida String?
+  tipoCarpa    String?
+  presentacion String?
+  categoria    String?
+  formaPago    String?
+
+  facturado Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  cliente         Cliente         @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  vehiculo        Vehiculo        @relation(fields: [vehiculoId], references: [id], onDelete: Cascade)
+  centroOperacion CentroOperacion @relation(fields: [centroOperacionId], references: [id], onDelete: Cascade)
+  tarifa          Tarifa?         @relation(fields: [tarifaId], references: [id])
+  seccion         Seccion?        @relation(fields: [seccionId], references: [id])
+  soporte         Soporte?        @relation(fields: [soporteId], references: [id])
+}
+
+model Usuario {
+  id        Int      @id @default(autoincrement())
+  nombre    String
+  email     String   @unique
+  password  String
+  rol       String   @default("operador")
+  createdAt DateTime @default(now())
+}
+
+model HistorialAccion {
+  id        Int      @id @default(autoincrement())
+  usuario   String
+  rol       String
+  accion    String
+  modulo    String
+  detalle   String
+  createdAt DateTime @default(now())
+}
+
+model Tarifa {
+  id            Int        @id @default(autoincrement())
+  codigo        String     @unique
+  descripcion   String
+  valorUnitario Float
+  unidadMedida  String
+  presentacion  String
+  categoria     String
+  servicios     Servicio[]
+  createdAt     DateTime   @default(now())
+}
+
+model Seccion {
+  id        Int        @id @default(autoincrement())
+  nombre    String     @unique
+  servicios Servicio[]
+  soportes  Soporte[]
+  createdAt DateTime   @default(now())
+}
+
+model FacturaMultiple {
+  id        Int      @id @default(autoincrement())
+  numero    String   @unique
+  cliente   String
+  total     Float
+  usuario   String?
+  createdAt DateTime @default(now())
+
+  items FacturaMultipleItem[]
+}
+
+model FacturaMultipleItem {
+  id                Int    @id @default(autoincrement())
+  facturaMultipleId Int
+  servicioId        Int
+  soporte           String
+  descripcion       String
+  subtotal          Float
+
+  facturaMultiple FacturaMultiple @relation(fields: [facturaMultipleId], references: [id], onDelete: Cascade)
+}
+
+model Soporte {
+  id                Int    @id @default(autoincrement())
+  numero            String @unique
+  clienteId         Int
+  vehiculoId        Int
+  centroOperacionId Int
+  seccionId         Int
+
+  estado     String    @default("pendiente")
+  horaInicio DateTime?
+  horaFinal  DateTime?
+  createdAt  DateTime  @default(now())
+
+  cliente         Cliente         @relation(fields: [clienteId], references: [id])
+  vehiculo        Vehiculo        @relation(fields: [vehiculoId], references: [id])
+  centroOperacion CentroOperacion @relation(fields: [centroOperacionId], references: [id])
+  seccion         Seccion         @relation(fields: [seccionId], references: [id])
+
+  servicios Servicio[]
+}
+
+model CierreCaja {
+  id                Int      @id @default(autoincrement())
+  fecha             String
+  usuario           String
+  efectivo          Float    @default(0)
+  transferencia     Float    @default(0)
+  credito           Float    @default(0)
+  total             Float    @default(0)
+  cantidadServicios Int      @default(0)
+  cerrado           Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  @@unique([fecha, usuario])
+}
