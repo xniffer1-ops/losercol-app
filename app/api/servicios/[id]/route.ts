@@ -4,9 +4,9 @@ import { requireAdmin, requireUser } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
 type Params = {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 };
 
 // 🔍 GET → necesario para imprimir soporte
@@ -15,7 +15,8 @@ export async function GET(req: Request, { params }: Params) {
   if (denied) return denied;
 
   try {
-    const id = Number(params.id);
+    const { id: rawId } = await params;
+    const id = Number(rawId);
 
     if (!id) {
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
@@ -55,7 +56,8 @@ export async function PUT(req: Request, { params }: Params) {
   if (denied) return denied;
 
   try {
-    const id = Number(params.id);
+    const { id: rawId } = await params;
+    const id = Number(rawId);
 
     if (!id) {
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
