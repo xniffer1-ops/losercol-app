@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "../../../src/lib/prisma";
-import { getUser } from "@/src/lib/auth";
+import { prisma } from "@/src/lib/prisma";
+import { requireAdmin, requireUser } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 import {
   limpiarPlaca,
@@ -8,7 +8,13 @@ import {
   validarTipoVehiculo,
 } from "@/src/lib/validaciones";
 
+// ===============================
+// 🔍 GET → LISTAR VEHÍCULOS
+// ===============================
 export async function GET() {
+  const { denied } = await requireUser();
+  if (denied) return denied;
+
   try {
     const vehiculos = await prisma.vehiculo.findMany({
       include: {
@@ -19,7 +25,7 @@ export async function GET() {
 
     return NextResponse.json(vehiculos);
   } catch (error) {
-    console.error("Error GET /api/vehiculos:", error);
+    console.error("Error GET vehiculos:", error);
     return NextResponse.json(
       { error: "Error al obtener vehículos" },
       { status: 500 }
@@ -27,15 +33,12 @@ export async function GET() {
   }
 }
 
+// ===============================
+// ➕ POST → CREAR VEHÍCULO
+// ===============================
 export async function POST(req: Request) {
-  const user = await getUser();
-
-  if (!user || (user.rol !== "admin" && user.rol !== "operador")) {
-    return NextResponse.json(
-      { error: "No tienes permiso para hacer esta acción" },
-      { status: 403 }
-    );
-  }
+  const { denied, usuario } = await requireUser();
+  if (denied) return denied;
 
   try {
     const body = await req.json();
@@ -51,10 +54,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (placa.length < 5 || placa.length > 10) {
-      return NextResponse.json({ error: "Placa inválida" }, { status: 400 });
-    }
-
     if (!validarTipoVehiculo(tipoVehiculo)) {
       return NextResponse.json(
         { error: "Tipo de vehículo inválido" },
@@ -62,24 +61,13 @@ export async function POST(req: Request) {
       );
     }
 
-    const existeCliente = await prisma.cliente.findUnique({
-      where: { id: clienteId },
-    });
-
-    if (!existeCliente) {
-      return NextResponse.json(
-        { error: "Cliente no encontrado" },
-        { status: 404 }
-      );
-    }
-
-    const existeVehiculo = await prisma.vehiculo.findUnique({
+    const existente = await prisma.vehiculo.findUnique({
       where: { placa },
     });
 
-    if (existeVehiculo) {
+    if (existente) {
       return NextResponse.json(
-        { error: "Ya existe un vehículo con esa placa" },
+        { error: "La placa ya existe" },
         { status: 400 }
       );
     }
@@ -90,22 +78,21 @@ export async function POST(req: Request) {
         tipoVehiculo,
         clienteId,
       },
-      include: {
-        cliente: true,
-      },
     });
 
     await registrarAccion(
       "CREAR",
       "Vehículos",
-      `Creó el vehículo ${placa} para el cliente ${vehiculo.cliente?.nombre}`
+      `Creó el vehículo ${placa} para el cliente ID ${clienteId}`,
+      usuario?.email || "sistema",
+      usuario?.rol || "operador"
     );
 
-    return NextResponse.json(vehiculo, { status: 201 });
+    return NextResponse.json(vehiculo);
   } catch (error) {
-    console.error("Error POST /api/vehiculos:", error);
+    console.error("Error POST vehiculos:", error);
     return NextResponse.json(
-      { error: "Error al guardar vehículo" },
+      { error: "Error al crear vehículo" },
       { status: 500 }
     );
   }
