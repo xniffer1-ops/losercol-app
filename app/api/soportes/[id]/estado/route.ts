@@ -5,15 +5,20 @@ import { registrarAccion } from "@/src/lib/historial";
 
 const estadosPermitidos = ["pendiente", "proceso", "terminado", "facturado"];
 
-export async function PUT(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+type Params = {
+  params: Promise<{
+    id: string;
+  }>;
+};
+
+export async function PUT(req: Request, { params }: Params) {
   const { denied, user } = await requireUser();
   if (denied) return denied;
 
   try {
-    const soporteId = Number(params.id);
+    const { id } = await params;
+    const soporteId = Number(id);
+
     const body = await req.json();
     const nuevoEstado = String(body.estado || "").trim();
 
