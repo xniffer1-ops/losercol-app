@@ -4,7 +4,9 @@ import { requireAdmin, requireUser } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
 type Params = {
-  params: Promise<{ id: string }>;
+  params: {
+    id: string;
+  };
 };
 
 // 🔍 GET → necesario para imprimir soporte
@@ -13,10 +15,14 @@ export async function GET(req: Request, { params }: Params) {
   if (denied) return denied;
 
   try {
-    const { id } = await params;
+    const id = Number(params.id);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+    }
 
     const servicio = await prisma.servicio.findUnique({
-      where: { id: Number(id) },
+      where: { id },
       include: {
         cliente: true,
         vehiculo: true,
@@ -43,13 +49,18 @@ export async function GET(req: Request, { params }: Params) {
   }
 }
 
-// ✏️ PUT → tu lógica actual (EDITAR)
+// ✏️ PUT → EDITAR
 export async function PUT(req: Request, { params }: Params) {
   const { denied } = await requireAdmin();
   if (denied) return denied;
 
   try {
-    const { id } = await params;
+    const id = Number(params.id);
+
+    if (!id) {
+      return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+    }
+
     const body = await req.json();
 
     const tarifaId = Number(body.tarifaId);
@@ -87,7 +98,7 @@ export async function PUT(req: Request, { params }: Params) {
     const subtotal = tarifa.valorUnitario * cantidad;
 
     const servicio = await prisma.servicio.update({
-      where: { id: Number(id) },
+      where: { id },
       data: {
         descripcion: tarifa.descripcion,
         valorUnitario: tarifa.valorUnitario,
