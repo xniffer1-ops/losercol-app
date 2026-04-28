@@ -6,7 +6,6 @@ import { getUser } from "@/src/lib/auth";
 import {
   limpiarTexto,
   validarFormaPago,
-  validarNumeroPositivo,
 } from "@/src/lib/validaciones";
 
 function valorCarpa(tipoCarpa: string) {
