@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireAdmin, requireUser } from "@/src/lib/roles";
+import { requireUser } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 import {
   limpiarPlaca,
@@ -8,9 +8,6 @@ import {
   validarTipoVehiculo,
 } from "@/src/lib/validaciones";
 
-// ===============================
-// 🔍 GET → LISTAR VEHÍCULOS
-// ===============================
 export async function GET() {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -33,11 +30,8 @@ export async function GET() {
   }
 }
 
-// ===============================
-// ➕ POST → CREAR VEHÍCULO
-// ===============================
 export async function POST(req: Request) {
-  const { denied, usuario } = await requireUser();
+  const { denied, user } = await requireUser();
   if (denied) return denied;
 
   try {
@@ -61,6 +55,17 @@ export async function POST(req: Request) {
       );
     }
 
+    const cliente = await prisma.cliente.findUnique({
+      where: { id: clienteId },
+    });
+
+    if (!cliente) {
+      return NextResponse.json(
+        { error: "Cliente no encontrado" },
+        { status: 404 }
+      );
+    }
+
     const existente = await prisma.vehiculo.findUnique({
       where: { placa },
     });
@@ -78,17 +83,18 @@ export async function POST(req: Request) {
         tipoVehiculo,
         clienteId,
       },
+      include: {
+        cliente: true,
+      },
     });
 
     await registrarAccion(
       "CREAR",
       "Vehículos",
-      `Creó el vehículo ${placa} para el cliente ID ${clienteId}`,
-      usuario?.email || "sistema",
-      usuario?.rol || "operador"
+      `Creó el vehículo ${placa} para el cliente ${cliente.nombre}`
     );
 
-    return NextResponse.json(vehiculo);
+    return NextResponse.json(vehiculo, { status: 201 });
   } catch (error) {
     console.error("Error POST vehiculos:", error);
     return NextResponse.json(
