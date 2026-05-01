@@ -21,7 +21,14 @@ export function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
   const { pathname } = req.nextUrl;
 
-  const rutasPublicas = ["/login", "/api/login"];
+  const rutasPublicas = [
+    "/login",
+    "/api/login",
+    "/api/logout",
+
+    // TEMPORAL: permite crear/actualizar admin inicial
+    "/api/setup-admin",
+  ];
 
   if (
     rutasPublicas.includes(pathname) ||
