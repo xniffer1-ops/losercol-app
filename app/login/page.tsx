@@ -42,7 +42,7 @@ export default function LoginPage() {
       <section style={styles.card}>
         <div style={styles.logoBox}>
           <Image
-            src="/logo-losercol.png"
+            src="https://via.placeholder.com/260x100?text=LOSERCOL"
             alt="Logo Losercol"
             width={260}
             height={100}
