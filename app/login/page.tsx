@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
+
 
 export default function LoginPage() {
   const [email, setEmail] = useState("admin@losercol.com");
@@ -41,15 +41,12 @@ export default function LoginPage() {
     <main style={styles.page}>
       <section style={styles.card}>
         <div style={styles.logoBox}>
-          <Image
-            src="/logo-losercol.png"
-            alt="Logo Losercol"
-            width={260}
-            height={100}
-            style={styles.logo}
-            priority
-          />
-        </div>
+  <img
+    src="/logo-losercol.png"
+    alt="Logo Losercol"
+    style={styles.logo}
+  />
+</div>
 
         <h1 style={styles.title}>Iniciar sesión</h1>
         <p style={styles.subtitle}>Ingresa con tu usuario autorizado</p>
