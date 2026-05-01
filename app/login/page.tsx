@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
+import Image from "next/image";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("admin@losercol.com");
@@ -42,9 +42,12 @@ export default function LoginPage() {
       <section style={styles.card}>
         <div style={styles.logoBox}>
           <Image
-            src="https://via.placeholder.com/260x100?text=LOSERCOL"
+            src="/logo-losercol.png"
             alt="Logo Losercol"
+            width={260}
+            height={100}
             style={styles.logo}
+            priority
           />
         </div>
 
