@@ -26,8 +26,7 @@ export function middleware(req: NextRequest) {
     "/api/login",
     "/api/logout",
 
-    // TEMPORAL: permite crear/actualizar admin inicial
-    "/api/setup-admin",
+  
   ];
 
   if (
