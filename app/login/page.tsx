@@ -1,12 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 export default function LoginPage() {
-  const router = useRouter();
-
   const [email, setEmail] = useState("admin@losercol.com");
   const [password, setPassword] = useState("123456");
   const [mensaje, setMensaje] = useState("");
@@ -28,51 +25,42 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setMensaje(data.error || "Error al iniciar sesión");
+        setMensaje(data.error || "Credenciales incorrectas");
         setLoading(false);
         return;
       }
 
       window.location.href = "/";
-    } catch (error) {
+    } catch {
       setMensaje("Error de conexión");
       setLoading(false);
     }
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-100 to-gray-200 px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-gray-200">
-
-        {/* LOGO */}
-        <div className="flex justify-center mb-6">
+    <main style={styles.page}>
+      <section style={styles.card}>
+        <div style={styles.logoBox}>
           <Image
             src="/logo-losercol.png"
-            alt="Losercol"
-            width={220}
-            height={80}
-            className="object-contain"
+            alt="Logo Losercol"
+            width={260}
+            height={100}
+            style={styles.logo}
+            priority
           />
         </div>
 
-        {/* TITULO */}
-        <h1 className="text-3xl font-bold text-center text-gray-900">
-          Iniciar sesión
-        </h1>
+        <h1 style={styles.title}>Iniciar sesión</h1>
+        <p style={styles.subtitle}>Ingresa con tu usuario autorizado</p>
 
-        <p className="text-center text-gray-500 mt-2 mb-6">
-          Ingresa con tu usuario autorizado
-        </p>
-
-        {/* FORM */}
-        <form onSubmit={iniciarSesion} className="space-y-4">
-
+        <form onSubmit={iniciarSesion} style={styles.form}>
           <input
             type="email"
-            placeholder="Correo"
+            placeholder="Correo electrónico"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none"
+            style={styles.input}
           />
 
           <input
@@ -80,25 +68,99 @@ export default function LoginPage() {
             placeholder="Contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-400 outline-none"
+            style={styles.input}
           />
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full p-3 rounded-lg bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-bold text-lg shadow-md transition"
-          >
+          <button type="submit" disabled={loading} style={styles.button}>
             {loading ? "Entrando..." : "Entrar"}
           </button>
 
-          {mensaje && (
-            <p className="text-red-600 font-semibold text-center">
-              {mensaje}
-            </p>
-          )}
-
+          {mensaje && <div style={styles.error}>{mensaje}</div>}
         </form>
-      </div>
+      </section>
     </main>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  page: {
+    minHeight: "100vh",
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px",
+    background:
+      "radial-gradient(circle at top, #ffffff 0%, #eef2f7 45%, #e5e7eb 100%)",
+    fontFamily: "Arial, Helvetica, sans-serif",
+  },
+  card: {
+    width: "100%",
+    maxWidth: "460px",
+    background: "#ffffff",
+    borderRadius: "22px",
+    padding: "34px",
+    border: "1px solid #e5e7eb",
+    boxShadow: "0 24px 60px rgba(15, 23, 42, 0.16)",
+  },
+  logoBox: {
+    display: "flex",
+    justifyContent: "center",
+    marginBottom: "26px",
+  },
+  logo: {
+    width: "260px",
+    maxWidth: "100%",
+    height: "auto",
+    objectFit: "contain",
+  },
+  title: {
+    margin: "0 0 8px",
+    textAlign: "center",
+    fontSize: "32px",
+    fontWeight: 800,
+    color: "#0f172a",
+  },
+  subtitle: {
+    margin: "0 0 28px",
+    textAlign: "center",
+    fontSize: "15px",
+    color: "#64748b",
+  },
+  form: {
+    display: "grid",
+    gap: "14px",
+  },
+  input: {
+    width: "100%",
+    height: "56px",
+    padding: "0 16px",
+    borderRadius: "14px",
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    color: "#0f172a",
+    fontSize: "16px",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  button: {
+    height: "58px",
+    border: "none",
+    borderRadius: "14px",
+    background: "#f6c400",
+    color: "#111827",
+    fontWeight: 800,
+    fontSize: "19px",
+    cursor: "pointer",
+    boxShadow: "0 10px 22px rgba(246, 196, 0, 0.35)",
+  },
+  error: {
+    marginTop: "4px",
+    padding: "12px",
+    borderRadius: "12px",
+    background: "#fef2f2",
+    color: "#b91c1c",
+    fontWeight: 700,
+    textAlign: "center",
+  },
+};
