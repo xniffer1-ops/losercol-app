@@ -21,18 +21,20 @@ export function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
   const { pathname } = req.nextUrl;
 
-  const rutasPublicas = [
-    "/login",
-    "/api/login",
-    "/api/logout",
+  const rutasPublicas = ["/login", "/api/login", "/api/logout"];
 
-  
-  ];
+  const esArchivoPublico =
+    pathname.endsWith(".png") ||
+    pathname.endsWith(".jpg") ||
+    pathname.endsWith(".jpeg") ||
+    pathname.endsWith(".svg") ||
+    pathname.endsWith(".webp") ||
+    pathname.endsWith(".ico");
 
   if (
     rutasPublicas.includes(pathname) ||
-    pathname.startsWith("/_next") ||
-    pathname.startsWith("/favicon.ico")
+    esArchivoPublico ||
+    pathname.startsWith("/_next")
   ) {
     return NextResponse.next();
   }
