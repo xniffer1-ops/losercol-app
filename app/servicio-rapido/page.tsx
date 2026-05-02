@@ -72,9 +72,7 @@ const getNestedArray = (record: AnyRecord): unknown[] => {
 };
 
 const extractArrayOfRecords = (value: unknown): AnyRecord[] => {
-  if (Array.isArray(value)) {
-    return value.filter(isRecord);
-  }
+  if (Array.isArray(value)) return value.filter(isRecord);
 
   if (isRecord(value)) {
     return getNestedArray(value).filter(isRecord);
@@ -84,9 +82,7 @@ const extractArrayOfRecords = (value: unknown): AnyRecord[] => {
 };
 
 const extractSingleRecord = (value: unknown): AnyRecord | null => {
-  if (Array.isArray(value)) {
-    return value.find(isRecord) ?? null;
-  }
+  if (Array.isArray(value)) return value.find(isRecord) ?? null;
 
   if (isRecord(value)) {
     if (isRecord(value.data)) return value.data;
@@ -126,9 +122,7 @@ const fetchArraySafe = async <T,>(
     const response = await fetch(url, { cache: "no-store" });
     const data = await parseJsonSafe(response);
 
-    if (!response.ok) {
-      return [];
-    }
+    if (!response.ok) return [];
 
     return extractArrayOfRecords(data)
       .map(mapItem)
@@ -217,17 +211,17 @@ const mapTarifa = (item: AnyRecord): Tarifa | null => {
 
   if (!id || !descripcion) return null;
 
-  return {
-    id,
-    codigo,
-    descripcion,
-    valorUnitario,
-  };
+  return { id, codigo, descripcion, valorUnitario };
 };
 
 const mapVehiculoFromResponse = (value: unknown): Vehiculo | null => {
   const record = extractSingleRecord(value);
   return record ? mapVehiculo(record) : null;
+};
+
+const mapClienteFromResponse = (value: unknown): Cliente | null => {
+  const record = extractSingleRecord(value);
+  return record ? mapCliente(record) : null;
 };
 
 export default function ServicioRapidoPage() {
@@ -249,12 +243,20 @@ export default function ServicioRapidoPage() {
   const [tipoCarpa, setTipoCarpa] = useState("");
   const [formaPago, setFormaPago] = useState("credito");
 
+  const [crearClienteAbierto, setCrearClienteAbierto] = useState(false);
+  const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
+  const [nuevoClienteDocumento, setNuevoClienteDocumento] = useState("");
+  const [nuevoClienteTelefono, setNuevoClienteTelefono] = useState("");
+  const [nuevoClienteCorreo, setNuevoClienteCorreo] = useState("");
+
   const [cargandoDatos, setCargandoDatos] = useState(true);
   const [guardando, setGuardando] = useState(false);
+  const [creandoCliente, setCreandoCliente] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [mensajeTipo, setMensajeTipo] = useState<MensajeTipo>("info");
 
   const placaRef = useRef<HTMLInputElement>(null);
+  const cantidadRef = useRef<HTMLInputElement>(null);
 
   const mostrarMensaje = (texto: string, tipo: MensajeTipo) => {
     setMensaje(texto);
@@ -278,6 +280,7 @@ export default function ServicioRapidoPage() {
     setCentros(centrosData);
     setSecciones(seccionesData);
     setTarifas(tarifasData);
+
     setCargandoDatos(false);
   }, []);
 
@@ -305,9 +308,8 @@ export default function ServicioRapidoPage() {
     if (!vehiculoEncontrado) return null;
 
     return (
-      clientes.find(
-        (cliente) => cliente.id === vehiculoEncontrado.clienteId
-      ) ?? null
+      clientes.find((cliente) => cliente.id === vehiculoEncontrado.clienteId) ??
+      null
     );
   }, [clientes, vehiculoEncontrado]);
 
@@ -326,9 +328,8 @@ export default function ServicioRapidoPage() {
       const sugeridoId = String(vehiculoEncontrado.clienteId);
       setVehiculoId(String(vehiculoEncontrado.id));
 
-      if (!clienteId || !clienteFueManual) {
+      if (!clienteFueManual) {
         setClienteId(sugeridoId);
-        setClienteFueManual(false);
       }
 
       return;
@@ -339,7 +340,7 @@ export default function ServicioRapidoPage() {
     if (!clienteFueManual) {
       setClienteId("");
     }
-  }, [placaNormalizada, vehiculoEncontrado, clienteId, clienteFueManual]);
+  }, [placaNormalizada, vehiculoEncontrado, clienteFueManual]);
 
   const tarifaSeleccionada = useMemo(() => {
     return tarifas.find((tarifa) => tarifa.id === Number(tarifaId)) ?? null;
@@ -377,6 +378,77 @@ export default function ServicioRapidoPage() {
     placaRef.current?.focus();
   };
 
+  const crearClienteRapido = async () => {
+    setMensaje("");
+
+    const nombre = nuevoClienteNombre.trim();
+    const documento = nuevoClienteDocumento.trim();
+    const telefono = nuevoClienteTelefono.trim();
+    const correo = nuevoClienteCorreo.trim();
+
+    if (!nombre || !documento) {
+      mostrarMensaje("Para crear cliente rápido, nombre y documento son obligatorios.", "error");
+      return;
+    }
+
+    setCreandoCliente(true);
+
+    const respuesta = await postJsonSafe("/api/clientes", {
+      nombre,
+      ccNit: documento,
+      telefono: telefono || "No registrado",
+      correo: correo || "sin-correo@losercol.com",
+      formaPago: formaPago || "credito",
+    });
+
+    if (!respuesta.ok) {
+      mostrarMensaje(respuesta.message || "No fue posible crear el cliente.", "error");
+      setCreandoCliente(false);
+      return;
+    }
+
+    let clienteCreado = mapClienteFromResponse(respuesta.data);
+
+    if (!clienteCreado) {
+      const clientesActualizados = await fetchArraySafe<Cliente>(
+        "/api/clientes",
+        mapCliente
+      );
+
+      setClientes(clientesActualizados);
+
+      clienteCreado =
+        clientesActualizados.find((cliente) => cliente.ccNit === documento) ??
+        null;
+    }
+
+    if (!clienteCreado) {
+      mostrarMensaje(
+        "Cliente creado, pero no pude seleccionarlo automáticamente. Recarga la página si no aparece.",
+        "info"
+      );
+      setCreandoCliente(false);
+      setCrearClienteAbierto(false);
+      return;
+    }
+
+    setClientes((prev) => {
+      const existe = prev.some((cliente) => cliente.id === clienteCreado.id);
+      return existe ? prev : [clienteCreado, ...prev];
+    });
+
+    setClienteId(String(clienteCreado.id));
+    setClienteFueManual(true);
+    setNuevoClienteNombre("");
+    setNuevoClienteDocumento("");
+    setNuevoClienteTelefono("");
+    setNuevoClienteCorreo("");
+    setCrearClienteAbierto(false);
+    setCreandoCliente(false);
+
+    mostrarMensaje("Cliente creado y seleccionado correctamente.", "ok");
+  };
+
   const guardar = async () => {
     setMensaje("");
 
@@ -387,7 +459,7 @@ export default function ServicioRapidoPage() {
     }
 
     if (!clienteId) {
-      mostrarMensaje("Selecciona un cliente.", "error");
+      mostrarMensaje("Selecciona un cliente o créalo rápido.", "error");
       return;
     }
 
@@ -408,6 +480,7 @@ export default function ServicioRapidoPage() {
 
     if (!cantidad || !Number.isFinite(cantidadNumero) || cantidadNumero <= 0) {
       mostrarMensaje("La cantidad debe ser mayor que cero.", "error");
+      cantidadRef.current?.focus();
       return;
     }
 
@@ -419,6 +492,7 @@ export default function ServicioRapidoPage() {
       const respuestaVehiculo = await postJsonSafe("/api/vehiculos", {
         placa: placaNormalizada,
         clienteId: Number(clienteId),
+        tipoVehiculo: "Vehículo",
       });
 
       if (!respuestaVehiculo.ok) {
@@ -443,6 +517,7 @@ export default function ServicioRapidoPage() {
 
       const vehiculoNormalizado: Vehiculo = {
         ...nuevoVehiculo,
+        placa: nuevoVehiculo.placa || placaNormalizada,
         clienteId: nuevoVehiculo.clienteId || Number(clienteId),
       };
 
@@ -491,6 +566,12 @@ export default function ServicioRapidoPage() {
     placaRef.current?.focus();
   };
 
+  const seleccionarTarifa = (tarifa: Tarifa) => {
+    setTarifaId(String(tarifa.id));
+    setBusquedaTarifa(`${tarifa.codigo} - ${tarifa.descripcion}`.trim());
+    cantidadRef.current?.focus();
+  };
+
   const mensajeStyle =
     mensajeTipo === "error"
       ? styles.messageError
@@ -506,8 +587,8 @@ export default function ServicioRapidoPage() {
             <span style={styles.badge}>Operación</span>
             <h1 style={styles.title}>Servicio rápido</h1>
             <p style={styles.subtitle}>
-              Registra servicios sin bloquear el cliente por placa. Si el vehículo
-              no existe, se crea automáticamente al guardar.
+              Registra rápido. La placa puede sugerir cliente, pero puedes escoger otro.
+              Si el vehículo no existe, se crea al guardar.
             </p>
           </div>
 
@@ -549,8 +630,8 @@ export default function ServicioRapidoPage() {
                       clienteSugerido?.nombre || "sin nombre"
                     }.`
                   : placaNormalizada
-                  ? "La placa no existe aún; se creará el vehículo al guardar."
-                  : "Escribe la placa para sugerir el cliente automáticamente."}
+                  ? "Placa nueva: se creará el vehículo al guardar."
+                  : "Escribe la placa para buscar el vehículo."}
               </small>
             </div>
 
@@ -577,12 +658,20 @@ export default function ServicioRapidoPage() {
                 ))}
               </select>
 
+              <button
+                type="button"
+                onClick={() => setCrearClienteAbierto((prev) => !prev)}
+                style={styles.quickLink}
+              >
+                {crearClienteAbierto ? "Cerrar creación rápida" : "+ Crear cliente rápido"}
+              </button>
+
               <small style={styles.helper}>
                 {clienteSugerido
                   ? clienteId && Number(clienteId) !== clienteSugerido.id
-                    ? `Sugerido por placa: ${clienteSugerido.nombre}. Puedes dejar el cliente actual o cambiarlo.`
+                    ? `Sugerido por placa: ${clienteSugerido.nombre}. Puedes dejar el cliente actual.`
                     : `Sugerido por placa: ${clienteSugerido.nombre}.`
-                  : "El cliente siempre se puede editar manualmente."}
+                  : "Puedes escoger cualquier cliente para este servicio."}
               </small>
             </div>
 
@@ -631,6 +720,51 @@ export default function ServicioRapidoPage() {
             </div>
           </div>
 
+          {crearClienteAbierto && (
+            <div style={styles.quickCreateBox}>
+              <h3 style={styles.quickTitle}>Crear cliente rápido</h3>
+
+              <div style={styles.gridQuick}>
+                <input
+                  value={nuevoClienteNombre}
+                  onChange={(event) => setNuevoClienteNombre(event.target.value)}
+                  placeholder="Nombre del cliente"
+                  style={styles.input}
+                />
+
+                <input
+                  value={nuevoClienteDocumento}
+                  onChange={(event) => setNuevoClienteDocumento(event.target.value)}
+                  placeholder="Documento / NIT"
+                  style={styles.input}
+                />
+
+                <input
+                  value={nuevoClienteTelefono}
+                  onChange={(event) => setNuevoClienteTelefono(event.target.value)}
+                  placeholder="Teléfono opcional"
+                  style={styles.input}
+                />
+
+                <input
+                  value={nuevoClienteCorreo}
+                  onChange={(event) => setNuevoClienteCorreo(event.target.value)}
+                  placeholder="Correo opcional"
+                  style={styles.input}
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={creandoCliente}
+                onClick={() => void crearClienteRapido()}
+                style={creandoCliente ? styles.smallButtonDisabled : styles.smallButton}
+              >
+                {creandoCliente ? "Creando..." : "Crear y seleccionar cliente"}
+              </button>
+            </div>
+          )}
+
           <div style={styles.searchBlock}>
             <label htmlFor="tarifa-busqueda" style={styles.label}>
               Buscar tarifa *
@@ -656,12 +790,7 @@ export default function ServicioRapidoPage() {
                 <button
                   key={tarifa.id}
                   type="button"
-                  onClick={() => {
-                    setTarifaId(String(tarifa.id));
-                    setBusquedaTarifa(
-                      `${tarifa.codigo} - ${tarifa.descripcion}`.trim()
-                    );
-                  }}
+                  onClick={() => seleccionarTarifa(tarifa)}
                   style={
                     seleccionada
                       ? { ...styles.tarifaCard, ...styles.tarifaCardSelected }
@@ -696,6 +825,7 @@ export default function ServicioRapidoPage() {
 
               <input
                 id="cantidad"
+                ref={cantidadRef}
                 type="number"
                 min="0"
                 step="any"
@@ -713,15 +843,19 @@ export default function ServicioRapidoPage() {
                 Tipo de carpa
               </label>
 
-              <input
+              <select
                 id="tipoCarpa"
                 value={tipoCarpa}
-                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
                   setTipoCarpa(event.target.value)
                 }
-                placeholder="Opcional"
-                style={styles.input}
-              />
+                style={styles.select}
+              >
+                <option value="">Sin carpa / no aplica</option>
+                <option value="Carpa pequeña">Carpa pequeña</option>
+                <option value="Carpa grande">Carpa grande</option>
+                <option value="Carpa mula">Carpa mula</option>
+              </select>
             </div>
 
             <div style={styles.field}>
@@ -814,7 +948,7 @@ const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background: "linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)",
-    padding: "32px 16px",
+    padding: "16px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -824,7 +958,7 @@ const styles: Record<string, CSSProperties> = {
     maxWidth: "1100px",
     background: "#ffffff",
     borderRadius: "22px",
-    padding: "28px",
+    padding: "clamp(18px, 3vw, 28px)",
     boxShadow: "0 18px 45px rgba(15, 23, 42, 0.12)",
     border: "1px solid #e5e7eb",
   },
@@ -851,7 +985,7 @@ const styles: Record<string, CSSProperties> = {
   },
   title: {
     margin: 0,
-    fontSize: "32px",
+    fontSize: "clamp(28px, 5vw, 38px)",
     lineHeight: 1.1,
     color: "#0f172a",
   },
@@ -861,7 +995,7 @@ const styles: Record<string, CSSProperties> = {
     color: "#475569",
     fontSize: "15px",
     lineHeight: 1.5,
-    maxWidth: "700px",
+    maxWidth: "760px",
   },
   totalPanel: {
     minWidth: "220px",
@@ -872,13 +1006,15 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     gap: "4px",
+    flex: "1 1 220px",
+    maxWidth: "320px",
   },
   totalLabel: {
     fontSize: "13px",
     opacity: 0.8,
   },
   totalValue: {
-    fontSize: "28px",
+    fontSize: "30px",
     lineHeight: 1.1,
   },
   grid: {
@@ -891,6 +1027,11 @@ const styles: Record<string, CSSProperties> = {
     gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
     gap: "14px",
     marginTop: "18px",
+  },
+  gridQuick: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+    gap: "10px",
   },
   field: {
     display: "flex",
@@ -909,23 +1050,47 @@ const styles: Record<string, CSSProperties> = {
   },
   input: {
     width: "100%",
+    minHeight: "52px",
     border: "1px solid #d7dce4",
     borderRadius: "12px",
     padding: "12px 14px",
-    fontSize: "14px",
+    fontSize: "16px",
     outline: "none",
     background: "#ffffff",
     boxSizing: "border-box",
   },
   select: {
     width: "100%",
+    minHeight: "52px",
     border: "1px solid #d7dce4",
     borderRadius: "12px",
     padding: "12px 14px",
-    fontSize: "14px",
+    fontSize: "16px",
     outline: "none",
     background: "#ffffff",
     boxSizing: "border-box",
+  },
+  quickLink: {
+    width: "fit-content",
+    border: "none",
+    background: "transparent",
+    color: "#0f5fb8",
+    fontWeight: 800,
+    padding: 0,
+    cursor: "pointer",
+    fontSize: "13px",
+  },
+  quickCreateBox: {
+    marginTop: "16px",
+    border: "1px solid #dbeafe",
+    background: "#eff6ff",
+    borderRadius: "16px",
+    padding: "14px",
+  },
+  quickTitle: {
+    margin: "0 0 12px",
+    color: "#0f172a",
+    fontSize: "16px",
   },
   searchBlock: {
     marginTop: "20px",
@@ -936,7 +1101,7 @@ const styles: Record<string, CSSProperties> = {
   tarifasWrap: {
     display: "flex",
     gap: "10px",
-    flexWrap: "wrap" as const,
+    flexWrap: "wrap",
     marginTop: "14px",
   },
   tarifaCard: {
@@ -944,7 +1109,8 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: "14px",
     background: "#ffffff",
     padding: "12px 14px",
-    minWidth: "230px",
+    minWidth: "220px",
+    flex: "1 1 220px",
     display: "flex",
     flexDirection: "column",
     gap: "6px",
@@ -964,7 +1130,7 @@ const styles: Record<string, CSSProperties> = {
   },
   tarifaDescripcion: {
     fontSize: "14px",
-    fontWeight: 600,
+    fontWeight: 700,
     color: "#0f172a",
     lineHeight: 1.4,
   },
@@ -994,7 +1160,7 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     justifyContent: "space-between",
     gap: "12px",
-    flexWrap: "wrap" as const,
+    flexWrap: "wrap",
   },
   summaryLabel: {
     color: "#64748b",
@@ -1008,8 +1174,8 @@ const styles: Record<string, CSSProperties> = {
   },
   summaryValueStrong: {
     color: "#0f172a",
-    fontSize: "16px",
-    fontWeight: 800,
+    fontSize: "18px",
+    fontWeight: 900,
     textAlign: "right",
   },
   messageInfo: {
@@ -1041,32 +1207,55 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     justifyContent: "flex-end",
     gap: "12px",
-    flexWrap: "wrap" as const,
+    flexWrap: "wrap",
   },
   secondaryButton: {
     border: "1px solid #cbd5e1",
     background: "#ffffff",
     color: "#0f172a",
-    padding: "12px 16px",
+    padding: "14px 18px",
     borderRadius: "12px",
-    fontWeight: 700,
+    fontWeight: 800,
     cursor: "pointer",
+    minWidth: "120px",
   },
   primaryButton: {
     border: "none",
     background: "#facc15",
     color: "#111827",
-    padding: "12px 18px",
+    padding: "14px 22px",
     borderRadius: "12px",
-    fontWeight: 800,
+    fontWeight: 900,
     cursor: "pointer",
     boxShadow: "0 10px 20px rgba(250, 204, 21, 0.25)",
+    minWidth: "200px",
   },
   primaryButtonDisabled: {
     border: "none",
     background: "#fde68a",
     color: "#52525b",
-    padding: "12px 18px",
+    padding: "14px 22px",
+    borderRadius: "12px",
+    fontWeight: 900,
+    cursor: "not-allowed",
+    minWidth: "200px",
+  },
+  smallButton: {
+    marginTop: "12px",
+    border: "none",
+    background: "#0f172a",
+    color: "#ffffff",
+    padding: "12px 14px",
+    borderRadius: "12px",
+    fontWeight: 800,
+    cursor: "pointer",
+  },
+  smallButtonDisabled: {
+    marginTop: "12px",
+    border: "none",
+    background: "#94a3b8",
+    color: "#ffffff",
+    padding: "12px 14px",
     borderRadius: "12px",
     fontWeight: 800,
     cursor: "not-allowed",
