@@ -224,6 +224,22 @@ const mapClienteFromResponse = (value: unknown): Cliente | null => {
   return record ? mapCliente(record) : null;
 };
 
+const valorCarpa = (tipoCarpa: string) => {
+  if (tipoCarpa === "Tracto Mula") return 46500;
+  if (tipoCarpa === "Doble Troque") return 23150;
+  if (tipoCarpa === "Sencillo") return 16950;
+  return 0;
+};
+
+const tipoVehiculoDesdeCarpa = (tipoCarpa: string) => {
+  if (tipoCarpa === "Tracto Mula") return "Tracto Mula";
+  if (tipoCarpa === "Doble Troque") return "Doble Troque";
+  if (tipoCarpa === "Sencillo") return "Sencillo";
+
+  // Valor por defecto válido para que /api/vehiculos no rechace la creación.
+  return "Sencillo";
+};
+
 export default function ServicioRapidoPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
@@ -244,7 +260,6 @@ export default function ServicioRapidoPage() {
   const [formaPago, setFormaPago] = useState("credito");
 
   const [aplicaReteIva, setAplicaReteIva] = useState(false);
-  const [facturaElectronica, setFacturaElectronica] = useState(false);
 
   const [crearClienteAbierto, setCrearClienteAbierto] = useState(false);
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
@@ -363,10 +378,13 @@ export default function ServicioRapidoPage() {
   }, [busquedaTarifa, tarifas]);
 
   const cantidadNumero = Number(cantidad);
-  const subtotalBruto =
+
+  const valorServicio =
     (tarifaSeleccionada?.valorUnitario ?? 0) *
     (Number.isFinite(cantidadNumero) ? cantidadNumero : 0);
 
+  const valorAdicionalCarpa = valorCarpa(tipoCarpa);
+  const subtotalBruto = valorServicio + valorAdicionalCarpa;
   const valorReteIva = aplicaReteIva ? subtotalBruto * 0.04 : 0;
   const totalNeto = subtotalBruto - valorReteIva;
 
@@ -381,7 +399,6 @@ export default function ServicioRapidoPage() {
     setTipoCarpa("");
     setFormaPago("credito");
     setAplicaReteIva(false);
-    setFacturaElectronica(false);
     setMensaje("");
     setMensajeTipo("info");
     placaRef.current?.focus();
@@ -507,7 +524,7 @@ export default function ServicioRapidoPage() {
       const respuestaVehiculo = await postJsonSafe("/api/vehiculos", {
         placa: placaNormalizada,
         clienteId: Number(clienteId),
-        tipoVehiculo: "Vehículo",
+        tipoVehiculo: tipoVehiculoDesdeCarpa(tipoCarpa),
       });
 
       if (!respuestaVehiculo.ok) {
@@ -557,7 +574,6 @@ export default function ServicioRapidoPage() {
       tipoCarpa: tipoCarpa.trim() || null,
       formaPago,
       reteIva: aplicaReteIva,
-      facturaElectronica,
     });
 
     if (!respuestaServicio.ok) {
@@ -582,7 +598,6 @@ export default function ServicioRapidoPage() {
     setTipoCarpa("");
     setFormaPago("credito");
     setAplicaReteIva(false);
-    setFacturaElectronica(false);
     placaRef.current?.focus();
   };
 
@@ -679,7 +694,9 @@ export default function ServicioRapidoPage() {
                 onClick={() => setCrearClienteAbierto((prev) => !prev)}
                 style={styles.quickLink}
               >
-                {crearClienteAbierto ? "Cerrar creación rápida" : "+ Crear cliente rápido"}
+                {crearClienteAbierto
+                  ? "Cerrar creación rápida"
+                  : "+ Crear cliente rápido"}
               </button>
 
               <small style={styles.helper}>
@@ -750,14 +767,18 @@ export default function ServicioRapidoPage() {
 
                 <input
                   value={nuevoClienteDocumento}
-                  onChange={(event) => setNuevoClienteDocumento(event.target.value)}
+                  onChange={(event) =>
+                    setNuevoClienteDocumento(event.target.value)
+                  }
                   placeholder="Documento / NIT"
                   style={styles.input}
                 />
 
                 <input
                   value={nuevoClienteTelefono}
-                  onChange={(event) => setNuevoClienteTelefono(event.target.value)}
+                  onChange={(event) =>
+                    setNuevoClienteTelefono(event.target.value)
+                  }
                   placeholder="Teléfono opcional"
                   style={styles.input}
                 />
@@ -774,7 +795,9 @@ export default function ServicioRapidoPage() {
                 type="button"
                 disabled={creandoCliente}
                 onClick={() => void crearClienteRapido()}
-                style={creandoCliente ? styles.smallButtonDisabled : styles.smallButton}
+                style={
+                  creandoCliente ? styles.smallButtonDisabled : styles.smallButton
+                }
               >
                 {creandoCliente ? "Creando..." : "Crear y seleccionar cliente"}
               </button>
@@ -868,9 +891,9 @@ export default function ServicioRapidoPage() {
                 style={styles.select}
               >
                 <option value="">Sin carpa / no aplica</option>
-                <option value="Carpa pequeña">Carpa pequeña</option>
-                <option value="Carpa grande">Carpa grande</option>
-                <option value="Carpa mula">Carpa mula</option>
+                <option value="Tracto Mula">Carpa de tractomula</option>
+                <option value="Sencillo">Carpa de sencillo</option>
+                <option value="Doble Troque">Carpa de doble troque</option>
               </select>
             </div>
 
@@ -888,8 +911,8 @@ export default function ServicioRapidoPage() {
                 style={styles.select}
               >
                 <option value="credito">Crédito</option>
-                <option value="contado">Contado</option>
-                <option value="cortesia">Cortesía</option>
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
               </select>
             </div>
           </div>
@@ -897,6 +920,7 @@ export default function ServicioRapidoPage() {
           <div style={styles.fastOptionsGrid}>
             <div style={styles.toggleCard}>
               <span style={styles.toggleTitle}>ReteIVA 4%</span>
+
               <div style={styles.toggleGroup}>
                 <button
                   type="button"
@@ -909,39 +933,12 @@ export default function ServicioRapidoPage() {
                 >
                   No
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setAplicaReteIva(true)}
                   style={
                     aplicaReteIva
-                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
-                      : styles.toggleButton
-                  }
-                >
-                  Sí
-                </button>
-              </div>
-            </div>
-
-            <div style={styles.toggleCard}>
-              <span style={styles.toggleTitle}>Factura electrónica</span>
-              <div style={styles.toggleGroup}>
-                <button
-                  type="button"
-                  onClick={() => setFacturaElectronica(false)}
-                  style={
-                    !facturaElectronica
-                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
-                      : styles.toggleButton
-                  }
-                >
-                  No
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFacturaElectronica(true)}
-                  style={
-                    facturaElectronica
                       ? { ...styles.toggleButton, ...styles.toggleButtonActive }
                       : styles.toggleButton
                   }
@@ -973,6 +970,13 @@ export default function ServicioRapidoPage() {
             </div>
 
             <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Valor carpa</span>
+              <span style={styles.summaryValue}>
+                ${valorAdicionalCarpa.toLocaleString("es-CO")}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Subtotal</span>
               <span style={styles.summaryValue}>
                 ${subtotalBruto.toLocaleString("es-CO")}
@@ -983,13 +987,6 @@ export default function ServicioRapidoPage() {
               <span style={styles.summaryLabel}>ReteIVA (4%)</span>
               <span style={styles.summaryValue}>
                 - ${valorReteIva.toLocaleString("es-CO")}
-              </span>
-            </div>
-
-            <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Factura electrónica</span>
-              <span style={styles.summaryValue}>
-                {facturaElectronica ? "Sí" : "No"}
               </span>
             </div>
 

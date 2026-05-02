@@ -13,15 +13,16 @@ function validarNumeroPositivo(valor: unknown) {
   return Number.isFinite(numero) && numero > 0;
 }
 
+function normalizarFormaPago(formaPago: unknown) {
+  return limpiarTexto(formaPago || "credito").toLowerCase();
+}
+
 function validarFormaPago(formaPago: string) {
   return (
     formaPago === "" ||
     formaPago === "credito" ||
-    formaPago === "contado" ||
-    formaPago === "cortesia" ||
-    formaPago === "Crédito" ||
-    formaPago === "Contado" ||
-    formaPago === "Cortesía"
+    formaPago === "efectivo" ||
+    formaPago === "transferencia"
   );
 }
 
@@ -29,9 +30,6 @@ function valorCarpa(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
   if (tipoCarpa === "Doble Troque") return 23150;
   if (tipoCarpa === "Sencillo") return 16950;
-  if (tipoCarpa === "Carpa pequeña") return 16950;
-  if (tipoCarpa === "Carpa grande") return 23150;
-  if (tipoCarpa === "Carpa mula") return 46500;
   return 0;
 }
 
@@ -40,10 +38,7 @@ function validarTipoCarpa(tipoCarpa: string) {
     tipoCarpa === "" ||
     tipoCarpa === "Tracto Mula" ||
     tipoCarpa === "Doble Troque" ||
-    tipoCarpa === "Sencillo" ||
-    tipoCarpa === "Carpa pequeña" ||
-    tipoCarpa === "Carpa grande" ||
-    tipoCarpa === "Carpa mula"
+    tipoCarpa === "Sencillo"
   );
 }
 
@@ -144,10 +139,8 @@ export async function POST(req: Request) {
     const vehiculoId = Number(body.vehiculoId);
     const centroOperacionId = Number(body.centroOperacionId);
     const tipoCarpa = limpiarTexto(body.tipoCarpa);
-    const formaPago = limpiarTexto(body.formaPago || "credito");
-
+    const formaPago = normalizarFormaPago(body.formaPago);
     const reteIva = normalizarBoolean(body.reteIva);
-    const facturaElectronica = normalizarBoolean(body.facturaElectronica);
 
     if (
       !tarifaId ||
@@ -251,7 +244,6 @@ export async function POST(req: Request) {
         subtotal,
         reteIva,
         valorReteIva,
-        facturaElectronica,
         totalNeto,
         clienteId,
         vehiculoId,
@@ -274,9 +266,7 @@ export async function POST(req: Request) {
       "Servicios",
       `Creó soporte ${numeroSoporte} - ${tarifa.descripcion}${
         tipoCarpa ? ` + carpa ${tipoCarpa}` : ""
-      } - pago: ${formaPago} - ReteIVA: ${
-        reteIva ? "sí" : "no"
-      } - Factura electrónica: ${facturaElectronica ? "sí" : "no"}`
+      } - pago: ${formaPago} - ReteIVA: ${reteIva ? "sí" : "no"}`
     );
 
     return NextResponse.json(servicio, { status: 201 });
