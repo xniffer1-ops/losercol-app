@@ -189,7 +189,7 @@ export default function Home() {
           <MenuButton href="/operacion" label="Operación en vivo" />
           <MenuButton href="/historial" label="Historial" />
           <MenuButton href="/reportes" label="Reportes" />
-          <MenuButton href="/factura-multiple" label="Factura múltiple" />
+          
           <MenuButton href="/servicio-rapido" label="Servicio rápido" />
           <MenuButton href="/servicios" label="Servicios" />
           <MenuButton href="/caja" label="Caja" />
