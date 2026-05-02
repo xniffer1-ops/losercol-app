@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 
-
 export default function LoginPage() {
-  const [email, setEmail] = useState("admin@losercol.com");
-  const [password, setPassword] = useState("123456");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -13,13 +12,22 @@ export default function LoginPage() {
     e.preventDefault();
     setMensaje("");
 
+    if (!email.trim() || !password.trim()) {
+      setMensaje("Ingresa correo y contraseña");
+      return;
+    }
+
     try {
       setLoading(true);
 
       const res = await fetch("/api/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        cache: "no-store",
+        body: JSON.stringify({
+          email: email.trim().toLowerCase(),
+          password,
+        }),
       });
 
       const data = await res.json();
@@ -30,7 +38,7 @@ export default function LoginPage() {
         return;
       }
 
-      window.location.href = "/";
+      window.location.replace("/");
     } catch {
       setMensaje("Error de conexión");
       setLoading(false);
@@ -41,31 +49,31 @@ export default function LoginPage() {
     <main style={styles.page}>
       <section style={styles.card}>
         <div style={styles.logoBox}>
-  <img
-    src="/logo-losercol.png"
-    alt="Logo Losercol"
-    style={styles.logo}
-  />
-</div>
+          <img src="/logo-losercol.png" alt="Logo Losercol" style={styles.logo} />
+        </div>
 
         <h1 style={styles.title}>Iniciar sesión</h1>
         <p style={styles.subtitle}>Ingresa con tu usuario autorizado</p>
 
-        <form onSubmit={iniciarSesion} style={styles.form}>
+        <form onSubmit={iniciarSesion} style={styles.form} autoComplete="off">
           <input
             type="email"
+            name="losercol_email"
             placeholder="Correo electrónico"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             style={styles.input}
+            autoComplete="off"
           />
 
           <input
             type="password"
+            name="losercol_password"
             placeholder="Contraseña"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             style={styles.input}
+            autoComplete="new-password"
           />
 
           <button type="submit" disabled={loading} style={styles.button}>
