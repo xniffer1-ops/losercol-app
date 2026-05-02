@@ -141,6 +141,7 @@ export async function POST(req: Request) {
     const tipoCarpa = limpiarTexto(body.tipoCarpa);
     const formaPago = normalizarFormaPago(body.formaPago);
     const reteIva = normalizarBoolean(body.reteIva);
+    const facturaElectronica = normalizarBoolean(body.facturaElectronica);
 
     if (
       !tarifaId ||
@@ -245,6 +246,7 @@ export async function POST(req: Request) {
         reteIva,
         valorReteIva,
         totalNeto,
+        facturaElectronica,
         clienteId,
         vehiculoId,
         centroOperacionId,
@@ -266,7 +268,9 @@ export async function POST(req: Request) {
       "Servicios",
       `Creó soporte ${numeroSoporte} - ${tarifa.descripcion}${
         tipoCarpa ? ` + carpa ${tipoCarpa}` : ""
-      } - pago: ${formaPago} - ReteIVA: ${reteIva ? "sí" : "no"}`
+      } - pago: ${formaPago} - ReteIVA: ${
+        reteIva ? "sí" : "no"
+      } - Factura electrónica: ${facturaElectronica ? "sí" : "no"}`
     );
 
     return NextResponse.json(servicio, { status: 201 });

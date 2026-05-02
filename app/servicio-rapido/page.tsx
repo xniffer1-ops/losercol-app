@@ -236,7 +236,6 @@ const tipoVehiculoDesdeCarpa = (tipoCarpa: string) => {
   if (tipoCarpa === "Doble Troque") return "Doble Troque";
   if (tipoCarpa === "Sencillo") return "Sencillo";
 
-  // Valor por defecto válido para que /api/vehiculos no rechace la creación.
   return "Sencillo";
 };
 
@@ -260,6 +259,7 @@ export default function ServicioRapidoPage() {
   const [formaPago, setFormaPago] = useState("credito");
 
   const [aplicaReteIva, setAplicaReteIva] = useState(false);
+  const [facturaElectronica, setFacturaElectronica] = useState(false);
 
   const [crearClienteAbierto, setCrearClienteAbierto] = useState(false);
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
@@ -399,6 +399,7 @@ export default function ServicioRapidoPage() {
     setTipoCarpa("");
     setFormaPago("credito");
     setAplicaReteIva(false);
+    setFacturaElectronica(false);
     setMensaje("");
     setMensajeTipo("info");
     placaRef.current?.focus();
@@ -574,6 +575,7 @@ export default function ServicioRapidoPage() {
       tipoCarpa: tipoCarpa.trim() || null,
       formaPago,
       reteIva: aplicaReteIva,
+      facturaElectronica,
     });
 
     if (!respuestaServicio.ok) {
@@ -598,6 +600,7 @@ export default function ServicioRapidoPage() {
     setTipoCarpa("");
     setFormaPago("credito");
     setAplicaReteIva(false);
+    setFacturaElectronica(false);
     placaRef.current?.focus();
   };
 
@@ -947,6 +950,36 @@ export default function ServicioRapidoPage() {
                 </button>
               </div>
             </div>
+
+            <div style={styles.toggleCard}>
+              <span style={styles.toggleTitle}>Factura electrónica</span>
+
+              <div style={styles.toggleGroup}>
+                <button
+                  type="button"
+                  onClick={() => setFacturaElectronica(false)}
+                  style={
+                    !facturaElectronica
+                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
+                      : styles.toggleButton
+                  }
+                >
+                  No
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFacturaElectronica(true)}
+                  style={
+                    facturaElectronica
+                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
+                      : styles.toggleButton
+                  }
+                >
+                  Sí
+                </button>
+              </div>
+            </div>
           </div>
 
           <div style={styles.summaryBox}>
@@ -987,6 +1020,13 @@ export default function ServicioRapidoPage() {
               <span style={styles.summaryLabel}>ReteIVA (4%)</span>
               <span style={styles.summaryValue}>
                 - ${valorReteIva.toLocaleString("es-CO")}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Factura electrónica</span>
+              <span style={styles.summaryValue}>
+                {facturaElectronica ? "Sí requiere" : "No requiere"}
               </span>
             </div>
 

@@ -41,16 +41,17 @@ model CentroOperacion {
 }
 
 model Servicio {
-  id                Int      @id @default(autoincrement())
-  numeroSoporte     String?
-  descripcion       String
-  valorUnitario     Float
-  cantidad          Float
-  subtotal          Float
+  id            Int     @id @default(autoincrement())
+  numeroSoporte String?
+  descripcion   String
+  valorUnitario Float
+  cantidad      Float
+  subtotal      Float
 
-  reteIva       Boolean @default(false)
-  valorReteIva  Float   @default(0)
-  totalNeto     Float   @default(0)
+  reteIva            Boolean @default(false)
+  valorReteIva       Float   @default(0)
+  totalNeto          Float   @default(0)
+  facturaElectronica Boolean @default(false)
 
   clienteId         Int
   vehiculoId        Int
@@ -59,20 +60,20 @@ model Servicio {
   seccionId         Int?
   soporteId         Int?
 
-  tipoCarpa         String?
-  formaPago         String?
-  unidadMedida      String?
-  presentacion      String?
-  categoria         String?
-  facturado         Boolean  @default(false)
-  createdAt         DateTime @default(now())
+  tipoCarpa    String?
+  formaPago    String?
+  unidadMedida String?
+  presentacion String?
+  categoria    String?
+  facturado    Boolean  @default(false)
+  createdAt    DateTime @default(now())
 
-  cliente           Cliente          @relation(fields: [clienteId], references: [id])
-  vehiculo          Vehiculo         @relation(fields: [vehiculoId], references: [id])
-  centroOperacion   CentroOperacion  @relation(fields: [centroOperacionId], references: [id])
-  tarifa            Tarifa?          @relation(fields: [tarifaId], references: [id])
-  seccion           Seccion?         @relation(fields: [seccionId], references: [id])
-  soporte           Soporte?         @relation(fields: [soporteId], references: [id])
+  cliente         Cliente         @relation(fields: [clienteId], references: [id])
+  vehiculo        Vehiculo        @relation(fields: [vehiculoId], references: [id])
+  centroOperacion CentroOperacion @relation(fields: [centroOperacionId], references: [id])
+  tarifa          Tarifa?         @relation(fields: [tarifaId], references: [id])
+  seccion         Seccion?        @relation(fields: [seccionId], references: [id])
+  soporte         Soporte?        @relation(fields: [soporteId], references: [id])
 }
 
 model Usuario {
