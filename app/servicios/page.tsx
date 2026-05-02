@@ -47,6 +47,7 @@ type Servicio = {
   valorUnitario: number;
   cantidad: number;
   subtotal: number;
+  facturaElectronica?: boolean;
   clienteId: number;
   vehiculoId: number;
   centroOperacionId: number;
@@ -110,6 +111,9 @@ export default function ServiciosPage() {
     if (tipo === "Sencillo") return 16950;
     return 0;
   };
+
+  const textoFacturaElectronica = (s: Servicio) =>
+    s.facturaElectronica ? "Sí requiere" : "No requiere";
 
   const cargarUsuario = async () => {
     try {
@@ -192,6 +196,10 @@ export default function ServiciosPage() {
     (acc, s) => acc + Number(s.cantidad || 0),
     0
   );
+
+  const totalFacturaElectronica = servicios.filter(
+    (s) => s.facturaElectronica
+  ).length;
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -359,6 +367,7 @@ export default function ServiciosPage() {
       Seccion: s.seccion?.nombre || "",
       Tarifa: s.tarifa?.codigo || "",
       "Carpa adicional": s.tipoCarpa || "",
+      "Factura electrónica": textoFacturaElectronica(s),
       Descripcion: s.descripcion,
       Unidad: s.unidadMedida || "",
       Cantidad: s.cantidad,
@@ -394,6 +403,7 @@ export default function ServiciosPage() {
     doc.text("Vehículo:", 110, 48);
     doc.text("Centro:", 110, 56);
     doc.text("Sección:", 110, 64);
+    doc.text("Factura electrónica:", 14, 66);
 
     doc.setFont("helvetica", "normal");
     doc.text(new Date(s.createdAt).toLocaleDateString("es-CO"), 35, 40);
@@ -402,6 +412,7 @@ export default function ServiciosPage() {
     doc.text(s.vehiculo?.placa || "", 132, 48);
     doc.text(s.centroOperacion?.nombre || "", 126, 56);
     doc.text(s.seccion?.nombre || "", 128, 64);
+    doc.text(textoFacturaElectronica(s), 60, 66);
 
     autoTable(doc, {
       startY: 76,
@@ -515,10 +526,8 @@ export default function ServiciosPage() {
         </div>
 
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Subtotal actual</div>
-          <div style={styles.statValue}>
-            ${subtotalPreview.toLocaleString("es-CO")}
-          </div>
+          <div style={styles.statLabel}>Req. factura electrónica</div>
+          <div style={styles.statValue}>{totalFacturaElectronica}</div>
         </div>
       </section>
 
@@ -531,6 +540,7 @@ export default function ServiciosPage() {
             <span>Vehículo</span>
             <span>Centro</span>
             <span>Descripción</span>
+            <span>Factura</span>
             <span>Subtotal</span>
             <span>Acciones</span>
           </div>
@@ -551,10 +561,28 @@ export default function ServiciosPage() {
                   {s.descripcion}
                   {s.tipoCarpa ? ` + Carpa ${s.tipoCarpa}` : ""}
                 </span>
+
+                <span>
+                  <span
+                    style={
+                      s.facturaElectronica
+                        ? styles.facturaSi
+                        : styles.facturaNo
+                    }
+                  >
+                    {textoFacturaElectronica(s)}
+                  </span>
+                </span>
+
                 <span>${Number(s.subtotal).toLocaleString("es-CO")}</span>
 
                 <div style={styles.actions}>
-                
+                  <button
+                    onClick={() => exportarPDF(s)}
+                    style={styles.pdfButton}
+                  >
+                    PDF
+                  </button>
 
                   {user?.rol === "admin" && (
                     <>
@@ -818,7 +846,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableHeader: {
     display: "grid",
-    gridTemplateColumns: "0.9fr 1fr 1.1fr 0.8fr 0.9fr 1.8fr 0.9fr 1.7fr",
+    gridTemplateColumns:
+      "0.9fr 1fr 1.1fr 0.8fr 0.9fr 1.6fr 1fr 0.9fr 1.7fr",
     gap: "10px",
     background: "#f5c400",
     padding: "14px",
@@ -827,7 +856,8 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableRow: {
     display: "grid",
-    gridTemplateColumns: "0.9fr 1fr 1.1fr 0.8fr 0.9fr 1.8fr 0.9fr 1.7fr",
+    gridTemplateColumns:
+      "0.9fr 1fr 1.1fr 0.8fr 0.9fr 1.6fr 1fr 0.9fr 1.7fr",
     gap: "10px",
     padding: "12px 14px",
     borderTop: "1px solid #eee",
@@ -916,6 +946,26 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "6px",
     padding: "8px 10px",
     cursor: "pointer",
+  },
+  facturaSi: {
+    display: "inline-flex",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: "#dcfce7",
+    color: "#166534",
+    fontWeight: 700,
+    fontSize: "12px",
+    whiteSpace: "nowrap",
+  },
+  facturaNo: {
+    display: "inline-flex",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: "#f1f5f9",
+    color: "#475569",
+    fontWeight: 700,
+    fontSize: "12px",
+    whiteSpace: "nowrap",
   },
   message: {
     margin: 0,
