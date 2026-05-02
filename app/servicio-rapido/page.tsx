@@ -1,158 +1,78 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-
-type Cliente = { id: number; nombre: string; ccNit: string };
-type Vehiculo = { id: number; placa: string; clienteId: number };
-type Centro = { id: number; nombre: string };
-type Seccion = { id: number; nombre: string };
-type Tarifa = {
-  id: number;
-  codigo: string;
-  descripcion: string;
-  valorUnitario: number;
-};
+import { useEffect, useState } from "react";
 
 export default function ServicioRapidoPage() {
-  const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
-  const [centros, setCentros] = useState<Centro[]>([]);
-  const [secciones, setSecciones] = useState<Seccion[]>([]);
-  const [tarifas, setTarifas] = useState<Tarifa[]>([]);
-
   const [placa, setPlaca] = useState("");
+  const [clientes, setClientes] = useState<any[]>([]);
   const [clienteId, setClienteId] = useState("");
-  const [vehiculoId, setVehiculoId] = useState("");
-
-  const [centroOperacionId, setCentroOperacionId] = useState("");
+  const [centros, setCentros] = useState<any[]>([]);
+  const [centroId, setCentroId] = useState("");
+  const [secciones, setSecciones] = useState<any[]>([]);
   const [seccionId, setSeccionId] = useState("");
-  const [tarifaId, setTarifaId] = useState("");
-  const [busquedaTarifa, setBusquedaTarifa] = useState("");
+  const [tarifas, setTarifas] = useState<any[]>([]);
+  const [busqueda, setBusqueda] = useState("");
+  const [tarifaSeleccionada, setTarifaSeleccionada] = useState<any>(null);
   const [cantidad, setCantidad] = useState("");
-
-  const [mensaje, setMensaje] = useState("");
-  const [guardando, setGuardando] = useState(false);
-
-  const placaRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     cargarDatos();
   }, []);
 
   const cargarDatos = async () => {
-    const [a, b, c, d, e] = await Promise.all([
-      fetch("/api/clientes"),
-      fetch("/api/vehiculos"),
-      fetch("/api/centros"),
-      fetch("/api/secciones"),
-      fetch("/api/tarifas"),
-    ]);
+    const [resClientes, resCentros, resSecciones, resTarifas] =
+      await Promise.all([
+        fetch("/api/clientes"),
+        fetch("/api/centros"),
+        fetch("/api/secciones"),
+        fetch("/api/tarifas"),
+      ]);
 
-    setClientes(await a.json());
-    setVehiculos(await b.json());
-    setCentros(await c.json());
-    setSecciones(await d.json());
-    setTarifas(await e.json());
+    setClientes(await resClientes.json());
+    setCentros(await resCentros.json());
+    setSecciones(await resSecciones.json());
+    setTarifas(await resTarifas.json());
   };
 
-  // 🔥 LOGICA CORRECTA (NO BLOQUEA CLIENTE)
-  useEffect(() => {
-    if (!placa.trim()) {
-      setVehiculoId("");
+  const tarifasFiltradas = tarifas.filter((t) =>
+    t.descripcion.toLowerCase().includes(busqueda.toLowerCase())
+  );
+
+  const guardar = async () => {
+    if (!placa || !clienteId || !centroId || !seccionId || !tarifaSeleccionada) {
+      alert("Completa todos los campos");
       return;
     }
 
-    const v = vehiculos.find(
-      (x) => x.placa.toUpperCase() === placa.toUpperCase()
-    );
-
-    if (v) {
-      setVehiculoId(String(v.id));
-      setClienteId((prev) => prev || String(v.clienteId));
-    } else {
-      setVehiculoId("");
-    }
-  }, [placa, vehiculos]);
-
-  const tarifa = tarifas.find((t) => t.id === Number(tarifaId));
-
-  const tarifasFiltradas = useMemo(() => {
-    const t = busquedaTarifa.toLowerCase();
-    return tarifas.filter(
-      (x) =>
-        x.codigo.toLowerCase().includes(t) ||
-        x.descripcion.toLowerCase().includes(t)
-    );
-  }, [busquedaTarifa, tarifas]);
-
-  const subtotal =
-    Number(tarifa?.valorUnitario || 0) * Number(cantidad || 0);
-
-  const guardar = async () => {
-    setMensaje("");
-
-    if (!clienteId) return setMensaje("Selecciona cliente.");
-
-    let vehiculoFinalId = vehiculoId;
-
-    if (!vehiculoFinalId) {
-      const resVehiculo = await fetch("/api/vehiculos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ placa, clienteId }),
-      });
-
-      const nuevo = await resVehiculo.json();
-      vehiculoFinalId = String(nuevo.id);
-    }
-
-    if (!centroOperacionId || !seccionId || !tarifaId || !cantidad) {
-      return setMensaje("Completa todos los campos.");
-    }
-
-    setGuardando(true);
-
-    const res = await fetch("/api/servicios", {
+    await fetch("/api/servicios", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        placa,
         clienteId,
-        vehiculoId: vehiculoFinalId,
-        centroOperacionId,
+        centroId,
         seccionId,
-        tarifaId,
-        cantidad,
+        tarifaId: tarifaSeleccionada.id,
+        cantidad: Number(cantidad),
       }),
     });
 
-    if (!res.ok) {
-      setMensaje("Error al guardar.");
-      setGuardando(false);
-      return;
-    }
+    alert("Servicio guardado");
 
-    setMensaje("Servicio guardado ✔");
-    setGuardando(false);
-
-    setPlaca("");
+    setTarifaSeleccionada(null);
     setCantidad("");
-    setTarifaId("");
-    setBusquedaTarifa("");
-
-    placaRef.current?.focus();
+    setBusqueda("");
   };
 
   return (
     <main style={styles.page}>
-      <div style={styles.card}>
+      <section style={styles.card}>
         <h1 style={styles.title}>Servicio rápido</h1>
 
         <div style={styles.grid}>
           <input
-            ref={placaRef}
-            value={placa}
-            onChange={(e) => setPlaca(e.target.value.toUpperCase())}
             placeholder="Placa"
+            value={placa}
+            onChange={(e) => setPlaca(e.target.value)}
             style={styles.input}
           />
 
@@ -161,7 +81,7 @@ export default function ServicioRapidoPage() {
             onChange={(e) => setClienteId(e.target.value)}
             style={styles.input}
           >
-            <option value="">Cliente</option>
+            <option value="">Selecciona cliente</option>
             {clientes.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.nombre}
@@ -170,8 +90,8 @@ export default function ServicioRapidoPage() {
           </select>
 
           <select
-            value={centroOperacionId}
-            onChange={(e) => setCentroOperacionId(e.target.value)}
+            value={centroId}
+            onChange={(e) => setCentroId(e.target.value)}
             style={styles.input}
           >
             <option value="">Centro</option>
@@ -197,97 +117,102 @@ export default function ServicioRapidoPage() {
         </div>
 
         <input
-          value={busquedaTarifa}
-          onChange={(e) => setBusquedaTarifa(e.target.value)}
-          placeholder="Buscar servicio"
-          style={styles.input}
+          placeholder="Buscar servicio..."
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          style={{ ...styles.input, marginTop: 12 }}
         />
 
         <div style={styles.tarifas}>
           {tarifasFiltradas.slice(0, 6).map((t) => (
             <button
               key={t.id}
-              style={styles.tarifaBtn}
-              onClick={() => {
-                setTarifaId(String(t.id));
-                setBusquedaTarifa(t.descripcion);
+              onClick={() => setTarifaSeleccionada(t)}
+              style={{
+                ...styles.tarifaBtn,
+                background:
+                  tarifaSeleccionada?.id === t.id ? "#facc15" : "#fff",
               }}
             >
-              {t.codigo} - {t.descripcion}
+              {t.descripcion}
             </button>
           ))}
         </div>
 
+        {tarifaSeleccionada && (
+          <div style={styles.selected}>
+            <strong>{tarifaSeleccionada.descripcion}</strong>
+          </div>
+        )}
+
         <input
-          type="number"
+          placeholder="Cantidad"
           value={cantidad}
           onChange={(e) => setCantidad(e.target.value)}
-          placeholder="Cantidad"
-          style={styles.input}
+          style={{ ...styles.input, marginTop: 12 }}
         />
 
-        <div style={styles.total}>
-          Subtotal: ${subtotal.toLocaleString("es-CO")}
-        </div>
-
-        <button onClick={guardar} style={styles.save}>
-          {guardando ? "Guardando..." : "Guardar servicio"}
+        <button style={styles.button} onClick={guardar}>
+          Guardar
         </button>
-
-        {mensaje && <p style={styles.msg}>{mensaje}</p>}
-      </div>
+      </section>
     </main>
   );
 }
 
-const styles = {
+/* ================== ESTILOS ================== */
+
+const styles: any = {
   page: {
     minHeight: "100vh",
     background: "#f3f4f6",
     display: "flex",
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
   card: {
-    width: "900px",
     background: "#fff",
     padding: "30px",
     borderRadius: "16px",
+    width: "100%",
+    maxWidth: "700px",
     boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
   },
   title: {
-    marginBottom: "20px",
     fontSize: "28px",
+    marginBottom: "20px",
+    fontWeight: "bold",
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4,1fr)",
-    gap: "10px",
-    marginBottom: "15px",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "12px",
   },
   input: {
     padding: "12px",
-    borderRadius: "8px",
+    borderRadius: "10px",
     border: "1px solid #ddd",
+    fontSize: "14px",
   },
   tarifas: {
     display: "flex",
     gap: "8px",
-    flexWrap: "wrap",
-    marginBottom: "10px",
+    flexWrap: "wrap" as const,
+    marginTop: "12px",
   },
   tarifaBtn: {
-    padding: "8px 10px",
-    background: "#eee",
-    borderRadius: "6px",
-    border: "none",
+    padding: "8px 12px",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
     cursor: "pointer",
   },
-  total: {
+  selected: {
     marginTop: "10px",
-    fontWeight: "bold",
+    padding: "10px",
+    background: "#f9fafb",
+    borderRadius: "8px",
   },
-  save: {
+  button: {
     marginTop: "20px",
     width: "100%",
     padding: "14px",
@@ -296,9 +221,5 @@ const styles = {
     borderRadius: "10px",
     fontWeight: "bold",
     cursor: "pointer",
-  },
-  msg: {
-    marginTop: "10px",
-    fontWeight: "bold",
   },
 };
