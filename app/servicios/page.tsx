@@ -47,6 +47,9 @@ type Servicio = {
   valorUnitario: number;
   cantidad: number;
   subtotal: number;
+  reteIva?: boolean;
+  valorReteIva?: number;
+  totalNeto?: number;
   facturaElectronica?: boolean;
   clienteId: number;
   vehiculoId: number;
@@ -114,6 +117,31 @@ export default function ServiciosPage() {
 
   const textoFacturaElectronica = (s: Servicio) =>
     s.facturaElectronica ? "Sí requiere" : "No requiere";
+
+  const cargarImagenComoBase64 = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("No se pudo crear canvas"));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+
+      img.onerror = () => reject(new Error("No se pudo cargar la imagen"));
+      img.src = url;
+    });
+  };
 
   const cargarUsuario = async () => {
     try {
@@ -372,6 +400,9 @@ export default function ServiciosPage() {
       Unidad: s.unidadMedida || "",
       Cantidad: s.cantidad,
       "Valor Unitario": s.valorUnitario,
+      "Valor carpa": valorCarpa(s.tipoCarpa || ""),
+      "ReteIVA": Number(s.valorReteIva || 0),
+      "Total neto": Number(s.totalNeto || s.subtotal || 0),
       Subtotal: s.subtotal,
     }));
 
@@ -382,40 +413,70 @@ export default function ServiciosPage() {
     XLSX.writeFile(workbook, "servicios.xlsx");
   };
 
-  const exportarPDF = (s: Servicio) => {
+  const exportarPDF = async (s: Servicio) => {
     const doc = new jsPDF();
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(18);
-    doc.text("LOSERCOL", 14, 18);
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const soporte = numeroSoporte(s);
+
+    const valorUnitario = Number(s.valorUnitario || 0);
+    const cantidad = Number(s.cantidad || 0);
+    const valorBase = valorUnitario * cantidad;
+    const valorAdicionalCarpa = valorCarpa(s.tipoCarpa || "");
+    const subtotalBruto = valorBase + valorAdicionalCarpa;
+
+    const reteIvaValor =
+      typeof s.valorReteIva === "number"
+        ? Number(s.valorReteIva || 0)
+        : s.reteIva
+        ? subtotalBruto * 0.04
+        : 0;
+
+    const totalNeto =
+      typeof s.totalNeto === "number"
+        ? Number(s.totalNeto || 0)
+        : subtotalBruto - reteIvaValor;
+
+    try {
+      const logoBase64 = await cargarImagenComoBase64("/logo-losercol.png");
+      doc.addImage(logoBase64, "PNG", 14, 10, 52, 24);
+    } catch (error) {
+      console.warn("No se pudo cargar el logo en el PDF:", error);
+    }
 
     doc.setFontSize(11);
-    doc.setFont("helvetica", "normal");
-    doc.text("Soporte de servicio", 14, 26);
-    doc.text(`No. ${numeroSoporte(s)}`, 140, 26);
-
-    doc.line(14, 30, 196, 30);
+    doc.setFont("helvetica", "bold");
+    doc.text("Soporte de servicio", 14, 42);
 
     doc.setFont("helvetica", "bold");
-    doc.text("Fecha:", 14, 40);
-    doc.text("Cliente:", 14, 48);
-    doc.text("Documento:", 14, 56);
-    doc.text("Vehículo:", 110, 48);
-    doc.text("Centro:", 110, 56);
-    doc.text("Sección:", 110, 64);
-    doc.text("Factura electrónica:", 14, 66);
+    doc.text(`No. ${soporte}`, 145, 42);
+
+    doc.setDrawColor(30, 30, 30);
+    doc.line(14, 47, 196, 47);
+
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "bold");
+    doc.text("Fecha:", 14, 58);
+    doc.text("Cliente:", 14, 66);
+    doc.text("Documento:", 14, 74);
+    doc.text("Factura electrónica:", 14, 82);
+
+    doc.text("Vehículo:", 110, 66);
+    doc.text("Centro:", 110, 74);
+    doc.text("Sección:", 110, 82);
 
     doc.setFont("helvetica", "normal");
-    doc.text(new Date(s.createdAt).toLocaleDateString("es-CO"), 35, 40);
-    doc.text(s.cliente?.nombre || "", 35, 48);
-    doc.text(s.cliente?.ccNit || "", 40, 56);
-    doc.text(s.vehiculo?.placa || "", 132, 48);
-    doc.text(s.centroOperacion?.nombre || "", 126, 56);
-    doc.text(s.seccion?.nombre || "", 128, 64);
-    doc.text(textoFacturaElectronica(s), 60, 66);
+    doc.text(new Date(s.createdAt).toLocaleDateString("es-CO"), 35, 58);
+    doc.text(s.cliente?.nombre || "-", 35, 66);
+    doc.text(s.cliente?.ccNit || "-", 40, 74);
+    doc.text(textoFacturaElectronica(s), 60, 82);
+
+    doc.text(s.vehiculo?.placa || "-", 132, 66);
+    doc.text(s.centroOperacion?.nombre || "-", 126, 74);
+    doc.text(s.seccion?.nombre || "-", 128, 82);
 
     autoTable(doc, {
-      startY: 76,
+      startY: 94,
       head: [
         [
           "Tarifa",
@@ -423,29 +484,90 @@ export default function ServiciosPage() {
           "Descripción",
           "Unidad",
           "Cantidad",
-          "Valor",
-          "Subtotal",
+          "Valor unit.",
+          "Valor base",
         ],
       ],
       body: [
         [
           s.tarifa?.codigo || "",
-          s.tipoCarpa || "",
-          s.descripcion,
+          s.tipoCarpa || "Sin carpa",
+          s.descripcion || "",
           s.unidadMedida || "",
-          String(s.cantidad),
-          `$${Number(s.valorUnitario).toLocaleString("es-CO")}`,
-          `$${Number(s.subtotal).toLocaleString("es-CO")}`,
+          cantidad.toLocaleString("es-CO"),
+          `$${valorUnitario.toLocaleString("es-CO")}`,
+          `$${valorBase.toLocaleString("es-CO")}`,
         ],
       ],
       theme: "grid",
+      styles: {
+        fontSize: 8.5,
+        cellPadding: 2,
+      },
       headStyles: {
         fillColor: [245, 196, 0],
         textColor: [17, 17, 17],
+        fontStyle: "bold",
       },
     });
 
-    doc.save(`${numeroSoporte(s)}_${s.vehiculo?.placa || "servicio"}.pdf`);
+    const finalTablaY = (doc as any).lastAutoTable?.finalY || 116;
+
+    autoTable(doc, {
+      startY: finalTablaY + 8,
+      theme: "grid",
+      styles: {
+        fontSize: 10,
+        cellPadding: 3,
+      },
+      columnStyles: {
+        0: {
+          fontStyle: "bold",
+          cellWidth: 80,
+        },
+        1: {
+          halign: "right",
+        },
+      },
+      body: [
+        ["Valor unitario", `$${valorUnitario.toLocaleString("es-CO")}`],
+        ["Cantidad", cantidad.toLocaleString("es-CO")],
+        ["Valor base", `$${valorBase.toLocaleString("es-CO")}`],
+        ["Valor carpa", `$${valorAdicionalCarpa.toLocaleString("es-CO")}`],
+        ["Subtotal bruto", `$${subtotalBruto.toLocaleString("es-CO")}`],
+        [
+          "ReteIVA 4%",
+          reteIvaValor > 0
+            ? `-$${reteIvaValor.toLocaleString("es-CO")}`
+            : "$0",
+        ],
+        ["Total neto", `$${totalNeto.toLocaleString("es-CO")}`],
+      ],
+      didParseCell: (data) => {
+        if (data.row.index === 6) {
+          data.cell.styles.fontStyle = "bold";
+          data.cell.styles.fontSize = 11;
+        }
+      },
+    });
+
+    const finalResumenY = (doc as any).lastAutoTable?.finalY || finalTablaY + 52;
+
+    const aviso =
+      "Si desea solicitar la facturación electrónica envía un correo al: Auxfacturacion@losercol.com o al celular: 3147897436";
+
+    const avisoY = Math.max(finalResumenY + 12, pageHeight - 34);
+
+    doc.setDrawColor(220, 220, 220);
+    doc.setFillColor(248, 248, 248);
+    doc.roundedRect(14, avisoY, 182, 18, 2, 2, "FD");
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const textoAviso = doc.splitTextToSize(aviso, 174);
+    doc.text(textoAviso, 18, avisoY + 7);
+
+    doc.save(`${soporte}_${s.vehiculo?.placa || "servicio"}.pdf`);
   };
 
   return (
@@ -578,7 +700,7 @@ export default function ServiciosPage() {
 
                 <div style={styles.actions}>
                   <button
-                    onClick={() => exportarPDF(s)}
+                    onClick={() => void exportarPDF(s)}
                     style={styles.pdfButton}
                   >
                     PDF
