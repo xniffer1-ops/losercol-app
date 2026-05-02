@@ -556,10 +556,8 @@ export default function ServicioRapidoPage() {
       cantidad: cantidadNumero,
       tipoCarpa: tipoCarpa.trim() || null,
       formaPago,
-      // Si luego quieres guardar estos dos en BD,
-      // te paso también el route.ts y Prisma:
-      // reteIva: aplicaReteIva,
-      // facturaElectronica,
+      reteIva: aplicaReteIva,
+      facturaElectronica,
     });
 
     if (!respuestaServicio.ok) {

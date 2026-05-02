@@ -41,35 +41,37 @@ model CentroOperacion {
 }
 
 model Servicio {
-  id            Int     @id @default(autoincrement())
-  numeroSoporte String? @unique
-  descripcion   String
-  valorUnitario Float
-  cantidad      Float
-  subtotal      Float
+  id                Int      @id @default(autoincrement())
+  numeroSoporte     String?  @unique
+  descripcion       String
+  valorUnitario     Float
+  cantidad          Float
+  subtotal          Float
+
+  reteIva             Boolean  @default(false)
+  valorReteIva        Float    @default(0)
+  facturaElectronica  Boolean  @default(false)
+  totalNeto           Float    @default(0)
 
   clienteId         Int
   vehiculoId        Int
   centroOperacionId Int
   tarifaId          Int?
   seccionId         Int?
-  soporteId         Int?
 
-  unidadMedida String?
-  tipoCarpa    String?
-  presentacion String?
-  categoria    String?
-  formaPago    String?
+  tipoCarpa         String?
+  formaPago         String?
+  unidadMedida      String?
+  presentacion      String?
+  categoria         String?
+  facturado         Boolean  @default(false)
+  createdAt         DateTime @default(now())
 
-  facturado Boolean  @default(false)
-  createdAt DateTime @default(now())
-
-  cliente         Cliente         @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  vehiculo        Vehiculo        @relation(fields: [vehiculoId], references: [id], onDelete: Cascade)
-  centroOperacion CentroOperacion @relation(fields: [centroOperacionId], references: [id], onDelete: Cascade)
-  tarifa          Tarifa?         @relation(fields: [tarifaId], references: [id])
-  seccion         Seccion?        @relation(fields: [seccionId], references: [id])
-  soporte         Soporte?        @relation(fields: [soporteId], references: [id])
+  cliente           Cliente          @relation(fields: [clienteId], references: [id])
+  vehiculo          Vehiculo         @relation(fields: [vehiculoId], references: [id])
+  centroOperacion   CentroOperacion  @relation(fields: [centroOperacionId], references: [id])
+  tarifa            Tarifa?          @relation(fields: [tarifaId], references: [id])
+  seccion           Seccion?         @relation(fields: [seccionId], references: [id])
 }
 
 model Usuario {

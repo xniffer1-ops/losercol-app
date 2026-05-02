@@ -3,15 +3,35 @@ import { prisma } from "../../../src/lib/prisma";
 import { requireAdmin, requireUser } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 import { getUser } from "@/src/lib/auth";
-import {
-  limpiarTexto,
-  validarFormaPago,
-} from "@/src/lib/validaciones";
+
+function limpiarTexto(valor: unknown) {
+  return String(valor || "").trim();
+}
+
+function validarNumeroPositivo(valor: unknown) {
+  const numero = Number(valor);
+  return Number.isFinite(numero) && numero > 0;
+}
+
+function validarFormaPago(formaPago: string) {
+  return (
+    formaPago === "" ||
+    formaPago === "credito" ||
+    formaPago === "contado" ||
+    formaPago === "cortesia" ||
+    formaPago === "Crédito" ||
+    formaPago === "Contado" ||
+    formaPago === "Cortesía"
+  );
+}
 
 function valorCarpa(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
   if (tipoCarpa === "Doble Troque") return 23150;
   if (tipoCarpa === "Sencillo") return 16950;
+  if (tipoCarpa === "Carpa pequeña") return 16950;
+  if (tipoCarpa === "Carpa grande") return 23150;
+  if (tipoCarpa === "Carpa mula") return 46500;
   return 0;
 }
 
@@ -20,13 +40,17 @@ function validarTipoCarpa(tipoCarpa: string) {
     tipoCarpa === "" ||
     tipoCarpa === "Tracto Mula" ||
     tipoCarpa === "Doble Troque" ||
-    tipoCarpa === "Sencillo"
+    tipoCarpa === "Sencillo" ||
+    tipoCarpa === "Carpa pequeña" ||
+    tipoCarpa === "Carpa grande" ||
+    tipoCarpa === "Carpa mula"
   );
 }
 
-// ===============================
-// 🔍 GET
-// ===============================
+function normalizarBoolean(valor: unknown) {
+  return valor === true || valor === "true" || valor === "si" || valor === "sí";
+}
+
 export async function GET(req: Request) {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -50,8 +74,13 @@ export async function GET(req: Request) {
     if (fechaInicio || fechaFin) {
       where.createdAt = {};
 
-      if (fechaInicio) where.createdAt.gte = new Date(`${fechaInicio}T00:00:00`);
-      if (fechaFin) where.createdAt.lte = new Date(`${fechaFin}T23:59:59`);
+      if (fechaInicio) {
+        where.createdAt.gte = new Date(`${fechaInicio}T00:00:00`);
+      }
+
+      if (fechaFin) {
+        where.createdAt.lte = new Date(`${fechaFin}T23:59:59`);
+      }
     }
 
     const servicios = await prisma.servicio.findMany({
@@ -70,6 +99,7 @@ export async function GET(req: Request) {
     return NextResponse.json(servicios);
   } catch (error) {
     console.error("Error GET /api/servicios:", error);
+
     return NextResponse.json(
       { error: "Error al obtener servicios" },
       { status: 500 }
@@ -77,9 +107,6 @@ export async function GET(req: Request) {
   }
 }
 
-// ===============================
-// ➕ POST
-// ===============================
 export async function POST(req: Request) {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -119,14 +146,16 @@ export async function POST(req: Request) {
     const tipoCarpa = limpiarTexto(body.tipoCarpa);
     const formaPago = limpiarTexto(body.formaPago || "credito");
 
-    // 🔥 CORRECCIÓN AQUÍ
+    const reteIva = normalizarBoolean(body.reteIva);
+    const facturaElectronica = normalizarBoolean(body.facturaElectronica);
+
     if (
       !tarifaId ||
       !seccionId ||
-      cantidad <= 0 ||
       !clienteId ||
       !vehiculoId ||
-      !centroOperacionId
+      !centroOperacionId ||
+      !validarNumeroPositivo(cantidad)
     ) {
       return NextResponse.json(
         {
@@ -195,13 +224,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (vehiculo.clienteId !== cliente.id) {
-      return NextResponse.json(
-        { error: "El vehículo no pertenece al cliente seleccionado" },
-        { status: 400 }
-      );
-    }
-
     const ultimoServicio = await prisma.servicio.findFirst({
       orderBy: { id: "desc" },
     });
@@ -212,6 +234,8 @@ export async function POST(req: Request) {
     const valorServicio = Number(tarifa.valorUnitario) * cantidad;
     const valorAdicionalCarpa = valorCarpa(tipoCarpa);
     const subtotal = valorServicio + valorAdicionalCarpa;
+    const valorReteIva = reteIva ? subtotal * 0.04 : 0;
+    const totalNeto = subtotal - valorReteIva;
 
     const servicio = await prisma.servicio.create({
       data: {
@@ -225,6 +249,10 @@ export async function POST(req: Request) {
         categoria: tarifa.categoria,
         cantidad,
         subtotal,
+        reteIva,
+        valorReteIva,
+        facturaElectronica,
+        totalNeto,
         clienteId,
         vehiculoId,
         centroOperacionId,
@@ -246,12 +274,15 @@ export async function POST(req: Request) {
       "Servicios",
       `Creó soporte ${numeroSoporte} - ${tarifa.descripcion}${
         tipoCarpa ? ` + carpa ${tipoCarpa}` : ""
-      } - pago: ${formaPago}`
+      } - pago: ${formaPago} - ReteIVA: ${
+        reteIva ? "sí" : "no"
+      } - Factura electrónica: ${facturaElectronica ? "sí" : "no"}`
     );
 
     return NextResponse.json(servicio, { status: 201 });
   } catch (error) {
     console.error("Error POST /api/servicios:", error);
+
     return NextResponse.json(
       {
         error:
@@ -262,9 +293,6 @@ export async function POST(req: Request) {
   }
 }
 
-// ===============================
-// ❌ DELETE
-// ===============================
 export async function DELETE(req: Request) {
   const { denied } = await requireAdmin();
   if (denied) return denied;
@@ -295,12 +323,13 @@ export async function DELETE(req: Request) {
     await registrarAccion(
       "ELIMINAR",
       "Servicios",
-      `Eliminó soporte ${servicio.numeroSoporte}`
+      `Eliminó soporte ${servicio.numeroSoporte || servicio.id}`
     );
 
     return NextResponse.json({ ok: true });
   } catch (error) {
     console.error("Error DELETE /api/servicios:", error);
+
     return NextResponse.json(
       { error: "Error al eliminar servicio" },
       { status: 500 }
