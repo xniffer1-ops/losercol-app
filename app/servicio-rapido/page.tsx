@@ -1,225 +1,1074 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 
-export default function ServicioRapidoPage() {
-  const [placa, setPlaca] = useState("");
-  const [clientes, setClientes] = useState<any[]>([]);
-  const [clienteId, setClienteId] = useState("");
-  const [centros, setCentros] = useState<any[]>([]);
-  const [centroId, setCentroId] = useState("");
-  const [secciones, setSecciones] = useState<any[]>([]);
-  const [seccionId, setSeccionId] = useState("");
-  const [tarifas, setTarifas] = useState<any[]>([]);
-  const [busqueda, setBusqueda] = useState("");
-  const [tarifaSeleccionada, setTarifaSeleccionada] = useState<any>(null);
-  const [cantidad, setCantidad] = useState("");
+type Cliente = {
+  id: number;
+  nombre: string;
+  ccNit: string;
+};
 
-  useEffect(() => {
-    cargarDatos();
-  }, []);
+type Vehiculo = {
+  id: number;
+  placa: string;
+  clienteId: number;
+};
 
-  const cargarDatos = async () => {
-    const [resClientes, resCentros, resSecciones, resTarifas] =
-      await Promise.all([
-        fetch("/api/clientes"),
-        fetch("/api/centros"),
-        fetch("/api/secciones"),
-        fetch("/api/tarifas"),
-      ]);
+type Centro = {
+  id: number;
+  nombre: string;
+};
 
-    setClientes(await resClientes.json());
-    setCentros(await resCentros.json());
-    setSecciones(await resSecciones.json());
-    setTarifas(await resTarifas.json());
-  };
+type Seccion = {
+  id: number;
+  nombre: string;
+};
 
-  const tarifasFiltradas = tarifas.filter((t) =>
-    t.descripcion.toLowerCase().includes(busqueda.toLowerCase())
+type Tarifa = {
+  id: number;
+  codigo: string;
+  descripcion: string;
+  valorUnitario: number;
+};
+
+type MensajeTipo = "ok" | "error" | "info";
+type AnyRecord = Record<string, unknown>;
+
+type PostJsonResult = {
+  ok: boolean;
+  status: number;
+  data: unknown;
+  message: string;
+};
+
+const isRecord = (value: unknown): value is AnyRecord => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
+
+const toStringSafe = (value: unknown): string => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return "";
+};
+
+const toNumberSafe = (value: unknown): number => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const getNestedArray = (record: AnyRecord): unknown[] => {
+  const candidates = [record.data, record.items, record.results, record.rows];
+  const found = candidates.find((candidate) => Array.isArray(candidate));
+  return Array.isArray(found) ? found : [];
+};
+
+const extractArrayOfRecords = (value: unknown): AnyRecord[] => {
+  if (Array.isArray(value)) {
+    return value.filter(isRecord);
+  }
+
+  if (isRecord(value)) {
+    return getNestedArray(value).filter(isRecord);
+  }
+
+  return [];
+};
+
+const extractSingleRecord = (value: unknown): AnyRecord | null => {
+  if (Array.isArray(value)) {
+    return value.find(isRecord) ?? null;
+  }
+
+  if (isRecord(value)) {
+    if (isRecord(value.data)) return value.data;
+    if (Array.isArray(value.data)) return value.data.find(isRecord) ?? null;
+    if (isRecord(value.item)) return value.item;
+    if (Array.isArray(value.items)) return value.items.find(isRecord) ?? null;
+    return value;
+  }
+
+  return null;
+};
+
+const getErrorMessage = (value: unknown): string => {
+  if (!isRecord(value)) return "";
+
+  const candidates = [value.message, value.error, value.detail];
+  const found = candidates.find(
+    (candidate) => typeof candidate === "string" && candidate.trim().length > 0
   );
 
-  const guardar = async () => {
-    if (!placa || !clienteId || !centroId || !seccionId || !tarifaSeleccionada) {
-      alert("Completa todos los campos");
+  return typeof found === "string" ? found : "";
+};
+
+const parseJsonSafe = async (response: Response): Promise<unknown> => {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+};
+
+const fetchArraySafe = async <T,>(
+  url: string,
+  mapItem: (item: AnyRecord) => T | null
+): Promise<T[]> => {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    const data = await parseJsonSafe(response);
+
+    if (!response.ok) {
+      return [];
+    }
+
+    return extractArrayOfRecords(data)
+      .map(mapItem)
+      .filter((item): item is T => item !== null);
+  } catch {
+    return [];
+  }
+};
+
+const postJsonSafe = async (
+  url: string,
+  body: unknown
+): Promise<PostJsonResult> => {
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await parseJsonSafe(response);
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      data,
+      message:
+        getErrorMessage(data) ||
+        (response.ok ? "" : `La solicitud falló con estado ${response.status}.`),
+    };
+  } catch {
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      message: "No fue posible conectar con el servidor.",
+    };
+  }
+};
+
+const mapCliente = (item: AnyRecord): Cliente | null => {
+  const id = toNumberSafe(item.id);
+  const nombre = toStringSafe(item.nombre).trim();
+  const ccNit = toStringSafe(item.ccNit ?? item.cc_nit ?? item.nit).trim();
+
+  if (!id || !nombre) return null;
+
+  return { id, nombre, ccNit };
+};
+
+const mapVehiculo = (item: AnyRecord): Vehiculo | null => {
+  const id = toNumberSafe(item.id);
+  const placa = toStringSafe(item.placa).trim().toUpperCase();
+  const clienteId = toNumberSafe(item.clienteId ?? item.cliente_id);
+
+  if (!id || !placa) return null;
+
+  return { id, placa, clienteId };
+};
+
+const mapCentro = (item: AnyRecord): Centro | null => {
+  const id = toNumberSafe(item.id);
+  const nombre = toStringSafe(item.nombre).trim();
+
+  if (!id || !nombre) return null;
+
+  return { id, nombre };
+};
+
+const mapSeccion = (item: AnyRecord): Seccion | null => {
+  const id = toNumberSafe(item.id);
+  const nombre = toStringSafe(item.nombre).trim();
+
+  if (!id || !nombre) return null;
+
+  return { id, nombre };
+};
+
+const mapTarifa = (item: AnyRecord): Tarifa | null => {
+  const id = toNumberSafe(item.id);
+  const codigo = toStringSafe(item.codigo).trim();
+  const descripcion = toStringSafe(item.descripcion).trim();
+  const valorUnitario = toNumberSafe(
+    item.valorUnitario ?? item.valor_unitario ?? item.valor
+  );
+
+  if (!id || !descripcion) return null;
+
+  return {
+    id,
+    codigo,
+    descripcion,
+    valorUnitario,
+  };
+};
+
+const mapVehiculoFromResponse = (value: unknown): Vehiculo | null => {
+  const record = extractSingleRecord(value);
+  return record ? mapVehiculo(record) : null;
+};
+
+export default function ServicioRapidoPage() {
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
+  const [centros, setCentros] = useState<Centro[]>([]);
+  const [secciones, setSecciones] = useState<Seccion[]>([]);
+  const [tarifas, setTarifas] = useState<Tarifa[]>([]);
+
+  const [placa, setPlaca] = useState("");
+  const [clienteId, setClienteId] = useState("");
+  const [clienteFueManual, setClienteFueManual] = useState(false);
+  const [vehiculoId, setVehiculoId] = useState("");
+  const [centroOperacionId, setCentroOperacionId] = useState("");
+  const [seccionId, setSeccionId] = useState("");
+  const [tarifaId, setTarifaId] = useState("");
+  const [busquedaTarifa, setBusquedaTarifa] = useState("");
+  const [cantidad, setCantidad] = useState("");
+  const [tipoCarpa, setTipoCarpa] = useState("");
+  const [formaPago, setFormaPago] = useState("credito");
+
+  const [cargandoDatos, setCargandoDatos] = useState(true);
+  const [guardando, setGuardando] = useState(false);
+  const [mensaje, setMensaje] = useState("");
+  const [mensajeTipo, setMensajeTipo] = useState<MensajeTipo>("info");
+
+  const placaRef = useRef<HTMLInputElement>(null);
+
+  const mostrarMensaje = (texto: string, tipo: MensajeTipo) => {
+    setMensaje(texto);
+    setMensajeTipo(tipo);
+  };
+
+  const cargarDatos = useCallback(async () => {
+    setCargandoDatos(true);
+
+    const [clientesData, vehiculosData, centrosData, seccionesData, tarifasData] =
+      await Promise.all([
+        fetchArraySafe<Cliente>("/api/clientes", mapCliente),
+        fetchArraySafe<Vehiculo>("/api/vehiculos", mapVehiculo),
+        fetchArraySafe<Centro>("/api/centros", mapCentro),
+        fetchArraySafe<Seccion>("/api/secciones", mapSeccion),
+        fetchArraySafe<Tarifa>("/api/tarifas", mapTarifa),
+      ]);
+
+    setClientes(clientesData);
+    setVehiculos(vehiculosData);
+    setCentros(centrosData);
+    setSecciones(seccionesData);
+    setTarifas(tarifasData);
+    setCargandoDatos(false);
+  }, []);
+
+  useEffect(() => {
+    void cargarDatos();
+  }, [cargarDatos]);
+
+  useEffect(() => {
+    placaRef.current?.focus();
+  }, []);
+
+  const placaNormalizada = useMemo(() => placa.trim().toUpperCase(), [placa]);
+
+  const vehiculoEncontrado = useMemo(() => {
+    if (!placaNormalizada) return null;
+
+    return (
+      vehiculos.find(
+        (vehiculo) => vehiculo.placa.toUpperCase() === placaNormalizada
+      ) ?? null
+    );
+  }, [placaNormalizada, vehiculos]);
+
+  const clienteSugerido = useMemo(() => {
+    if (!vehiculoEncontrado) return null;
+
+    return (
+      clientes.find(
+        (cliente) => cliente.id === vehiculoEncontrado.clienteId
+      ) ?? null
+    );
+  }, [clientes, vehiculoEncontrado]);
+
+  useEffect(() => {
+    if (!placaNormalizada) {
+      setVehiculoId("");
+
+      if (!clienteFueManual) {
+        setClienteId("");
+      }
+
       return;
     }
 
-    await fetch("/api/servicios", {
-      method: "POST",
-      body: JSON.stringify({
-        placa,
-        clienteId,
-        centroId,
-        seccionId,
-        tarifaId: tarifaSeleccionada.id,
-        cantidad: Number(cantidad),
-      }),
+    if (vehiculoEncontrado) {
+      const sugeridoId = String(vehiculoEncontrado.clienteId);
+      setVehiculoId(String(vehiculoEncontrado.id));
+
+      if (!clienteId || !clienteFueManual) {
+        setClienteId(sugeridoId);
+        setClienteFueManual(false);
+      }
+
+      return;
+    }
+
+    setVehiculoId("");
+
+    if (!clienteFueManual) {
+      setClienteId("");
+    }
+  }, [placaNormalizada, vehiculoEncontrado, clienteId, clienteFueManual]);
+
+  const tarifaSeleccionada = useMemo(() => {
+    return tarifas.find((tarifa) => tarifa.id === Number(tarifaId)) ?? null;
+  }, [tarifaId, tarifas]);
+
+  const tarifasFiltradas = useMemo(() => {
+    const texto = busquedaTarifa.trim().toLowerCase();
+
+    if (!texto) return tarifas;
+
+    return tarifas.filter((tarifa) => {
+      return (
+        tarifa.codigo.toLowerCase().includes(texto) ||
+        tarifa.descripcion.toLowerCase().includes(texto)
+      );
+    });
+  }, [busquedaTarifa, tarifas]);
+
+  const cantidadNumero = Number(cantidad);
+  const subtotal =
+    (tarifaSeleccionada?.valorUnitario ?? 0) *
+    (Number.isFinite(cantidadNumero) ? cantidadNumero : 0);
+
+  const limpiarFormulario = () => {
+    setPlaca("");
+    setClienteId("");
+    setClienteFueManual(false);
+    setVehiculoId("");
+    setTarifaId("");
+    setBusquedaTarifa("");
+    setCantidad("");
+    setTipoCarpa("");
+    setMensaje("");
+    setMensajeTipo("info");
+    placaRef.current?.focus();
+  };
+
+  const guardar = async () => {
+    setMensaje("");
+
+    if (!placaNormalizada) {
+      mostrarMensaje("La placa es obligatoria.", "error");
+      placaRef.current?.focus();
+      return;
+    }
+
+    if (!clienteId) {
+      mostrarMensaje("Selecciona un cliente.", "error");
+      return;
+    }
+
+    if (!centroOperacionId) {
+      mostrarMensaje("Selecciona un centro de operación.", "error");
+      return;
+    }
+
+    if (!seccionId) {
+      mostrarMensaje("Selecciona una sección.", "error");
+      return;
+    }
+
+    if (!tarifaId) {
+      mostrarMensaje("Selecciona una tarifa.", "error");
+      return;
+    }
+
+    if (!cantidad || !Number.isFinite(cantidadNumero) || cantidadNumero <= 0) {
+      mostrarMensaje("La cantidad debe ser mayor que cero.", "error");
+      return;
+    }
+
+    setGuardando(true);
+
+    let vehiculoFinalId = vehiculoId;
+
+    if (!vehiculoFinalId) {
+      const respuestaVehiculo = await postJsonSafe("/api/vehiculos", {
+        placa: placaNormalizada,
+        clienteId: Number(clienteId),
+      });
+
+      if (!respuestaVehiculo.ok) {
+        mostrarMensaje(
+          respuestaVehiculo.message || "No fue posible crear el vehículo.",
+          "error"
+        );
+        setGuardando(false);
+        return;
+      }
+
+      const nuevoVehiculo = mapVehiculoFromResponse(respuestaVehiculo.data);
+
+      if (!nuevoVehiculo || !nuevoVehiculo.id) {
+        mostrarMensaje(
+          "El vehículo se intentó crear, pero la respuesta no devolvió un id válido.",
+          "error"
+        );
+        setGuardando(false);
+        return;
+      }
+
+      const vehiculoNormalizado: Vehiculo = {
+        ...nuevoVehiculo,
+        clienteId: nuevoVehiculo.clienteId || Number(clienteId),
+      };
+
+      vehiculoFinalId = String(vehiculoNormalizado.id);
+      setVehiculoId(vehiculoFinalId);
+
+      setVehiculos((prev) => {
+        const yaExiste = prev.some(
+          (vehiculo) => vehiculo.id === vehiculoNormalizado.id
+        );
+        return yaExiste ? prev : [vehiculoNormalizado, ...prev];
+      });
+    }
+
+    const respuestaServicio = await postJsonSafe("/api/servicios", {
+      clienteId: Number(clienteId),
+      vehiculoId: Number(vehiculoFinalId),
+      centroOperacionId: Number(centroOperacionId),
+      seccionId: Number(seccionId),
+      tarifaId: Number(tarifaId),
+      cantidad: cantidadNumero,
+      tipoCarpa: tipoCarpa.trim() || null,
+      formaPago,
     });
 
-    alert("Servicio guardado");
+    if (!respuestaServicio.ok) {
+      mostrarMensaje(
+        respuestaServicio.message || "Ocurrió un error al guardar el servicio.",
+        "error"
+      );
+      setGuardando(false);
+      return;
+    }
 
-    setTarifaSeleccionada(null);
+    mostrarMensaje("Servicio guardado correctamente.", "ok");
+    setGuardando(false);
+
+    setPlaca("");
+    setClienteId("");
+    setClienteFueManual(false);
+    setVehiculoId("");
+    setTarifaId("");
+    setBusquedaTarifa("");
     setCantidad("");
-    setBusqueda("");
+    setTipoCarpa("");
+    placaRef.current?.focus();
   };
+
+  const mensajeStyle =
+    mensajeTipo === "error"
+      ? styles.messageError
+      : mensajeTipo === "ok"
+      ? styles.messageOk
+      : styles.messageInfo;
 
   return (
     <main style={styles.page}>
       <section style={styles.card}>
-        <h1 style={styles.title}>Servicio rápido</h1>
-
-        <div style={styles.grid}>
-          <input
-            placeholder="Placa"
-            value={placa}
-            onChange={(e) => setPlaca(e.target.value)}
-            style={styles.input}
-          />
-
-          <select
-            value={clienteId}
-            onChange={(e) => setClienteId(e.target.value)}
-            style={styles.input}
-          >
-            <option value="">Selecciona cliente</option>
-            {clientes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={centroId}
-            onChange={(e) => setCentroId(e.target.value)}
-            style={styles.input}
-          >
-            <option value="">Centro</option>
-            {centros.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre}
-              </option>
-            ))}
-          </select>
-
-          <select
-            value={seccionId}
-            onChange={(e) => setSeccionId(e.target.value)}
-            style={styles.input}
-          >
-            <option value="">Sección</option>
-            {secciones.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.nombre}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <input
-          placeholder="Buscar servicio..."
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          style={{ ...styles.input, marginTop: 12 }}
-        />
-
-        <div style={styles.tarifas}>
-          {tarifasFiltradas.slice(0, 6).map((t) => (
-            <button
-              key={t.id}
-              onClick={() => setTarifaSeleccionada(t)}
-              style={{
-                ...styles.tarifaBtn,
-                background:
-                  tarifaSeleccionada?.id === t.id ? "#facc15" : "#fff",
-              }}
-            >
-              {t.descripcion}
-            </button>
-          ))}
-        </div>
-
-        {tarifaSeleccionada && (
-          <div style={styles.selected}>
-            <strong>{tarifaSeleccionada.descripcion}</strong>
+        <div style={styles.headerRow}>
+          <div>
+            <span style={styles.badge}>Operación</span>
+            <h1 style={styles.title}>Servicio rápido</h1>
+            <p style={styles.subtitle}>
+              Registra servicios sin bloquear el cliente por placa. Si el vehículo
+              no existe, se crea automáticamente al guardar.
+            </p>
           </div>
-        )}
 
-        <input
-          placeholder="Cantidad"
-          value={cantidad}
-          onChange={(e) => setCantidad(e.target.value)}
-          style={{ ...styles.input, marginTop: 12 }}
-        />
+          <div style={styles.totalPanel}>
+            <span style={styles.totalLabel}>Subtotal</span>
+            <strong style={styles.totalValue}>
+              ${subtotal.toLocaleString("es-CO")}
+            </strong>
+          </div>
+        </div>
 
-        <button style={styles.button} onClick={guardar}>
-          Guardar
-        </button>
+        <form
+          onSubmit={(event: FormEvent<HTMLFormElement>) => {
+            event.preventDefault();
+            void guardar();
+          }}
+        >
+          <div style={styles.grid}>
+            <div style={styles.field}>
+              <label htmlFor="placa" style={styles.label}>
+                Placa *
+              </label>
+
+              <input
+                id="placa"
+                ref={placaRef}
+                value={placa}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  setPlaca(event.target.value.toUpperCase())
+                }
+                placeholder="ABC123"
+                autoComplete="off"
+                style={styles.input}
+              />
+
+              <small style={styles.helper}>
+                {vehiculoEncontrado
+                  ? `Vehículo encontrado. Cliente sugerido: ${
+                      clienteSugerido?.nombre || "sin nombre"
+                    }.`
+                  : placaNormalizada
+                  ? "La placa no existe aún; se creará el vehículo al guardar."
+                  : "Escribe la placa para sugerir el cliente automáticamente."}
+              </small>
+            </div>
+
+            <div style={styles.field}>
+              <label htmlFor="cliente" style={styles.label}>
+                Cliente *
+              </label>
+
+              <select
+                id="cliente"
+                value={clienteId}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) => {
+                  setClienteId(event.target.value);
+                  setClienteFueManual(true);
+                }}
+                style={styles.select}
+              >
+                <option value="">Selecciona cliente</option>
+                {clientes.map((cliente) => (
+                  <option key={cliente.id} value={cliente.id}>
+                    {cliente.nombre}
+                    {cliente.ccNit ? ` - ${cliente.ccNit}` : ""}
+                  </option>
+                ))}
+              </select>
+
+              <small style={styles.helper}>
+                {clienteSugerido
+                  ? clienteId && Number(clienteId) !== clienteSugerido.id
+                    ? `Sugerido por placa: ${clienteSugerido.nombre}. Puedes dejar el cliente actual o cambiarlo.`
+                    : `Sugerido por placa: ${clienteSugerido.nombre}.`
+                  : "El cliente siempre se puede editar manualmente."}
+              </small>
+            </div>
+
+            <div style={styles.field}>
+              <label htmlFor="centro" style={styles.label}>
+                Centro *
+              </label>
+
+              <select
+                id="centro"
+                value={centroOperacionId}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                  setCentroOperacionId(event.target.value)
+                }
+                style={styles.select}
+              >
+                <option value="">Selecciona centro</option>
+                {centros.map((centro) => (
+                  <option key={centro.id} value={centro.id}>
+                    {centro.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={styles.field}>
+              <label htmlFor="seccion" style={styles.label}>
+                Sección *
+              </label>
+
+              <select
+                id="seccion"
+                value={seccionId}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                  setSeccionId(event.target.value)
+                }
+                style={styles.select}
+              >
+                <option value="">Selecciona sección</option>
+                {secciones.map((seccion) => (
+                  <option key={seccion.id} value={seccion.id}>
+                    {seccion.nombre}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div style={styles.searchBlock}>
+            <label htmlFor="tarifa-busqueda" style={styles.label}>
+              Buscar tarifa *
+            </label>
+
+            <input
+              id="tarifa-busqueda"
+              value={busquedaTarifa}
+              onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                setBusquedaTarifa(event.target.value)
+              }
+              placeholder="Código o descripción"
+              autoComplete="off"
+              style={styles.input}
+            />
+          </div>
+
+          <div style={styles.tarifasWrap}>
+            {tarifasFiltradas.slice(0, 12).map((tarifa) => {
+              const seleccionada = tarifaId === String(tarifa.id);
+
+              return (
+                <button
+                  key={tarifa.id}
+                  type="button"
+                  onClick={() => {
+                    setTarifaId(String(tarifa.id));
+                    setBusquedaTarifa(
+                      `${tarifa.codigo} - ${tarifa.descripcion}`.trim()
+                    );
+                  }}
+                  style={
+                    seleccionada
+                      ? { ...styles.tarifaCard, ...styles.tarifaCardSelected }
+                      : styles.tarifaCard
+                  }
+                >
+                  <span style={styles.tarifaCodigo}>
+                    {tarifa.codigo || "SIN CÓDIGO"}
+                  </span>
+                  <span style={styles.tarifaDescripcion}>
+                    {tarifa.descripcion}
+                  </span>
+                  <span style={styles.tarifaValor}>
+                    ${tarifa.valorUnitario.toLocaleString("es-CO")}
+                  </span>
+                </button>
+              );
+            })}
+
+            {!tarifasFiltradas.length && (
+              <div style={styles.emptyState}>
+                No se encontraron tarifas con ese criterio.
+              </div>
+            )}
+          </div>
+
+          <div style={styles.gridSecondary}>
+            <div style={styles.field}>
+              <label htmlFor="cantidad" style={styles.label}>
+                Cantidad *
+              </label>
+
+              <input
+                id="cantidad"
+                type="number"
+                min="0"
+                step="any"
+                value={cantidad}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  setCantidad(event.target.value)
+                }
+                placeholder="0"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.field}>
+              <label htmlFor="tipoCarpa" style={styles.label}>
+                Tipo de carpa
+              </label>
+
+              <input
+                id="tipoCarpa"
+                value={tipoCarpa}
+                onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                  setTipoCarpa(event.target.value)
+                }
+                placeholder="Opcional"
+                style={styles.input}
+              />
+            </div>
+
+            <div style={styles.field}>
+              <label htmlFor="formaPago" style={styles.label}>
+                Forma de pago
+              </label>
+
+              <select
+                id="formaPago"
+                value={formaPago}
+                onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+                  setFormaPago(event.target.value)
+                }
+                style={styles.select}
+              >
+                <option value="credito">Crédito</option>
+                <option value="contado">Contado</option>
+                <option value="cortesia">Cortesía</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={styles.summaryBox}>
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Servicio</span>
+              <span style={styles.summaryValue}>
+                {tarifaSeleccionada
+                  ? `${tarifaSeleccionada.codigo} - ${tarifaSeleccionada.descripcion}`
+                  : "Aún no has seleccionado una tarifa"}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Valor unitario</span>
+              <span style={styles.summaryValue}>
+                $
+                {Number(
+                  tarifaSeleccionada?.valorUnitario || 0
+                ).toLocaleString("es-CO")}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Subtotal</span>
+              <span style={styles.summaryValueStrong}>
+                ${subtotal.toLocaleString("es-CO")}
+              </span>
+            </div>
+          </div>
+
+          {cargandoDatos && (
+            <div style={styles.messageInfo}>Cargando catálogos...</div>
+          )}
+
+          {!!mensaje && (
+            <div role="status" aria-live="polite" style={mensajeStyle}>
+              {mensaje}
+            </div>
+          )}
+
+          <div style={styles.actions}>
+            <button
+              type="button"
+              onClick={limpiarFormulario}
+              disabled={guardando}
+              style={styles.secondaryButton}
+            >
+              Limpiar
+            </button>
+
+            <button
+              type="submit"
+              disabled={guardando || cargandoDatos}
+              style={
+                guardando || cargandoDatos
+                  ? styles.primaryButtonDisabled
+                  : styles.primaryButton
+              }
+            >
+              {guardando ? "Guardando..." : "Guardar servicio"}
+            </button>
+          </div>
+        </form>
       </section>
     </main>
   );
 }
 
-/* ================== ESTILOS ================== */
-
-const styles: any = {
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#f3f4f6",
+    background: "linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)",
+    padding: "32px 16px",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
   },
   card: {
-    background: "#fff",
-    padding: "30px",
-    borderRadius: "16px",
     width: "100%",
-    maxWidth: "700px",
-    boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+    maxWidth: "1100px",
+    background: "#ffffff",
+    borderRadius: "22px",
+    padding: "28px",
+    boxShadow: "0 18px 45px rgba(15, 23, 42, 0.12)",
+    border: "1px solid #e5e7eb",
+  },
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "16px",
+    flexWrap: "wrap",
+    marginBottom: "22px",
+  },
+  badge: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    background: "#fff7cc",
+    color: "#7c5c00",
+    fontSize: "12px",
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    marginBottom: "10px",
   },
   title: {
+    margin: 0,
+    fontSize: "32px",
+    lineHeight: 1.1,
+    color: "#0f172a",
+  },
+  subtitle: {
+    marginTop: "10px",
+    marginBottom: 0,
+    color: "#475569",
+    fontSize: "15px",
+    lineHeight: 1.5,
+    maxWidth: "700px",
+  },
+  totalPanel: {
+    minWidth: "220px",
+    background: "#0f172a",
+    color: "#ffffff",
+    borderRadius: "18px",
+    padding: "16px 18px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "4px",
+  },
+  totalLabel: {
+    fontSize: "13px",
+    opacity: 0.8,
+  },
+  totalValue: {
     fontSize: "28px",
-    marginBottom: "20px",
-    fontWeight: "bold",
+    lineHeight: 1.1,
   },
   grid: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "12px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "14px",
+  },
+  gridSecondary: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: "14px",
+    marginTop: "18px",
+  },
+  field: {
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+  },
+  label: {
+    fontSize: "14px",
+    fontWeight: 700,
+    color: "#1e293b",
+  },
+  helper: {
+    color: "#64748b",
+    fontSize: "12px",
+    lineHeight: 1.45,
   },
   input: {
-    padding: "12px",
-    borderRadius: "10px",
-    border: "1px solid #ddd",
+    width: "100%",
+    border: "1px solid #d7dce4",
+    borderRadius: "12px",
+    padding: "12px 14px",
+    fontSize: "14px",
+    outline: "none",
+    background: "#ffffff",
+    boxSizing: "border-box",
+  },
+  select: {
+    width: "100%",
+    border: "1px solid #d7dce4",
+    borderRadius: "12px",
+    padding: "12px 14px",
+    fontSize: "14px",
+    outline: "none",
+    background: "#ffffff",
+    boxSizing: "border-box",
+  },
+  searchBlock: {
+    marginTop: "20px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+  },
+  tarifasWrap: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap" as const,
+    marginTop: "14px",
+  },
+  tarifaCard: {
+    border: "1px solid #e2e8f0",
+    borderRadius: "14px",
+    background: "#ffffff",
+    padding: "12px 14px",
+    minWidth: "230px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "6px",
+    cursor: "pointer",
+    textAlign: "left",
+  },
+  tarifaCardSelected: {
+    border: "1px solid #facc15",
+    boxShadow: "0 0 0 3px rgba(250, 204, 21, 0.25)",
+    background: "#fffdf1",
+  },
+  tarifaCodigo: {
+    fontSize: "12px",
+    fontWeight: 800,
+    color: "#92400e",
+    textTransform: "uppercase",
+  },
+  tarifaDescripcion: {
+    fontSize: "14px",
+    fontWeight: 600,
+    color: "#0f172a",
+    lineHeight: 1.4,
+  },
+  tarifaValor: {
+    fontSize: "13px",
+    color: "#475569",
+  },
+  emptyState: {
+    width: "100%",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "14px",
+    padding: "14px",
+    color: "#64748b",
+    background: "#f8fafc",
+  },
+  summaryBox: {
+    marginTop: "20px",
+    borderRadius: "16px",
+    border: "1px solid #e5e7eb",
+    background: "#f8fafc",
+    padding: "16px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+  summaryRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    flexWrap: "wrap" as const,
+  },
+  summaryLabel: {
+    color: "#64748b",
     fontSize: "14px",
   },
-  tarifas: {
+  summaryValue: {
+    color: "#0f172a",
+    fontSize: "14px",
+    fontWeight: 600,
+    textAlign: "right",
+  },
+  summaryValueStrong: {
+    color: "#0f172a",
+    fontSize: "16px",
+    fontWeight: 800,
+    textAlign: "right",
+  },
+  messageInfo: {
+    marginTop: "18px",
+    padding: "12px 14px",
+    borderRadius: "12px",
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    border: "1px solid #bfdbfe",
+  },
+  messageOk: {
+    marginTop: "18px",
+    padding: "12px 14px",
+    borderRadius: "12px",
+    background: "#ecfdf5",
+    color: "#047857",
+    border: "1px solid #a7f3d0",
+  },
+  messageError: {
+    marginTop: "18px",
+    padding: "12px 14px",
+    borderRadius: "12px",
+    background: "#fef2f2",
+    color: "#b91c1c",
+    border: "1px solid #fecaca",
+  },
+  actions: {
+    marginTop: "22px",
     display: "flex",
-    gap: "8px",
+    justifyContent: "flex-end",
+    gap: "12px",
     flexWrap: "wrap" as const,
-    marginTop: "12px",
   },
-  tarifaBtn: {
-    padding: "8px 12px",
-    borderRadius: "8px",
-    border: "1px solid #ddd",
+  secondaryButton: {
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    color: "#0f172a",
+    padding: "12px 16px",
+    borderRadius: "12px",
+    fontWeight: 700,
     cursor: "pointer",
   },
-  selected: {
-    marginTop: "10px",
-    padding: "10px",
-    background: "#f9fafb",
-    borderRadius: "8px",
-  },
-  button: {
-    marginTop: "20px",
-    width: "100%",
-    padding: "14px",
-    background: "#facc15",
+  primaryButton: {
     border: "none",
-    borderRadius: "10px",
-    fontWeight: "bold",
+    background: "#facc15",
+    color: "#111827",
+    padding: "12px 18px",
+    borderRadius: "12px",
+    fontWeight: 800,
     cursor: "pointer",
+    boxShadow: "0 10px 20px rgba(250, 204, 21, 0.25)",
+  },
+  primaryButtonDisabled: {
+    border: "none",
+    background: "#fde68a",
+    color: "#52525b",
+    padding: "12px 18px",
+    borderRadius: "12px",
+    fontWeight: 800,
+    cursor: "not-allowed",
   },
 };
