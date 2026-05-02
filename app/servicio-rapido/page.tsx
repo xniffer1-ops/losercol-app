@@ -243,6 +243,9 @@ export default function ServicioRapidoPage() {
   const [tipoCarpa, setTipoCarpa] = useState("");
   const [formaPago, setFormaPago] = useState("credito");
 
+  const [aplicaReteIva, setAplicaReteIva] = useState(false);
+  const [facturaElectronica, setFacturaElectronica] = useState(false);
+
   const [crearClienteAbierto, setCrearClienteAbierto] = useState(false);
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
   const [nuevoClienteDocumento, setNuevoClienteDocumento] = useState("");
@@ -360,9 +363,12 @@ export default function ServicioRapidoPage() {
   }, [busquedaTarifa, tarifas]);
 
   const cantidadNumero = Number(cantidad);
-  const subtotal =
+  const subtotalBruto =
     (tarifaSeleccionada?.valorUnitario ?? 0) *
     (Number.isFinite(cantidadNumero) ? cantidadNumero : 0);
+
+  const valorReteIva = aplicaReteIva ? subtotalBruto * 0.04 : 0;
+  const totalNeto = subtotalBruto - valorReteIva;
 
   const limpiarFormulario = () => {
     setPlaca("");
@@ -373,6 +379,9 @@ export default function ServicioRapidoPage() {
     setBusquedaTarifa("");
     setCantidad("");
     setTipoCarpa("");
+    setFormaPago("credito");
+    setAplicaReteIva(false);
+    setFacturaElectronica(false);
     setMensaje("");
     setMensajeTipo("info");
     placaRef.current?.focus();
@@ -387,7 +396,10 @@ export default function ServicioRapidoPage() {
     const correo = nuevoClienteCorreo.trim();
 
     if (!nombre || !documento) {
-      mostrarMensaje("Para crear cliente rápido, nombre y documento son obligatorios.", "error");
+      mostrarMensaje(
+        "Para crear cliente rápido, nombre y documento son obligatorios.",
+        "error"
+      );
       return;
     }
 
@@ -402,7 +414,10 @@ export default function ServicioRapidoPage() {
     });
 
     if (!respuesta.ok) {
-      mostrarMensaje(respuesta.message || "No fue posible crear el cliente.", "error");
+      mostrarMensaje(
+        respuesta.message || "No fue posible crear el cliente.",
+        "error"
+      );
       setCreandoCliente(false);
       return;
     }
@@ -541,6 +556,10 @@ export default function ServicioRapidoPage() {
       cantidad: cantidadNumero,
       tipoCarpa: tipoCarpa.trim() || null,
       formaPago,
+      // Si luego quieres guardar estos dos en BD,
+      // te paso también el route.ts y Prisma:
+      // reteIva: aplicaReteIva,
+      // facturaElectronica,
     });
 
     if (!respuestaServicio.ok) {
@@ -563,6 +582,9 @@ export default function ServicioRapidoPage() {
     setBusquedaTarifa("");
     setCantidad("");
     setTipoCarpa("");
+    setFormaPago("credito");
+    setAplicaReteIva(false);
+    setFacturaElectronica(false);
     placaRef.current?.focus();
   };
 
@@ -586,16 +608,12 @@ export default function ServicioRapidoPage() {
           <div>
             <span style={styles.badge}>Operación</span>
             <h1 style={styles.title}>Servicio rápido</h1>
-            <p style={styles.subtitle}>
-              Registra rápido. La placa puede sugerir cliente, pero puedes escoger otro.
-              Si el vehículo no existe, se crea al guardar.
-            </p>
           </div>
 
           <div style={styles.totalPanel}>
-            <span style={styles.totalLabel}>Subtotal</span>
+            <span style={styles.totalLabel}>Total</span>
             <strong style={styles.totalValue}>
-              ${subtotal.toLocaleString("es-CO")}
+              ${totalNeto.toLocaleString("es-CO")}
             </strong>
           </div>
         </div>
@@ -878,6 +896,64 @@ export default function ServicioRapidoPage() {
             </div>
           </div>
 
+          <div style={styles.fastOptionsGrid}>
+            <div style={styles.toggleCard}>
+              <span style={styles.toggleTitle}>ReteIVA 4%</span>
+              <div style={styles.toggleGroup}>
+                <button
+                  type="button"
+                  onClick={() => setAplicaReteIva(false)}
+                  style={
+                    !aplicaReteIva
+                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
+                      : styles.toggleButton
+                  }
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAplicaReteIva(true)}
+                  style={
+                    aplicaReteIva
+                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
+                      : styles.toggleButton
+                  }
+                >
+                  Sí
+                </button>
+              </div>
+            </div>
+
+            <div style={styles.toggleCard}>
+              <span style={styles.toggleTitle}>Factura electrónica</span>
+              <div style={styles.toggleGroup}>
+                <button
+                  type="button"
+                  onClick={() => setFacturaElectronica(false)}
+                  style={
+                    !facturaElectronica
+                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
+                      : styles.toggleButton
+                  }
+                >
+                  No
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFacturaElectronica(true)}
+                  style={
+                    facturaElectronica
+                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
+                      : styles.toggleButton
+                  }
+                >
+                  Sí
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div style={styles.summaryBox}>
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Servicio</span>
@@ -900,8 +976,29 @@ export default function ServicioRapidoPage() {
 
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Subtotal</span>
+              <span style={styles.summaryValue}>
+                ${subtotalBruto.toLocaleString("es-CO")}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>ReteIVA (4%)</span>
+              <span style={styles.summaryValue}>
+                - ${valorReteIva.toLocaleString("es-CO")}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Factura electrónica</span>
+              <span style={styles.summaryValue}>
+                {facturaElectronica ? "Sí" : "No"}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Total neto</span>
               <span style={styles.summaryValueStrong}>
-                ${subtotal.toLocaleString("es-CO")}
+                ${totalNeto.toLocaleString("es-CO")}
               </span>
             </div>
           </div>
@@ -989,14 +1086,6 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.1,
     color: "#0f172a",
   },
-  subtitle: {
-    marginTop: "10px",
-    marginBottom: 0,
-    color: "#475569",
-    fontSize: "15px",
-    lineHeight: 1.5,
-    maxWidth: "760px",
-  },
   totalPanel: {
     minWidth: "220px",
     background: "#0f172a",
@@ -1032,6 +1121,12 @@ const styles: Record<string, CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
     gap: "10px",
+  },
+  fastOptionsGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+    gap: "14px",
+    marginTop: "18px",
   },
   field: {
     display: "flex",
@@ -1145,6 +1240,42 @@ const styles: Record<string, CSSProperties> = {
     padding: "14px",
     color: "#64748b",
     background: "#f8fafc",
+  },
+  toggleCard: {
+    border: "1px solid #e5e7eb",
+    borderRadius: "16px",
+    padding: "14px",
+    background: "#f8fafc",
+    display: "flex",
+    flexDirection: "column",
+    gap: "10px",
+  },
+  toggleTitle: {
+    fontSize: "14px",
+    fontWeight: 800,
+    color: "#0f172a",
+  },
+  toggleGroup: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  toggleButton: {
+    flex: "1 1 90px",
+    minHeight: "44px",
+    borderRadius: "999px",
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
+    color: "#334155",
+    fontWeight: 800,
+    cursor: "pointer",
+    padding: "10px 14px",
+  },
+  toggleButtonActive: {
+    background: "#0f172a",
+    color: "#ffffff",
+    border: "1px solid #0f172a",
+    boxShadow: "0 8px 20px rgba(15, 23, 42, 0.18)",
   },
   summaryBox: {
     marginTop: "20px",
