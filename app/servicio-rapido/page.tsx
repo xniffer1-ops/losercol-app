@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 
 type Cliente = {
   id: number;
@@ -55,11 +54,11 @@ export default function ServicioRapidoPage() {
 
   const cargarDatos = async () => {
     const [a, b, c, d, e] = await Promise.all([
-      fetch("/api/clientes", { cache: "no-store" }),
-      fetch("/api/vehiculos", { cache: "no-store" }),
-      fetch("/api/centros", { cache: "no-store" }),
-      fetch("/api/secciones", { cache: "no-store" }),
-      fetch("/api/tarifas", { cache: "no-store" }),
+      fetch("/api/clientes"),
+      fetch("/api/vehiculos"),
+      fetch("/api/centros"),
+      fetch("/api/secciones"),
+      fetch("/api/tarifas"),
     ]);
 
     setClientes(await a.json());
@@ -69,7 +68,7 @@ export default function ServicioRapidoPage() {
     setTarifas(await e.json());
   };
 
-
+  // 🔥 CLAVE: NO BLOQUEAR CLIENTE
   useEffect(() => {
     if (!placa.trim()) {
       setVehiculoId("");
@@ -83,13 +82,13 @@ export default function ServicioRapidoPage() {
     if (vehiculoEncontrado) {
       setVehiculoId(String(vehiculoEncontrado.id));
 
-     
+      // SOLO SUGIERE, NO OBLIGA
       setClienteId((prev) =>
         prev ? prev : String(vehiculoEncontrado.clienteId)
       );
     } else {
       setVehiculoId("");
-      
+      // NO borra cliente → clave logística
     }
   }, [placa, vehiculos]);
 
@@ -115,9 +114,21 @@ export default function ServicioRapidoPage() {
       return;
     }
 
-    if (!vehiculoId) {
-      setMensaje("La placa no existe.");
-      return;
+    // 🔥 AHORA PERMITE VEHÍCULO NUEVO
+    let vehiculoFinalId = vehiculoId;
+
+    if (!vehiculoFinalId) {
+      const resVehiculo = await fetch("/api/vehiculos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          placa,
+          clienteId,
+        }),
+      });
+
+      const nuevoVehiculo = await resVehiculo.json();
+      vehiculoFinalId = String(nuevoVehiculo.id);
     }
 
     if (!centroOperacionId || !seccionId || !tarifaId || !cantidad) {
@@ -132,7 +143,7 @@ export default function ServicioRapidoPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         clienteId,
-        vehiculoId,
+        vehiculoId: vehiculoFinalId,
         centroOperacionId,
         seccionId,
         tarifaId,
