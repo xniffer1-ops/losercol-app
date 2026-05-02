@@ -383,10 +383,28 @@ export default function ServicioRapidoPage() {
     (tarifaSeleccionada?.valorUnitario ?? 0) *
     (Number.isFinite(cantidadNumero) ? cantidadNumero : 0);
 
-  const valorAdicionalCarpa = valorCarpa(tipoCarpa);
-  const subtotalBruto = valorServicio + valorAdicionalCarpa;
-  const valorReteIva = aplicaReteIva ? subtotalBruto * 0.04 : 0;
-  const totalNeto = subtotalBruto - valorReteIva;
+  const IVA_PORCENTAJE = 0.19;
+  const RETEIVA_PORCENTAJE = 0.04;
+
+  const redondearPesos = (valor: number) => Math.round(valor);
+
+  const valorAdicionalCarpa = redondearPesos(valorCarpa(tipoCarpa));
+
+  // La tarifa y la carpa YA tienen IVA incluido.
+  const subtotalBruto = redondearPesos(valorServicio + valorAdicionalCarpa);
+
+  // Base antes de IVA.
+  const baseAntesIva = redondearPesos(subtotalBruto / (1 + IVA_PORCENTAJE));
+
+  // IVA incluido dentro del subtotal.
+  const ivaIncluido = redondearPesos(subtotalBruto - baseAntesIva);
+
+  // ReteIVA sobre la base antes de IVA.
+  const valorReteIva = aplicaReteIva
+    ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
+    : 0;
+
+  const totalNeto = redondearPesos(subtotalBruto - valorReteIva);
 
   const limpiarFormulario = () => {
     setPlaca("");
@@ -1010,9 +1028,23 @@ export default function ServicioRapidoPage() {
             </div>
 
             <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Subtotal</span>
+              <span style={styles.summaryLabel}>Total con IVA incluido</span>
               <span style={styles.summaryValue}>
                 ${subtotalBruto.toLocaleString("es-CO")}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Base antes de IVA</span>
+              <span style={styles.summaryValue}>
+                ${baseAntesIva.toLocaleString("es-CO")}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>IVA incluido 19%</span>
+              <span style={styles.summaryValue}>
+                ${ivaIncluido.toLocaleString("es-CO")}
               </span>
             </div>
 

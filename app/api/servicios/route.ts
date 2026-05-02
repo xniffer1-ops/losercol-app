@@ -46,6 +46,13 @@ function normalizarBoolean(valor: unknown) {
   return valor === true || valor === "true" || valor === "si" || valor === "sí";
 }
 
+const IVA_PORCENTAJE = 0.19;
+const RETEIVA_PORCENTAJE = 0.04;
+
+function redondearPesos(valor: number) {
+  return Math.round(valor);
+}
+
 export async function GET(req: Request) {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -225,11 +232,25 @@ export async function POST(req: Request) {
     const siguienteNumero = (ultimoServicio?.id || 0) + 1;
     const numeroSoporte = `SP-${String(siguienteNumero).padStart(6, "0")}`;
 
-    const valorServicio = Number(tarifa.valorUnitario) * cantidad;
-    const valorAdicionalCarpa = valorCarpa(tipoCarpa);
-    const subtotal = valorServicio + valorAdicionalCarpa;
-    const valorReteIva = reteIva ? subtotal * 0.04 : 0;
-    const totalNeto = subtotal - valorReteIva;
+    const valorServicio = redondearPesos(Number(tarifa.valorUnitario) * cantidad);
+    const valorAdicionalCarpa = redondearPesos(valorCarpa(tipoCarpa));
+
+    // IMPORTANTE: la tarifa y la carpa ya tienen IVA incluido.
+    const subtotal = redondearPesos(valorServicio + valorAdicionalCarpa);
+
+    // Base antes de IVA.
+    const baseAntesIva = redondearPesos(subtotal / (1 + IVA_PORCENTAJE));
+
+    // IVA incluido dentro del subtotal.
+    const ivaIncluido = redondearPesos(subtotal - baseAntesIva);
+
+    // ReteIVA se calcula sobre la base antes de IVA, no sobre el total con IVA.
+    const valorReteIva = reteIva
+      ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
+      : 0;
+
+    // Total neto después de descontar ReteIVA.
+    const totalNeto = redondearPesos(subtotal - valorReteIva);
 
     const servicio = await prisma.servicio.create({
       data: {
@@ -268,7 +289,7 @@ export async function POST(req: Request) {
       "Servicios",
       `Creó soporte ${numeroSoporte} - ${tarifa.descripcion}${
         tipoCarpa ? ` + carpa ${tipoCarpa}` : ""
-      } - pago: ${formaPago} - ReteIVA: ${
+      } - pago: ${formaPago} - Base IVA: $${baseAntesIva.toLocaleString("es-CO")} - IVA incluido: $${ivaIncluido.toLocaleString("es-CO")} - ReteIVA: ${
         reteIva ? "sí" : "no"
       } - Factura electrónica: ${facturaElectronica ? "sí" : "no"}`
     );

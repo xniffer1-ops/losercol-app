@@ -118,6 +118,46 @@ export default function ServiciosPage() {
   const textoFacturaElectronica = (s: Servicio) =>
     s.facturaElectronica ? "Sí requiere" : "No requiere";
 
+  const IVA_PORCENTAJE = 0.19;
+  const RETEIVA_PORCENTAJE = 0.04;
+
+  const redondearPesos = (valor: number) => Math.round(valor);
+
+  const calcularValoresServicio = (s: Servicio) => {
+    const valorUnitario = Number(s.valorUnitario || 0);
+    const cantidad = Number(s.cantidad || 0);
+    const valorServicio = redondearPesos(valorUnitario * cantidad);
+    const valorAdicionalCarpa = redondearPesos(valorCarpa(s.tipoCarpa || ""));
+
+    // La tarifa y la carpa YA tienen IVA incluido.
+    const totalConIva = redondearPesos(valorServicio + valorAdicionalCarpa);
+
+    // Base antes de IVA.
+    const baseAntesIva = redondearPesos(totalConIva / (1 + IVA_PORCENTAJE));
+
+    // IVA incluido dentro del total.
+    const ivaIncluido = redondearPesos(totalConIva - baseAntesIva);
+
+    // ReteIVA sobre base antes de IVA.
+    const valorReteIva = s.reteIva
+      ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
+      : 0;
+
+    const totalNeto = redondearPesos(totalConIva - valorReteIva);
+
+    return {
+      valorUnitario,
+      cantidad,
+      valorServicio,
+      valorAdicionalCarpa,
+      totalConIva,
+      baseAntesIva,
+      ivaIncluido,
+      valorReteIva,
+      totalNeto,
+    };
+  };
+
   const cargarImagenComoBase64 = (url: string): Promise<string> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -385,26 +425,33 @@ export default function ServiciosPage() {
       return;
     }
 
-    const data = servicios.map((s) => ({
-      Soporte: numeroSoporte(s),
-      Fecha: new Date(s.createdAt).toLocaleDateString("es-CO"),
-      Cliente: s.cliente?.nombre || "",
-      Documento: s.cliente?.ccNit || "",
-      Vehiculo: s.vehiculo?.placa || "",
-      Centro: s.centroOperacion?.nombre || "",
-      Seccion: s.seccion?.nombre || "",
-      Tarifa: s.tarifa?.codigo || "",
-      "Carpa adicional": s.tipoCarpa || "",
-      "Factura electrónica": textoFacturaElectronica(s),
-      Descripcion: s.descripcion,
-      Unidad: s.unidadMedida || "",
-      Cantidad: s.cantidad,
-      "Valor Unitario": s.valorUnitario,
-      "Valor carpa": valorCarpa(s.tipoCarpa || ""),
-      "ReteIVA": Number(s.valorReteIva || 0),
-      "Total neto": Number(s.totalNeto || s.subtotal || 0),
-      Subtotal: s.subtotal,
-    }));
+    const data = servicios.map((s) => {
+      const valores = calcularValoresServicio(s);
+
+      return {
+        Soporte: numeroSoporte(s),
+        Fecha: new Date(s.createdAt).toLocaleDateString("es-CO"),
+        Cliente: s.cliente?.nombre || "",
+        Documento: s.cliente?.ccNit || "",
+        Vehiculo: s.vehiculo?.placa || "",
+        Centro: s.centroOperacion?.nombre || "",
+        Seccion: s.seccion?.nombre || "",
+        Tarifa: s.tarifa?.codigo || "",
+        "Carpa adicional": s.tipoCarpa || "",
+        "Factura electrónica": textoFacturaElectronica(s),
+        Descripcion: s.descripcion,
+        Unidad: s.unidadMedida || "",
+        Cantidad: valores.cantidad,
+        "Valor unitario con IVA": valores.valorUnitario,
+        "Valor servicio con IVA": valores.valorServicio,
+        "Valor carpa con IVA": valores.valorAdicionalCarpa,
+        "Total con IVA incluido": valores.totalConIva,
+        "Base antes de IVA": valores.baseAntesIva,
+        "IVA incluido 19%": valores.ivaIncluido,
+        "ReteIVA 4%": valores.valorReteIva,
+        "Total neto": valores.totalNeto,
+      };
+    });
 
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
@@ -418,24 +465,7 @@ export default function ServiciosPage() {
 
     const pageHeight = doc.internal.pageSize.getHeight();
     const soporte = numeroSoporte(s);
-
-    const valorUnitario = Number(s.valorUnitario || 0);
-    const cantidad = Number(s.cantidad || 0);
-    const valorBase = valorUnitario * cantidad;
-    const valorAdicionalCarpa = valorCarpa(s.tipoCarpa || "");
-    const subtotalBruto = valorBase + valorAdicionalCarpa;
-
-    const reteIvaValor =
-      typeof s.valorReteIva === "number"
-        ? Number(s.valorReteIva || 0)
-        : s.reteIva
-        ? subtotalBruto * 0.04
-        : 0;
-
-    const totalNeto =
-      typeof s.totalNeto === "number"
-        ? Number(s.totalNeto || 0)
-        : subtotalBruto - reteIvaValor;
+    const valores = calcularValoresServicio(s);
 
     try {
       const logoBase64 = await cargarImagenComoBase64("/logo-losercol.png");
@@ -485,7 +515,7 @@ export default function ServiciosPage() {
           "Unidad",
           "Cantidad",
           "Valor unit.",
-          "Valor base",
+          "Total con IVA",
         ],
       ],
       body: [
@@ -494,9 +524,9 @@ export default function ServiciosPage() {
           s.tipoCarpa || "Sin carpa",
           s.descripcion || "",
           s.unidadMedida || "",
-          cantidad.toLocaleString("es-CO"),
-          `$${valorUnitario.toLocaleString("es-CO")}`,
-          `$${valorBase.toLocaleString("es-CO")}`,
+          valores.cantidad.toLocaleString("es-CO"),
+          `$${valores.valorUnitario.toLocaleString("es-CO")}`,
+          `$${valores.totalConIva.toLocaleString("es-CO")}`,
         ],
       ],
       theme: "grid",
@@ -530,21 +560,41 @@ export default function ServiciosPage() {
         },
       },
       body: [
-        ["Valor unitario", `$${valorUnitario.toLocaleString("es-CO")}`],
-        ["Cantidad", cantidad.toLocaleString("es-CO")],
-        ["Valor base", `$${valorBase.toLocaleString("es-CO")}`],
-        ["Valor carpa", `$${valorAdicionalCarpa.toLocaleString("es-CO")}`],
-        ["Subtotal bruto", `$${subtotalBruto.toLocaleString("es-CO")}`],
+        [
+          "Valor unitario con IVA",
+          `$${valores.valorUnitario.toLocaleString("es-CO")}`,
+        ],
+        ["Cantidad", valores.cantidad.toLocaleString("es-CO")],
+        [
+          "Valor servicio con IVA",
+          `$${valores.valorServicio.toLocaleString("es-CO")}`,
+        ],
+        [
+          "Valor carpa con IVA",
+          `$${valores.valorAdicionalCarpa.toLocaleString("es-CO")}`,
+        ],
+        [
+          "Total con IVA incluido",
+          `$${valores.totalConIva.toLocaleString("es-CO")}`,
+        ],
+        [
+          "Base antes de IVA",
+          `$${valores.baseAntesIva.toLocaleString("es-CO")}`,
+        ],
+        [
+          "IVA incluido 19%",
+          `$${valores.ivaIncluido.toLocaleString("es-CO")}`,
+        ],
         [
           "ReteIVA 4%",
-          reteIvaValor > 0
-            ? `-$${reteIvaValor.toLocaleString("es-CO")}`
+          valores.valorReteIva > 0
+            ? `-$${valores.valorReteIva.toLocaleString("es-CO")}`
             : "$0",
         ],
-        ["Total neto", `$${totalNeto.toLocaleString("es-CO")}`],
+        ["Total neto", `$${valores.totalNeto.toLocaleString("es-CO")}`],
       ],
       didParseCell: (data) => {
-        if (data.row.index === 6) {
+        if (data.row.index === 8) {
           data.cell.styles.fontStyle = "bold";
           data.cell.styles.fontSize = 11;
         }
