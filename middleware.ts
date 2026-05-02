@@ -58,9 +58,9 @@ export function middleware(req: NextRequest) {
   const paginasOperador = [
     "/",
     "/servicio-rapido",
-    "/operacion",
     "/servicios",
     "/soportes",
+    "/caja",
   ];
 
   const apisOperador = [
@@ -72,6 +72,8 @@ export function middleware(req: NextRequest) {
     "/api/centros",
     "/api/secciones",
     "/api/tarifas",
+    "/api/caja",
+    "/api/caja/cerrar",
   ];
 
   if (user.rol === "operador") {
