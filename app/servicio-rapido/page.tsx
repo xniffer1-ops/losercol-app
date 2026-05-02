@@ -2,21 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type Cliente = {
-  id: number;
-  nombre: string;
-  ccNit: string;
-};
-
-type Vehiculo = {
-  id: number;
-  placa: string;
-  clienteId: number;
-};
-
+type Cliente = { id: number; nombre: string; ccNit: string };
+type Vehiculo = { id: number; placa: string; clienteId: number };
 type Centro = { id: number; nombre: string };
 type Seccion = { id: number; nombre: string };
-
 type Tarifa = {
   id: number;
   codigo: string;
@@ -40,8 +29,6 @@ export default function ServicioRapidoPage() {
   const [tarifaId, setTarifaId] = useState("");
   const [busquedaTarifa, setBusquedaTarifa] = useState("");
   const [cantidad, setCantidad] = useState("");
-  const [tipoCarpa, setTipoCarpa] = useState("");
-  const [formaPago, setFormaPago] = useState("credito");
 
   const [mensaje, setMensaje] = useState("");
   const [guardando, setGuardando] = useState(false);
@@ -68,38 +55,33 @@ export default function ServicioRapidoPage() {
     setTarifas(await e.json());
   };
 
-  // 🔥 CLAVE: NO BLOQUEAR CLIENTE
+  // 🔥 LOGICA CORRECTA (NO BLOQUEA CLIENTE)
   useEffect(() => {
     if (!placa.trim()) {
       setVehiculoId("");
       return;
     }
 
-    const vehiculoEncontrado = vehiculos.find(
-      (v) => v.placa.toUpperCase() === placa.toUpperCase()
+    const v = vehiculos.find(
+      (x) => x.placa.toUpperCase() === placa.toUpperCase()
     );
 
-    if (vehiculoEncontrado) {
-      setVehiculoId(String(vehiculoEncontrado.id));
-
-      // SOLO SUGIERE, NO OBLIGA
-      setClienteId((prev) =>
-        prev ? prev : String(vehiculoEncontrado.clienteId)
-      );
+    if (v) {
+      setVehiculoId(String(v.id));
+      setClienteId((prev) => prev || String(v.clienteId));
     } else {
       setVehiculoId("");
-      // NO borra cliente → clave logística
     }
   }, [placa, vehiculos]);
 
   const tarifa = tarifas.find((t) => t.id === Number(tarifaId));
 
   const tarifasFiltradas = useMemo(() => {
-    const texto = busquedaTarifa.toLowerCase();
+    const t = busquedaTarifa.toLowerCase();
     return tarifas.filter(
-      (t) =>
-        t.codigo.toLowerCase().includes(texto) ||
-        t.descripcion.toLowerCase().includes(texto)
+      (x) =>
+        x.codigo.toLowerCase().includes(t) ||
+        x.descripcion.toLowerCase().includes(t)
     );
   }, [busquedaTarifa, tarifas]);
 
@@ -109,31 +91,23 @@ export default function ServicioRapidoPage() {
   const guardar = async () => {
     setMensaje("");
 
-    if (!clienteId) {
-      setMensaje("Selecciona cliente.");
-      return;
-    }
+    if (!clienteId) return setMensaje("Selecciona cliente.");
 
-    // 🔥 AHORA PERMITE VEHÍCULO NUEVO
     let vehiculoFinalId = vehiculoId;
 
     if (!vehiculoFinalId) {
       const resVehiculo = await fetch("/api/vehiculos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          placa,
-          clienteId,
-        }),
+        body: JSON.stringify({ placa, clienteId }),
       });
 
-      const nuevoVehiculo = await resVehiculo.json();
-      vehiculoFinalId = String(nuevoVehiculo.id);
+      const nuevo = await resVehiculo.json();
+      vehiculoFinalId = String(nuevo.id);
     }
 
     if (!centroOperacionId || !seccionId || !tarifaId || !cantidad) {
-      setMensaje("Completa todos los campos.");
-      return;
+      return setMensaje("Completa todos los campos.");
     }
 
     setGuardando(true);
@@ -148,8 +122,6 @@ export default function ServicioRapidoPage() {
         seccionId,
         tarifaId,
         cantidad,
-        tipoCarpa,
-        formaPago,
       }),
     });
 
@@ -159,7 +131,7 @@ export default function ServicioRapidoPage() {
       return;
     }
 
-    setMensaje("Guardado correctamente.");
+    setMensaje("Servicio guardado ✔");
     setGuardando(false);
 
     setPlaca("");
@@ -172,106 +144,161 @@ export default function ServicioRapidoPage() {
 
   return (
     <main style={styles.page}>
-      <h1>Servicio rápido</h1>
+      <div style={styles.card}>
+        <h1 style={styles.title}>Servicio rápido</h1>
 
-      <input
-        ref={placaRef}
-        value={placa}
-        onChange={(e) => setPlaca(e.target.value.toUpperCase())}
-        placeholder="Placa"
-        style={styles.input}
-      />
+        <div style={styles.grid}>
+          <input
+            ref={placaRef}
+            value={placa}
+            onChange={(e) => setPlaca(e.target.value.toUpperCase())}
+            placeholder="Placa"
+            style={styles.input}
+          />
 
-      {/* 🔥 CLIENTE EDITABLE */}
-      <select
-        value={clienteId}
-        onChange={(e) => setClienteId(e.target.value)}
-        style={styles.input}
-      >
-        <option value="">Selecciona cliente (puedes cambiarlo)</option>
-        {clientes.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.nombre} - {c.ccNit}
-          </option>
-        ))}
-      </select>
+          <select
+            value={clienteId}
+            onChange={(e) => setClienteId(e.target.value)}
+            style={styles.input}
+          >
+            <option value="">Cliente</option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
 
-      <select
-        value={centroOperacionId}
-        onChange={(e) => setCentroOperacionId(e.target.value)}
-        style={styles.input}
-      >
-        <option value="">Centro</option>
-        {centros.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.nombre}
-          </option>
-        ))}
-      </select>
+          <select
+            value={centroOperacionId}
+            onChange={(e) => setCentroOperacionId(e.target.value)}
+            style={styles.input}
+          >
+            <option value="">Centro</option>
+            {centros.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
 
-      <select
-        value={seccionId}
-        onChange={(e) => setSeccionId(e.target.value)}
-        style={styles.input}
-      >
-        <option value="">Sección</option>
-        {secciones.map((s) => (
-          <option key={s.id} value={s.id}>
-            {s.nombre}
-          </option>
-        ))}
-      </select>
+          <select
+            value={seccionId}
+            onChange={(e) => setSeccionId(e.target.value)}
+            style={styles.input}
+          >
+            <option value="">Sección</option>
+            {secciones.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
 
-      <input
-        value={busquedaTarifa}
-        onChange={(e) => setBusquedaTarifa(e.target.value)}
-        placeholder="Buscar servicio"
-        style={styles.input}
-      />
+        <input
+          value={busquedaTarifa}
+          onChange={(e) => setBusquedaTarifa(e.target.value)}
+          placeholder="Buscar servicio"
+          style={styles.input}
+        />
 
-      {tarifasFiltradas.map((t) => (
-        <button
-          key={t.id}
-          onClick={() => {
-            setTarifaId(String(t.id));
-            setBusquedaTarifa(t.descripcion);
-          }}
-        >
-          {t.descripcion}
+        <div style={styles.tarifas}>
+          {tarifasFiltradas.slice(0, 6).map((t) => (
+            <button
+              key={t.id}
+              style={styles.tarifaBtn}
+              onClick={() => {
+                setTarifaId(String(t.id));
+                setBusquedaTarifa(t.descripcion);
+              }}
+            >
+              {t.codigo} - {t.descripcion}
+            </button>
+          ))}
+        </div>
+
+        <input
+          type="number"
+          value={cantidad}
+          onChange={(e) => setCantidad(e.target.value)}
+          placeholder="Cantidad"
+          style={styles.input}
+        />
+
+        <div style={styles.total}>
+          Subtotal: ${subtotal.toLocaleString("es-CO")}
+        </div>
+
+        <button onClick={guardar} style={styles.save}>
+          {guardando ? "Guardando..." : "Guardar servicio"}
         </button>
-      ))}
 
-      <input
-        type="number"
-        value={cantidad}
-        onChange={(e) => setCantidad(e.target.value)}
-        placeholder="Cantidad"
-        style={styles.input}
-      />
-
-      <button onClick={guardar} style={styles.button}>
-        {guardando ? "Guardando..." : "Guardar"}
-      </button>
-
-      {mensaje && <p>{mensaje}</p>}
+        {mensaje && <p style={styles.msg}>{mensaje}</p>}
+      </div>
     </main>
   );
 }
 
 const styles = {
   page: {
+    minHeight: "100vh",
+    background: "#f3f4f6",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  card: {
+    width: "900px",
+    background: "#fff",
     padding: "30px",
+    borderRadius: "16px",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+  },
+  title: {
+    marginBottom: "20px",
+    fontSize: "28px",
+  },
+  grid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(4,1fr)",
+    gap: "10px",
+    marginBottom: "15px",
   },
   input: {
-    display: "block",
-    marginBottom: "10px",
-    padding: "10px",
-    width: "300px",
-  },
-  button: {
     padding: "12px",
-    background: "gold",
+    borderRadius: "8px",
+    border: "1px solid #ddd",
+  },
+  tarifas: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+    marginBottom: "10px",
+  },
+  tarifaBtn: {
+    padding: "8px 10px",
+    background: "#eee",
+    borderRadius: "6px",
     border: "none",
     cursor: "pointer",
+  },
+  total: {
+    marginTop: "10px",
+    fontWeight: "bold",
+  },
+  save: {
+    marginTop: "20px",
+    width: "100%",
+    padding: "14px",
+    background: "#facc15",
+    border: "none",
+    borderRadius: "10px",
+    fontWeight: "bold",
+    cursor: "pointer",
+  },
+  msg: {
+    marginTop: "10px",
+    fontWeight: "bold",
   },
 };
