@@ -25,13 +25,17 @@ export default function Home() {
 
   useEffect(() => {
     const cargar = async () => {
-      const resUser = await fetch("/api/me", { cache: "no-store" });
-      const userData = await resUser.json();
-      setUser(userData);
+      try {
+        const resUser = await fetch("/api/me", { cache: "no-store" });
+        const userData = await resUser.json();
+        setUser(userData);
 
-      if (userData?.rol === "admin") {
-        const resDash = await fetch("/api/dashboard", { cache: "no-store" });
-        setData(await resDash.json());
+        if (userData?.rol === "admin") {
+          const resDash = await fetch("/api/dashboard", { cache: "no-store" });
+          setData(await resDash.json());
+        }
+      } catch {
+        setUser(null);
       }
     };
 
@@ -81,13 +85,6 @@ export default function Home() {
             />
 
             <QuickButton
-              href="/operacion"
-              title="Operación en vivo"
-              desc="Ver servicios activos"
-              icon="🚛"
-            />
-
-            <QuickButton
               href="/servicios"
               title="Servicios"
               desc="Consultar servicios guardados"
@@ -97,7 +94,7 @@ export default function Home() {
             <QuickButton
               href="/caja"
               title="Caja"
-              desc="Ver pagos y recaudos"
+              desc="Ver pagos, recaudos y cerrar caja"
               icon="💰"
             />
           </div>
@@ -240,13 +237,11 @@ function QuickButton({
   icon: string;
 }) {
   return (
-    <Link href={href} style={styles.link}>
-      <div style={styles.quickButton}>
-        <span style={styles.quickIcon}>{icon}</span>
-        <div>
-          <strong style={styles.quickButtonTitle}>{title}</strong>
-          <span style={styles.quickButtonDesc}>{desc}</span>
-        </div>
+    <Link href={href} style={{ ...styles.link, ...styles.quickButton }}>
+      <span style={styles.quickIcon}>{icon}</span>
+      <div>
+        <strong style={styles.quickButtonTitle}>{title}</strong>
+        <span style={styles.quickButtonDesc}>{desc}</span>
       </div>
     </Link>
   );
@@ -314,7 +309,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   operatorGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
     gap: "16px",
   },
 
@@ -328,6 +323,7 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: "center",
     gap: "16px",
     cursor: "pointer",
+    boxSizing: "border-box",
   },
 
   quickIcon: {

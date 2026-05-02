@@ -7,16 +7,38 @@ function fechaColombiaHoy() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function normalizarPago(valor: unknown) {
+  return String(valor || "credito").toLowerCase().trim();
+}
+
+function valorServicioCaja(servicio: {
+  subtotal?: number | null;
+  totalNeto?: number | null;
+}) {
+  const totalNeto = Number(servicio.totalNeto || 0);
+  const subtotal = Number(servicio.subtotal || 0);
+
+  return totalNeto > 0 ? totalNeto : subtotal;
+}
+
 export async function GET(req: Request) {
   const { denied } = await requireUser();
   if (denied) return denied;
 
   try {
     const user = await getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "No hay sesión activa" },
+        { status: 401 }
+      );
+    }
+
     const { searchParams } = new URL(req.url);
     const fecha = searchParams.get("fecha") || fechaColombiaHoy();
-    const usuario = user?.email || user?.nombre || "sin usuario";
-    const esAdmin = user?.rol === "admin";
+    const usuario = user.email || user.nombre || "sin usuario";
+    const esAdmin = user.rol === "admin";
 
     const inicio = new Date(`${fecha}T00:00:00`);
     const fin = new Date(`${fecha}T23:59:59`);
@@ -44,11 +66,16 @@ export async function GET(req: Request) {
     let credito = 0;
 
     servicios.forEach((s) => {
-      const valor = Number(s.subtotal || 0);
+      const valor = valorServicioCaja(s);
+      const formaPago = normalizarPago(s.formaPago);
 
-      if (s.formaPago === "efectivo") efectivo += valor;
-      else if (s.formaPago === "transferencia") transferencia += valor;
-      else credito += valor;
+      if (formaPago === "efectivo") {
+        efectivo += valor;
+      } else if (formaPago === "transferencia") {
+        transferencia += valor;
+      } else {
+        credito += valor;
+      }
     });
 
     const total = efectivo + transferencia + credito;
@@ -87,13 +114,18 @@ export async function GET(req: Request) {
         cliente: s.cliente?.nombre || "-",
         placa: s.vehiculo?.placa || "-",
         servicio: s.descripcion,
-        formaPago: s.formaPago || "credito",
+        formaPago: normalizarPago(s.formaPago),
         subtotal: Number(s.subtotal || 0),
+        totalNeto: Number(s.totalNeto || 0),
+        reteIva: Boolean(s.reteIva),
+        valorReteIva: Number(s.valorReteIva || 0),
+        facturaElectronica: Boolean(s.facturaElectronica),
         createdAt: s.createdAt,
       })),
     });
   } catch (error) {
     console.error("Error GET /api/caja:", error);
+
     return NextResponse.json(
       { error: "Error cargando caja" },
       { status: 500 }

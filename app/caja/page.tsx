@@ -11,6 +11,7 @@ type ServicioCaja = {
   servicio: string;
   formaPago: string;
   subtotal: number;
+  totalNeto?: number;
   createdAt: string;
 };
 
@@ -45,27 +46,45 @@ export default function CajaPage() {
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-    cargarCaja();
+    void cargarCaja();
   }, []);
+
+  const leerJsonSeguro = async (res: Response) => {
+    try {
+      return await res.json();
+    } catch {
+      return null;
+    }
+  };
 
   const cargarCaja = async (fechaElegida?: string) => {
     setLoading(true);
     setMensaje("");
 
-    const url = fechaElegida ? `/api/caja?fecha=${fechaElegida}` : "/api/caja";
+    try {
+      const url = fechaElegida ? `/api/caja?fecha=${fechaElegida}` : "/api/caja";
 
-    const res = await fetch(url, { cache: "no-store" });
-    const json = await res.json();
+      const res = await fetch(url, { cache: "no-store" });
+      const json = await leerJsonSeguro(res);
 
-    if (!res.ok) {
-      setMensaje(json.error || "Error cargando caja");
+      if (!res.ok) {
+        setData(null);
+        setMensaje(
+          json?.error ||
+            "No fue posible cargar la caja. Verifica que tengas sesión iniciada."
+        );
+        setLoading(false);
+        return;
+      }
+
+      setData(json);
+      setFecha(json.fecha || fechaElegida || "");
       setLoading(false);
-      return;
+    } catch {
+      setData(null);
+      setMensaje("Error de conexión cargando caja.");
+      setLoading(false);
     }
-
-    setData(json);
-    setFecha(json.fecha);
-    setLoading(false);
   };
 
   const cerrarCaja = async () => {
@@ -80,49 +99,71 @@ export default function CajaPage() {
     if (!ok) return;
 
     setCerrando(true);
+    setMensaje("");
 
-    const res = await fetch("/api/caja/cerrar", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ fecha: data.fecha }),
-    });
+    try {
+      const res = await fetch("/api/caja/cerrar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fecha: data.fecha }),
+      });
 
-    const json = await res.json();
+      const json = await leerJsonSeguro(res);
 
-    if (!res.ok) {
-      alert(json.error || "Error cerrando caja");
+      if (!res.ok) {
+        alert(json?.error || "Error cerrando caja");
+        setCerrando(false);
+        return;
+      }
+
+      alert("Caja cerrada correctamente");
+      await cargarCaja(data.fecha);
       setCerrando(false);
-      return;
+    } catch {
+      alert("Error de conexión cerrando caja");
+      setCerrando(false);
     }
-
-    alert("Caja cerrada correctamente");
-    await cargarCaja(data.fecha);
-    setCerrando(false);
   };
 
   const abrirCaja = async (id: number) => {
     const ok = confirm("¿Seguro deseas abrir nuevamente esta caja?");
     if (!ok) return;
 
-    const res = await fetch("/api/caja/cerrar", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
-    });
+    setMensaje("");
 
-    const json = await res.json();
+    try {
+      const res = await fetch("/api/caja/cerrar", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
 
-    if (!res.ok) {
-      alert(json.error || "Error abriendo caja");
-      return;
+      const json = await leerJsonSeguro(res);
+
+      if (!res.ok) {
+        alert(json?.error || "Error abriendo caja");
+        return;
+      }
+
+      alert("Caja abierta nuevamente");
+      await cargarCaja(data?.fecha);
+    } catch {
+      alert("Error de conexión abriendo caja");
     }
-
-    alert("Caja abierta nuevamente");
-    await cargarCaja(data?.fecha);
   };
 
   const dinero = (valor: number) =>
     `$${Math.round(valor || 0).toLocaleString("es-CO")}`;
+
+  const normalizarPago = (formaPago: string) => {
+    const pago = String(formaPago || "").toLowerCase().trim();
+
+    if (pago === "credito") return "Crédito";
+    if (pago === "efectivo") return "Efectivo";
+    if (pago === "transferencia") return "Transferencia";
+
+    return formaPago || "-";
+  };
 
   return (
     <main style={styles.page}>
@@ -147,16 +188,16 @@ export default function CajaPage() {
             value={fecha}
             onChange={(e) => {
               setFecha(e.target.value);
-              cargarCaja(e.target.value);
+              void cargarCaja(e.target.value);
             }}
             style={styles.input}
           />
         </div>
 
         <button
-          onClick={cerrarCaja}
+          onClick={() => void cerrarCaja()}
           style={data?.cerrado ? styles.closedButton : styles.closeButton}
-          disabled={cerrando || data?.cerrado}
+          disabled={cerrando || loading || data?.cerrado || !data}
         >
           {data?.cerrado
             ? "Caja cerrada"
@@ -204,7 +245,7 @@ export default function CajaPage() {
                   <strong>{dinero(c.total)}</strong>
 
                   <button
-                    onClick={() => abrirCaja(c.id)}
+                    onClick={() => void abrirCaja(c.id)}
                     style={styles.reopenButton}
                   >
                     Abrir caja
@@ -222,32 +263,46 @@ export default function CajaPage() {
               <span>Placa</span>
               <span>Servicio</span>
               <span>Pago</span>
-              <span>Subtotal</span>
+              <span>Total</span>
             </div>
 
             {data.servicios.length === 0 ? (
               <div style={styles.empty}>No hay servicios en esta fecha</div>
             ) : (
-              data.servicios.map((s) => (
-                <div key={s.id} style={styles.row}>
-                  <strong>{s.numeroSoporte || `SP-${s.id}`}</strong>
-                  <span>
-                    {new Date(s.createdAt).toLocaleTimeString("es-CO", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                  <span>{s.cliente}</span>
-                  <span>{s.placa}</span>
-                  <span>{s.servicio}</span>
-                  <span style={styles.payment}>{s.formaPago}</span>
-                  <strong>{dinero(s.subtotal)}</strong>
-                </div>
-              ))
+              data.servicios.map((s) => {
+                const totalMostrar =
+                  typeof s.totalNeto === "number" && s.totalNeto > 0
+                    ? s.totalNeto
+                    : s.subtotal;
+
+                return (
+                  <div key={s.id} style={styles.row}>
+                    <strong>{s.numeroSoporte || `SP-${s.id}`}</strong>
+                    <span>
+                      {new Date(s.createdAt).toLocaleTimeString("es-CO", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                    <span>{s.cliente}</span>
+                    <span>{s.placa}</span>
+                    <span>{s.servicio}</span>
+                    <span style={styles.payment}>
+                      {normalizarPago(s.formaPago)}
+                    </span>
+                    <strong>{dinero(totalMostrar)}</strong>
+                  </div>
+                );
+              })
             )}
           </section>
         </>
-      ) : null}
+      ) : (
+        <section style={styles.card}>
+          No fue posible mostrar la caja. Vuelve al menú e intenta ingresar de
+          nuevo.
+        </section>
+      )}
     </main>
   );
 }
