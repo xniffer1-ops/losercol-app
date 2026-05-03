@@ -9,9 +9,18 @@ function valorCarpa(tipo?: string | null) {
   return 0;
 }
 
+function valorRealServicio(servicio: {
+  subtotal?: number | null;
+  totalNeto?: number | null;
+}) {
+  const totalNeto = Number(servicio.totalNeto || 0);
+  const subtotal = Number(servicio.subtotal || 0);
+
+  return totalNeto > 0 ? totalNeto : subtotal;
+}
+
 export async function GET() {
-  // 🔒 SOLO ADMIN
-  const { denied } = await requireRoles(["admin"]);
+  const { denied } = await requireRoles(["superadmin", "admin"]);
   if (denied) return denied;
 
   try {
@@ -42,12 +51,12 @@ export async function GET() {
     const totalServicios = servicios.length;
 
     const totalRecaudado = servicios.reduce(
-      (acc, s) => acc + Number(s.subtotal || 0),
+      (acc, s) => acc + valorRealServicio(s),
       0
     );
 
     const totalRecaudadoHoy = serviciosHoy.reduce(
-      (acc, s) => acc + Number(s.subtotal || 0),
+      (acc, s) => acc + valorRealServicio(s),
       0
     );
 
@@ -124,7 +133,7 @@ export async function GET() {
         };
       }
 
-      porDiaMap[fecha].total += Number(s.subtotal || 0);
+      porDiaMap[fecha].total += valorRealServicio(s);
       porDiaMap[fecha].toneladas += Number(s.cantidad || 0);
       porDiaMap[fecha].servicios += 1;
 

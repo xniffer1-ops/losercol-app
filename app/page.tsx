@@ -16,26 +16,43 @@ type User = {
   id: number;
   nombre: string;
   email: string;
-  rol: "admin" | "operador";
+  rol: "superadmin" | "admin" | "operador";
 } | null;
 
 export default function Home() {
   const [data, setData] = useState<any>(null);
   const [user, setUser] = useState<User>(null);
+  const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
     const cargar = async () => {
       try {
         const resUser = await fetch("/api/me", { cache: "no-store" });
         const userData = await resUser.json();
+
+        if (!resUser.ok || !userData?.rol) {
+          setUser(null);
+          window.location.href = "/login";
+          return;
+        }
+
         setUser(userData);
 
-        if (userData?.rol === "admin") {
+        if (userData.rol === "admin" || userData.rol === "superadmin") {
           const resDash = await fetch("/api/dashboard", { cache: "no-store" });
-          setData(await resDash.json());
+          const dashData = await resDash.json();
+
+          if (!resDash.ok) {
+            setMensaje(dashData.error || "Error cargando dashboard");
+            setData(null);
+            return;
+          }
+
+          setData(dashData);
         }
       } catch {
         setUser(null);
+        setMensaje("Error de conexión cargando el sistema");
       }
     };
 
@@ -99,6 +116,21 @@ export default function Home() {
             />
           </div>
         </section>
+      </main>
+    );
+  }
+
+  if (mensaje) {
+    return (
+      <main style={styles.page}>
+        <div style={styles.errorBox}>
+          <h2 style={styles.sectionTitle}>No se pudo cargar el dashboard</h2>
+          <p>{mensaje}</p>
+
+          <button onClick={cerrarSesion} style={styles.logoutButton}>
+            Salir
+          </button>
+        </div>
       </main>
     );
   }
@@ -189,7 +221,6 @@ export default function Home() {
           <MenuButton href="/operacion" label="Operación en vivo" />
           <MenuButton href="/historial" label="Historial" />
           <MenuButton href="/reportes" label="Reportes" />
-          
           <MenuButton href="/servicio-rapido" label="Servicio rápido" />
           <MenuButton href="/servicios" label="Servicios" />
           <MenuButton href="/caja" label="Caja" />
@@ -471,5 +502,13 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#111",
     cursor: "pointer",
     boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+  },
+
+  errorBox: {
+    background: "#fff",
+    border: "1px solid #ddd",
+    borderRadius: "14px",
+    padding: "22px",
+    maxWidth: "620px",
   },
 };
