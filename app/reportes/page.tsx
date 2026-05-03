@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import {
@@ -13,118 +13,310 @@ import {
   CartesianGrid,
 } from "recharts";
 
-type FacturaItem = {
-  id: number;
-  soporte: string;
-  descripcion: string;
-  subtotal: number;
-  servicioId?: number;
+type Cliente = {
+  nombre?: string | null;
+  ccNit?: string | null;
 };
 
-type Factura = {
-  id: number;
-  numero: string;
-  cliente: string;
-  total: number;
-  usuario?: string;
-  createdAt: string;
-  items?: FacturaItem[];
+type Vehiculo = {
+  placa?: string | null;
 };
+
+type CentroOperacion = {
+  nombre?: string | null;
+};
+
+type Seccion = {
+  nombre?: string | null;
+};
+
+type Tarifa = {
+  codigo?: string | null;
+  descripcion?: string | null;
+  valorUnitario?: number | null;
+};
+
+type Servicio = {
+  id: number;
+  numeroSoporte?: string | null;
+  descripcion?: string | null;
+  cantidad?: number | string | null;
+  valorUnitario?: number | string | null;
+  subtotal?: number | string | null;
+  totalNeto?: number | string | null;
+  valorReteIva?: number | string | null;
+  reteIva?: boolean | null;
+  facturaElectronica?: boolean | null;
+  formaPago?: string | null;
+  tipoCarpa?: string | null;
+  createdAt: string;
+  cliente?: Cliente | null;
+  vehiculo?: Vehiculo | null;
+  centroOperacion?: CentroOperacion | null;
+  seccion?: Seccion | null;
+  tarifa?: Tarifa | null;
+};
+
+type ResumenPago = {
+  efectivo: number;
+  transferencia: number;
+  credito: number;
+};
+
+function fechaHoyInput() {
+  const hoy = new Date();
+  const year = hoy.getFullYear();
+  const month = String(hoy.getMonth() + 1).padStart(2, "0");
+  const day = String(hoy.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+function fechaInicioMesInput() {
+  const hoy = new Date();
+  const year = hoy.getFullYear();
+  const month = String(hoy.getMonth() + 1).padStart(2, "0");
+
+  return `${year}-${month}-01`;
+}
+
+function numeroSoporte(s: Servicio) {
+  if (s.numeroSoporte) return s.numeroSoporte;
+
+  return `SP-${String(s.id).padStart(6, "0")}`;
+}
+
+function dinero(valor: number) {
+  return `$${Math.round(valor || 0).toLocaleString("es-CO")}`;
+}
+
+function numero(valor: unknown) {
+  const parsed = Number(valor || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function valorRealServicio(s: Servicio) {
+  const totalNeto = numero(s.totalNeto);
+  const subtotal = numero(s.subtotal);
+
+  return totalNeto > 0 ? totalNeto : subtotal;
+}
+
+function normalizarPago(valor?: string | null): keyof ResumenPago {
+  const pago = String(valor || "credito").toLowerCase().trim();
+
+  if (pago === "efectivo") return "efectivo";
+  if (pago === "transferencia") return "transferencia";
+
+  return "credito";
+}
+
+function textoPago(valor?: string | null) {
+  const pago = normalizarPago(valor);
+
+  if (pago === "efectivo") return "Efectivo";
+  if (pago === "transferencia") return "Transferencia";
+
+  return "Crédito";
+}
+
+function textoFacturaElectronica(s: Servicio) {
+  return s.facturaElectronica ? "Sí requiere" : "No requiere";
+}
 
 export default function ReportesPage() {
-  const [facturas, setFacturas] = useState<Factura[]>([]);
-  const [desde, setDesde] = useState("");
-  const [hasta, setHasta] = useState("");
+  const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [desde, setDesde] = useState(fechaInicioMesInput());
+  const [hasta, setHasta] = useState(fechaHoyInput());
   const [loading, setLoading] = useState(true);
+  const [mensaje, setMensaje] = useState("");
 
-  useEffect(() => {
-    cargarFacturas();
+  const cargarServicios = useCallback(async (fechaInicio?: string, fechaFin?: string) => {
+    setLoading(true);
+    setMensaje("");
+
+    try {
+      const params = new URLSearchParams();
+
+      if (fechaInicio) params.set("fechaInicio", fechaInicio);
+      if (fechaFin) params.set("fechaFin", fechaFin);
+
+      const url = params.toString()
+        ? `/api/servicios?${params.toString()}`
+        : "/api/servicios";
+
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setServicios([]);
+        setMensaje(data?.error || "No fue posible cargar los reportes");
+        return;
+      }
+
+      setServicios(Array.isArray(data) ? data : []);
+    } catch {
+      setServicios([]);
+      setMensaje("Error de conexión cargando reportes");
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const cargarFacturas = async () => {
-    const res = await fetch("/api/facturas-multiples", { cache: "no-store" });
-    const data = await res.json();
-    setFacturas(Array.isArray(data) ? data : []);
-    setLoading(false);
-  };
+  useEffect(() => {
+    void cargarServicios(desde, hasta);
+  }, [cargarServicios, desde, hasta]);
 
-  const filtradas = useMemo(() => {
-    return facturas.filter((f) => {
-      const fecha = new Date(f.createdAt);
-      const inicio = desde ? new Date(`${desde}T00:00:00`) : null;
-      const fin = hasta ? new Date(`${hasta}T23:59:59`) : null;
+  const resumen = useMemo(() => {
+    const pagos: ResumenPago = {
+      efectivo: 0,
+      transferencia: 0,
+      credito: 0,
+    };
 
-      if (inicio && fecha < inicio) return false;
-      if (fin && fecha > fin) return false;
+    let totalFacturado = 0;
+    let totalReteIva = 0;
+    let totalCantidad = 0;
+    let totalFacturaElectronica = 0;
+    let totalValorFacturaElectronica = 0;
+    let totalConReteIva = 0;
 
-      return true;
+    servicios.forEach((s) => {
+      const totalServicio = valorRealServicio(s);
+      const pago = normalizarPago(s.formaPago);
+
+      pagos[pago] += totalServicio;
+
+      totalFacturado += totalServicio;
+      totalReteIva += numero(s.valorReteIva);
+      totalCantidad += numero(s.cantidad);
+
+      if (s.reteIva) {
+        totalConReteIva += 1;
+      }
+
+      if (s.facturaElectronica) {
+        totalFacturaElectronica += 1;
+        totalValorFacturaElectronica += totalServicio;
+      }
     });
-  }, [facturas, desde, hasta]);
 
-  const totalFacturado = filtradas.reduce(
-    (acc, f) => acc + Number(f.total || 0),
-    0
-  );
-
-  const totalFacturas = filtradas.length;
-  const promedio = totalFacturas > 0 ? totalFacturado / totalFacturas : 0;
+    return {
+      pagos,
+      totalServicios: servicios.length,
+      totalFacturado,
+      totalReteIva,
+      totalCantidad,
+      totalFacturaElectronica,
+      totalValorFacturaElectronica,
+      totalConReteIva,
+      totalSinFacturaElectronica: servicios.length - totalFacturaElectronica,
+    };
+  }, [servicios]);
 
   const grafica = useMemo(() => {
     const mapa: Record<string, number> = {};
 
-    filtradas.forEach((f) => {
-      const fecha = new Date(f.createdAt).toLocaleDateString("es-CO");
-      mapa[fecha] = (mapa[fecha] || 0) + Number(f.total || 0);
+    servicios.forEach((s) => {
+      const fecha = new Date(s.createdAt).toLocaleDateString("es-CO");
+      mapa[fecha] = (mapa[fecha] || 0) + valorRealServicio(s);
     });
 
     return Object.entries(mapa).map(([fecha, total]) => ({
       fecha,
       total,
     }));
-  }, [filtradas]);
+  }, [servicios]);
 
-  const dinero = (valor: number) =>
-    `$${Math.round(valor || 0).toLocaleString("es-CO")}`;
+  const serviciosFactura = useMemo(() => {
+    return servicios.filter((s) => Boolean(s.facturaElectronica));
+  }, [servicios]);
 
   const limpiarFiltros = () => {
-    setDesde("");
-    setHasta("");
+    setDesde(fechaInicioMesInput());
+    setHasta(fechaHoyInput());
   };
 
   const exportarExcel = () => {
-    if (filtradas.length === 0) {
+    if (servicios.length === 0) {
       alert("No hay datos para exportar");
       return;
     }
 
-    const resumen = [
-      { Concepto: "Total facturado", Valor: totalFacturado },
-      { Concepto: "Total facturas", Valor: totalFacturas },
-      { Concepto: "Promedio por factura", Valor: promedio },
+    const hojaResumen = [
+      { Concepto: "Servicios del periodo", Valor: resumen.totalServicios },
+      { Concepto: "Total facturado / neto", Valor: resumen.totalFacturado },
+      {
+        Concepto: "Servicios que requieren factura electrónica",
+        Valor: resumen.totalFacturaElectronica,
+      },
+      {
+        Concepto: "Valor servicios con factura electrónica",
+        Valor: resumen.totalValorFacturaElectronica,
+      },
+      {
+        Concepto: "Servicios que no requieren factura electrónica",
+        Valor: resumen.totalSinFacturaElectronica,
+      },
+      { Concepto: "Total cantidad / toneladas", Valor: resumen.totalCantidad },
+      { Concepto: "Total ReteIVA", Valor: resumen.totalReteIva },
+      { Concepto: "Efectivo", Valor: resumen.pagos.efectivo },
+      { Concepto: "Transferencia", Valor: resumen.pagos.transferencia },
+      { Concepto: "Crédito", Valor: resumen.pagos.credito },
     ];
 
-    const detalle = filtradas.map((f) => ({
-      Numero: f.numero,
-      Fecha: new Date(f.createdAt).toLocaleDateString("es-CO"),
-      Cliente: f.cliente,
-      Usuario: f.usuario || "-",
-      Servicios: f.items?.length || 0,
-      Total: Number(f.total || 0),
+    const hojaDetalle = servicios.map((s) => ({
+      Soporte: numeroSoporte(s),
+      Fecha: new Date(s.createdAt).toLocaleDateString("es-CO"),
+      Cliente: s.cliente?.nombre || "",
+      Documento: s.cliente?.ccNit || "",
+      Vehiculo: s.vehiculo?.placa || "",
+      Centro: s.centroOperacion?.nombre || "",
+      Seccion: s.seccion?.nombre || "",
+      Tarifa: s.tarifa?.codigo || "",
+      Descripcion: s.descripcion || "",
+      Cantidad: numero(s.cantidad),
+      "Forma de pago": textoPago(s.formaPago),
+      "Factura electrónica": textoFacturaElectronica(s),
+      ReteIVA: s.reteIva ? "Sí" : "No",
+      "Valor ReteIVA": numero(s.valorReteIva),
+      Subtotal: numero(s.subtotal),
+      "Total neto": valorRealServicio(s),
+    }));
+
+    const hojaFactura = serviciosFactura.map((s) => ({
+      Soporte: numeroSoporte(s),
+      Fecha: new Date(s.createdAt).toLocaleDateString("es-CO"),
+      Cliente: s.cliente?.nombre || "",
+      Documento: s.cliente?.ccNit || "",
+      Vehiculo: s.vehiculo?.placa || "",
+      Centro: s.centroOperacion?.nombre || "",
+      Seccion: s.seccion?.nombre || "",
+      Descripcion: s.descripcion || "",
+      Total: valorRealServicio(s),
     }));
 
     const workbook = XLSX.utils.book_new();
+
     XLSX.utils.book_append_sheet(
       workbook,
-      XLSX.utils.json_to_sheet(resumen),
+      XLSX.utils.json_to_sheet(hojaResumen),
       "Resumen"
     );
+
     XLSX.utils.book_append_sheet(
       workbook,
-      XLSX.utils.json_to_sheet(detalle),
+      XLSX.utils.json_to_sheet(hojaDetalle),
       "Detalle"
     );
 
-    XLSX.writeFile(workbook, "reporte_facturacion.xlsx");
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(hojaFactura),
+      "Solicitan factura"
+    );
+
+    XLSX.writeFile(workbook, "reporte_servicios.xlsx");
   };
 
   return (
@@ -132,8 +324,10 @@ export default function ReportesPage() {
       <div style={styles.topBar}>
         <div>
           <div style={styles.breadcrumb}>📊 Reportes</div>
-          <h1 style={styles.title}>Análisis de facturación</h1>
-          <p style={styles.subtitle}>Consulta y analiza tu información de ventas</p>
+          <h1 style={styles.title}>Reportes operativos</h1>
+          <p style={styles.subtitle}>
+            Servicios, pagos, ReteIVA y solicitudes de factura electrónica.
+          </p>
         </div>
 
         <Link href="/" style={styles.backButton}>
@@ -165,49 +359,109 @@ export default function ReportesPage() {
             />
           </div>
 
-          <button onClick={limpiarFiltros} style={styles.clearButton}>
-            ↻ Limpiar
+          <button
+            type="button"
+            onClick={limpiarFiltros}
+            style={styles.clearButton}
+          >
+            ↻ Mes actual
           </button>
 
-          <button onClick={exportarExcel} style={styles.excelButton}>
+          <button type="button" onClick={exportarExcel} style={styles.excelButton}>
             📊 Excel
           </button>
         </div>
       </section>
 
+      {mensaje && <div style={styles.errorBox}>{mensaje}</div>}
+
       <section style={styles.kpiGrid}>
         <div style={{ ...styles.kpiCard, ...styles.kpiYellow }}>
           <div style={styles.iconBoxYellow}>$</div>
           <div>
-            <span style={styles.kpiLabel}>Total facturado</span>
+            <span style={styles.kpiLabel}>Total servicios</span>
             <strong style={styles.kpiValueYellow}>
-              {dinero(totalFacturado)}
+              {dinero(resumen.totalFacturado)}
             </strong>
-            <p style={styles.kpiText}>Totales del periodo seleccionado</p>
+            <p style={styles.kpiText}>Valor neto del periodo</p>
           </div>
         </div>
 
         <div style={{ ...styles.kpiCard, ...styles.kpiBlue }}>
           <div style={styles.iconBoxBlue}>▤</div>
           <div>
-            <span style={styles.kpiLabel}>Facturas generadas</span>
-            <strong style={styles.kpiValueBlue}>{totalFacturas}</strong>
-            <p style={styles.kpiText}>Cantidad de facturas emitidas</p>
+            <span style={styles.kpiLabel}>Servicios registrados</span>
+            <strong style={styles.kpiValueBlue}>{resumen.totalServicios}</strong>
+            <p style={styles.kpiText}>Cantidad de soportes generados</p>
           </div>
         </div>
 
         <div style={{ ...styles.kpiCard, ...styles.kpiGreen }}>
-          <div style={styles.iconBoxGreen}>↗</div>
+          <div style={styles.iconBoxGreen}>FE</div>
           <div>
-            <span style={styles.kpiLabel}>Promedio por factura</span>
-            <strong style={styles.kpiValueGreen}>{dinero(promedio)}</strong>
-            <p style={styles.kpiText}>Valor promedio de cada factura</p>
+            <span style={styles.kpiLabel}>Solicitan factura electrónica</span>
+            <strong style={styles.kpiValueGreen}>
+              {resumen.totalFacturaElectronica}
+            </strong>
+            <p style={styles.kpiText}>
+              {dinero(resumen.totalValorFacturaElectronica)}
+            </p>
+          </div>
+        </div>
+
+        <div style={{ ...styles.kpiCard, ...styles.kpiPurple }}>
+          <div style={styles.iconBoxPurple}>T</div>
+          <div>
+            <span style={styles.kpiLabel}>Cantidad / toneladas</span>
+            <strong style={styles.kpiValuePurple}>
+              {Math.round(resumen.totalCantidad).toLocaleString("es-CO")}
+            </strong>
+            <p style={styles.kpiText}>Suma de cantidades registradas</p>
+          </div>
+        </div>
+
+        <div style={{ ...styles.kpiCard, ...styles.kpiRed }}>
+          <div style={styles.iconBoxRed}>4%</div>
+          <div>
+            <span style={styles.kpiLabel}>ReteIVA descontado</span>
+            <strong style={styles.kpiValueRed}>{dinero(resumen.totalReteIva)}</strong>
+            <p style={styles.kpiText}>{resumen.totalConReteIva} servicio(s)</p>
+          </div>
+        </div>
+
+        <div style={{ ...styles.kpiCard, ...styles.kpiGray }}>
+          <div style={styles.iconBoxGray}>No</div>
+          <div>
+            <span style={styles.kpiLabel}>No requieren factura</span>
+            <strong style={styles.kpiValueGray}>
+              {resumen.totalSinFacturaElectronica}
+            </strong>
+            <p style={styles.kpiText}>Servicios solo con soporte</p>
           </div>
         </div>
       </section>
 
+      <section style={styles.kpiGridSmall}>
+        <div style={styles.payCard}>
+          <span style={styles.payLabel}>Efectivo</span>
+          <strong style={styles.payValue}>{dinero(resumen.pagos.efectivo)}</strong>
+        </div>
+
+        <div style={styles.payCard}>
+          <span style={styles.payLabel}>Transferencia</span>
+          <strong style={styles.payValue}>
+            {dinero(resumen.pagos.transferencia)}
+          </strong>
+        </div>
+
+        <div style={styles.payCard}>
+          <span style={styles.payLabel}>Crédito</span>
+          <strong style={styles.payValue}>{dinero(resumen.pagos.credito)}</strong>
+        </div>
+      </section>
+
       <section style={styles.chartCard}>
-        <h2 style={styles.sectionTitle}>📈 Ventas por día</h2>
+        <h2 style={styles.sectionTitle}>📈 Servicios por día</h2>
 
         <ResponsiveContainer width="100%" height={300}>
           <LineChart data={grafica}>
@@ -236,37 +490,93 @@ export default function ReportesPage() {
       </section>
 
       <section style={styles.tableCard}>
-        <div style={styles.tableHeader}>
-          <span>Número</span>
+        <div style={styles.tableTitleRow}>
+          <h2 style={styles.tableTitle}>Servicios que requieren factura electrónica</h2>
+          <span style={styles.tableCount}>{serviciosFactura.length}</span>
+        </div>
+
+        <div style={styles.tableHeaderFactura}>
+          <span>Soporte</span>
           <span>Fecha</span>
           <span>Cliente</span>
+          <span>Documento</span>
+          <span>Vehículo</span>
           <span>Total</span>
         </div>
 
         {loading ? (
           <div style={styles.empty}>Cargando reportes...</div>
-        ) : filtradas.length === 0 ? (
-          <div style={styles.empty}>No hay datos para este filtro</div>
+        ) : serviciosFactura.length === 0 ? (
+          <div style={styles.empty}>
+            No hay servicios que requieran factura electrónica en este periodo.
+          </div>
         ) : (
-          filtradas.map((f) => (
-            <div key={f.id} style={styles.tableRow}>
-              <strong>{f.numero}</strong>
-              <span>{new Date(f.createdAt).toLocaleDateString("es-CO")}</span>
-              <span>{f.cliente}</span>
-              <strong>{dinero(f.total)}</strong>
+          serviciosFactura.map((s) => (
+            <div key={s.id} style={styles.tableRowFactura}>
+              <strong>{numeroSoporte(s)}</strong>
+              <span>{new Date(s.createdAt).toLocaleDateString("es-CO")}</span>
+              <span>{s.cliente?.nombre || "-"}</span>
+              <span>{s.cliente?.ccNit || "-"}</span>
+              <span>{s.vehiculo?.placa || "-"}</span>
+              <strong>{dinero(valorRealServicio(s))}</strong>
             </div>
           ))
         )}
 
         <div style={styles.tableFooter}>
-          Mostrando {filtradas.length} registro(s)
+          Mostrando {serviciosFactura.length} solicitud(es) de factura electrónica
         </div>
+      </section>
+
+      <section style={styles.tableCard}>
+        <div style={styles.tableTitleRow}>
+          <h2 style={styles.tableTitle}>Detalle general de servicios</h2>
+          <span style={styles.tableCount}>{servicios.length}</span>
+        </div>
+
+        <div style={styles.tableHeaderGeneral}>
+          <span>Soporte</span>
+          <span>Fecha</span>
+          <span>Cliente</span>
+          <span>Vehículo</span>
+          <span>Factura</span>
+          <span>Pago</span>
+          <span>Total</span>
+        </div>
+
+        {loading ? (
+          <div style={styles.empty}>Cargando reportes...</div>
+        ) : servicios.length === 0 ? (
+          <div style={styles.empty}>No hay datos para este filtro</div>
+        ) : (
+          servicios.map((s) => (
+            <div key={s.id} style={styles.tableRowGeneral}>
+              <strong>{numeroSoporte(s)}</strong>
+              <span>{new Date(s.createdAt).toLocaleDateString("es-CO")}</span>
+              <span>{s.cliente?.nombre || "-"}</span>
+              <span>{s.vehiculo?.placa || "-"}</span>
+              <span
+                style={
+                  s.facturaElectronica
+                    ? styles.badgeFacturaSi
+                    : styles.badgeFacturaNo
+                }
+              >
+                {textoFacturaElectronica(s)}
+              </span>
+              <span>{textoPago(s.formaPago)}</span>
+              <strong>{dinero(valorRealServicio(s))}</strong>
+            </div>
+          ))
+        )}
+
+        <div style={styles.tableFooter}>Mostrando {servicios.length} registro(s)</div>
       </section>
     </main>
   );
 }
 
-const styles: Record<string, React.CSSProperties> = {
+const styles: Record<string, CSSProperties> = {
   page: {
     minHeight: "100vh",
     background: "linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%)",
@@ -279,6 +589,8 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     alignItems: "flex-start",
     marginBottom: "26px",
+    gap: "14px",
+    flexWrap: "wrap",
   },
   breadcrumb: {
     fontWeight: 800,
@@ -361,7 +673,22 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     boxShadow: "0 3px 10px rgba(245,196,0,0.35)",
   },
+  errorBox: {
+    background: "#fef2f2",
+    border: "1px solid #fecaca",
+    color: "#991b1b",
+    borderRadius: "12px",
+    padding: "14px",
+    marginBottom: "18px",
+    fontWeight: 800,
+  },
   kpiGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "16px",
+    marginBottom: "18px",
+  },
+  kpiGridSmall: {
     display: "grid",
     gridTemplateColumns: "repeat(3, 1fr)",
     gap: "16px",
@@ -386,6 +713,15 @@ const styles: Record<string, React.CSSProperties> = {
   kpiGreen: {
     background: "linear-gradient(135deg, #fff 0%, #ecfdf5 100%)",
   },
+  kpiPurple: {
+    background: "linear-gradient(135deg, #fff 0%, #f5f3ff 100%)",
+  },
+  kpiRed: {
+    background: "linear-gradient(135deg, #fff 0%, #fef2f2 100%)",
+  },
+  kpiGray: {
+    background: "linear-gradient(135deg, #fff 0%, #f9fafb 100%)",
+  },
   iconBoxYellow: {
     width: "58px",
     height: "58px",
@@ -396,6 +732,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#f5a400",
     fontWeight: 900,
     fontSize: "28px",
+    flex: "0 0 auto",
   },
   iconBoxBlue: {
     width: "58px",
@@ -407,6 +744,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#2563eb",
     fontWeight: 900,
     fontSize: "28px",
+    flex: "0 0 auto",
   },
   iconBoxGreen: {
     width: "58px",
@@ -417,7 +755,44 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#dcfce7",
     color: "#16a34a",
     fontWeight: 900,
-    fontSize: "28px",
+    fontSize: "22px",
+    flex: "0 0 auto",
+  },
+  iconBoxPurple: {
+    width: "58px",
+    height: "58px",
+    borderRadius: "16px",
+    display: "grid",
+    placeItems: "center",
+    background: "#ede9fe",
+    color: "#7c3aed",
+    fontWeight: 900,
+    fontSize: "26px",
+    flex: "0 0 auto",
+  },
+  iconBoxRed: {
+    width: "58px",
+    height: "58px",
+    borderRadius: "16px",
+    display: "grid",
+    placeItems: "center",
+    background: "#fee2e2",
+    color: "#dc2626",
+    fontWeight: 900,
+    fontSize: "22px",
+    flex: "0 0 auto",
+  },
+  iconBoxGray: {
+    width: "58px",
+    height: "58px",
+    borderRadius: "16px",
+    display: "grid",
+    placeItems: "center",
+    background: "#e5e7eb",
+    color: "#374151",
+    fontWeight: 900,
+    fontSize: "22px",
+    flex: "0 0 auto",
   },
   kpiLabel: {
     display: "block",
@@ -440,10 +815,42 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "30px",
     color: "#16a34a",
   },
+  kpiValuePurple: {
+    display: "block",
+    fontSize: "30px",
+    color: "#7c3aed",
+  },
+  kpiValueRed: {
+    display: "block",
+    fontSize: "30px",
+    color: "#dc2626",
+  },
+  kpiValueGray: {
+    display: "block",
+    fontSize: "30px",
+    color: "#374151",
+  },
   kpiText: {
     margin: "6px 0 0 0",
     color: "#6b7280",
     fontSize: "13px",
+  },
+  payCard: {
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "14px",
+    padding: "18px",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+  },
+  payLabel: {
+    display: "block",
+    color: "#4b5563",
+    fontWeight: 800,
+    marginBottom: "8px",
+  },
+  payValue: {
+    color: "#111827",
+    fontSize: "24px",
   },
   chartCard: {
     background: "#fff",
@@ -459,24 +866,81 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     overflow: "hidden",
     boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
+    marginBottom: "18px",
   },
-  tableHeader: {
+  tableTitleRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "18px",
+    borderBottom: "1px solid #e5e7eb",
+    gap: "12px",
+  },
+  tableTitle: {
+    margin: 0,
+    color: "#111827",
+    fontSize: "20px",
+  },
+  tableCount: {
+    background: "#111827",
+    color: "#fff",
+    borderRadius: "999px",
+    padding: "6px 12px",
+    fontWeight: 900,
+  },
+  tableHeaderFactura: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 2fr 1fr",
+    gridTemplateColumns: "1fr 1fr 2fr 1.2fr 1fr 1fr",
     gap: "12px",
     background: "#f5c400",
     color: "#111827",
     padding: "15px",
     fontWeight: 900,
   },
-  tableRow: {
+  tableRowFactura: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 2fr 1fr",
+    gridTemplateColumns: "1fr 1fr 2fr 1.2fr 1fr 1fr",
     gap: "12px",
     padding: "15px",
     borderTop: "1px solid #e5e7eb",
     alignItems: "center",
     color: "#111827",
+  },
+  tableHeaderGeneral: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 2fr 1fr 1.1fr 1fr 1fr",
+    gap: "12px",
+    background: "#f5c400",
+    color: "#111827",
+    padding: "15px",
+    fontWeight: 900,
+  },
+  tableRowGeneral: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 2fr 1fr 1.1fr 1fr 1fr",
+    gap: "12px",
+    padding: "15px",
+    borderTop: "1px solid #e5e7eb",
+    alignItems: "center",
+    color: "#111827",
+  },
+  badgeFacturaSi: {
+    width: "fit-content",
+    background: "#dcfce7",
+    color: "#166534",
+    borderRadius: "999px",
+    padding: "5px 10px",
+    fontWeight: 900,
+    fontSize: "12px",
+  },
+  badgeFacturaNo: {
+    width: "fit-content",
+    background: "#e5e7eb",
+    color: "#374151",
+    borderRadius: "999px",
+    padding: "5px 10px",
+    fontWeight: 900,
+    fontSize: "12px",
   },
   tableFooter: {
     padding: "14px",
