@@ -10,6 +10,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import Link from "next/link";
 
 type Cliente = {
   id: number;
@@ -638,18 +639,10 @@ export default function ServicioRapidoPage() {
   return (
     <main style={styles.page}>
       <section style={styles.card}>
-        <div style={styles.headerRow}>
-          <div>
-            <span style={styles.badge}>Operación</span>
-            <h1 style={styles.title}>Servicio rápido</h1>
-          </div>
-
-          <div style={styles.totalPanel}>
-            <span style={styles.totalLabel}>Total</span>
-            <strong style={styles.totalValue}>
-              ${totalNeto.toLocaleString("es-CO")}
-            </strong>
-          </div>
+        <div style={styles.compactTop}>
+          <Link href="/" style={styles.backMiniButton}>
+            ← Volver al menú
+          </Link>
         </div>
 
         <form
@@ -1125,6 +1118,27 @@ const styles: Record<string, CSSProperties> = {
     padding: "clamp(18px, 3vw, 28px)",
     boxShadow: "0 18px 45px rgba(15, 23, 42, 0.12)",
     border: "1px solid #e5e7eb",
+  },
+  compactTop: {
+    display: "flex",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    marginBottom: "18px",
+  },
+  backMiniButton: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: "38px",
+    padding: "8px 12px",
+    borderRadius: "999px",
+    border: "1px solid #d7dce4",
+    background: "#ffffff",
+    color: "#0f5fb8",
+    fontSize: "13px",
+    fontWeight: 800,
+    textDecoration: "none",
+    boxShadow: "0 4px 12px rgba(15, 23, 42, 0.06)",
   },
   headerRow: {
     display: "flex",

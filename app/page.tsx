@@ -110,7 +110,7 @@ export default function Home() {
         <section style={styles.quickCard}>
           <h2 style={styles.quickTitle}>Acciones rápidas</h2>
           <p style={styles.quickText}>
-            Selecciona la opción que necesitas para trabajar rápido.
+            Selecciona la opción que necesitas:
           </p>
 
           <div style={styles.operatorGrid}>
