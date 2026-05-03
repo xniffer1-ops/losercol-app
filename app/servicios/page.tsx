@@ -106,6 +106,7 @@ export default function ServiciosPage() {
   const [fechaInicio, setFechaInicio] = useState(fechaHoyInput());
   const [fechaFin, setFechaFin] = useState(fechaHoyInput());
   const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [isMobile, setIsMobile] = useState(false);
 
   const numeroSoporte = (s: Servicio) =>
     s.numeroSoporte || `SP-${String(s.id).padStart(6, "0")}`;
@@ -244,6 +245,19 @@ export default function ServiciosPage() {
   useEffect(() => {
     cargarTodo();
   }, []);
+
+  useEffect(() => {
+    const actualizarVista = () => {
+      setIsMobile(window.innerWidth <= 760);
+    };
+
+    actualizarVista();
+    window.addEventListener("resize", actualizarVista);
+
+    return () => window.removeEventListener("resize", actualizarVista);
+  }, []);
+
+  const puedeAdministrar = user?.rol === "admin" || user?.rol === "superadmin";
 
   const vehiculosFiltrados = useMemo(() => {
     return vehiculos.filter((v) => v.clienteId === Number(form.clienteId));
@@ -628,8 +642,8 @@ export default function ServiciosPage() {
   };
 
   return (
-    <main style={styles.page}>
-      <div style={styles.topBar}>
+    <main style={isMobile ? { ...styles.page, ...styles.pageMobile } : styles.page}>
+      <div style={isMobile ? { ...styles.topBar, ...styles.topBarMobile } : styles.topBar}>
         <div>
           <h1 style={styles.title}>Servicios</h1>
           {user && (
@@ -648,7 +662,7 @@ export default function ServiciosPage() {
       <section style={styles.filtersCard}>
         <h2 style={styles.sectionTitle}>Búsqueda y filtros</h2>
 
-        <div style={styles.filtersGrid}>
+        <div style={isMobile ? styles.filtersGridMobile : styles.filtersGrid}>
           <input
             placeholder="Buscar placa"
             value={placaBusqueda}
@@ -684,7 +698,7 @@ export default function ServiciosPage() {
         </div>
       </section>
 
-      <section style={styles.dashboard}>
+      <section style={isMobile ? styles.dashboardMobile : styles.dashboard}>
         <div style={styles.statCard}>
           <div style={styles.statLabel}>Total servicios</div>
           <div style={styles.statValue}>{totalServicios}</div>
@@ -710,9 +724,9 @@ export default function ServiciosPage() {
         </div>
       </section>
 
-      <div style={styles.layout}>
+      <div style={isMobile ? styles.layoutMobile : styles.layout}>
         <section style={styles.tableSection}>
-          <div style={styles.tableHeader}>
+          <div style={isMobile ? styles.tableHeaderMobile : styles.tableHeader}>
             <span>Soporte</span>
             <span>Sección</span>
             <span>Cliente</span>
@@ -729,60 +743,147 @@ export default function ServiciosPage() {
           ) : servicios.length === 0 ? (
             <div style={styles.empty}>No hay servicios guardados</div>
           ) : (
-            servicios.map((s) => (
-              <div key={s.id} style={styles.tableRow}>
-                <span>{numeroSoporte(s)}</span>
-                <span>{s.seccion?.nombre || "-"}</span>
-                <span>{s.cliente?.nombre || "-"}</span>
-                <span>{s.vehiculo?.placa || "-"}</span>
-                <span>{s.centroOperacion?.nombre || "-"}</span>
-                <span>
-                  {s.descripcion}
-                  {s.tipoCarpa ? ` + Carpa ${s.tipoCarpa}` : ""}
-                </span>
+            servicios.map((s) => {
+              const valores = calcularValoresServicio(s);
+              const totalMostrar = valores.totalNeto || Number(s.totalNeto || s.subtotal || 0);
+              const descripcionCompleta = `${s.descripcion || "-"}${
+                s.tipoCarpa ? ` + Carpa ${s.tipoCarpa}` : ""
+              }`;
 
-                <span>
-                  <span
-                    style={
-                      s.facturaElectronica
-                        ? styles.facturaSi
-                        : styles.facturaNo
-                    }
-                  >
-                    {textoFacturaElectronica(s)}
+              if (isMobile) {
+                return (
+                  <div key={s.id} style={styles.mobileServiceCard}>
+                    <div style={styles.mobileCardTop}>
+                      <div>
+                        <div style={styles.mobileLabel}>Soporte</div>
+                        <strong style={styles.mobileSupport}>{numeroSoporte(s)}</strong>
+                      </div>
+
+                      <span
+                        style={
+                          s.facturaElectronica
+                            ? styles.facturaSi
+                            : styles.facturaNo
+                        }
+                      >
+                        {textoFacturaElectronica(s)}
+                      </span>
+                    </div>
+
+                    <div style={styles.mobileInfoGrid}>
+                      <div>
+                        <span style={styles.mobileLabel}>Cliente</span>
+                        <strong>{s.cliente?.nombre || "-"}</strong>
+                      </div>
+
+                      <div>
+                        <span style={styles.mobileLabel}>Placa</span>
+                        <strong>{s.vehiculo?.placa || "-"}</strong>
+                      </div>
+
+                      <div>
+                        <span style={styles.mobileLabel}>Centro</span>
+                        <strong>{s.centroOperacion?.nombre || "-"}</strong>
+                      </div>
+
+                      <div>
+                        <span style={styles.mobileLabel}>Sección</span>
+                        <strong>{s.seccion?.nombre || "-"}</strong>
+                      </div>
+                    </div>
+
+                    <div style={styles.mobileDescription}>
+                      <span style={styles.mobileLabel}>Servicio</span>
+                      <strong>{descripcionCompleta}</strong>
+                    </div>
+
+                    <div style={styles.mobileTotalRow}>
+                      <span>Total neto</span>
+                      <strong>${Number(totalMostrar || 0).toLocaleString("es-CO")}</strong>
+                    </div>
+
+                    <div style={styles.actionsMobile}>
+                      <button
+                        onClick={() => void exportarPDF(s)}
+                        style={styles.pdfButtonMobile}
+                      >
+                        PDF
+                      </button>
+
+                      {puedeAdministrar && (
+                        <>
+                          <button
+                            onClick={() => editarServicio(s)}
+                            style={styles.editButtonMobile}
+                          >
+                            Editar
+                          </button>
+
+                          <button
+                            onClick={() => eliminarServicio(s.id)}
+                            style={styles.deleteButtonMobile}
+                          >
+                            Eliminar
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div key={s.id} style={styles.tableRow}>
+                  <span>{numeroSoporte(s)}</span>
+                  <span>{s.seccion?.nombre || "-"}</span>
+                  <span>{s.cliente?.nombre || "-"}</span>
+                  <span>{s.vehiculo?.placa || "-"}</span>
+                  <span>{s.centroOperacion?.nombre || "-"}</span>
+                  <span>{descripcionCompleta}</span>
+
+                  <span>
+                    <span
+                      style={
+                        s.facturaElectronica
+                          ? styles.facturaSi
+                          : styles.facturaNo
+                      }
+                    >
+                      {textoFacturaElectronica(s)}
+                    </span>
                   </span>
-                </span>
 
-                <span>${Number(s.subtotal).toLocaleString("es-CO")}</span>
+                  <span>${Number(s.subtotal).toLocaleString("es-CO")}</span>
 
-                <div style={styles.actions}>
-                  <button
-                    onClick={() => void exportarPDF(s)}
-                    style={styles.pdfButton}
-                  >
-                    PDF
-                  </button>
+                  <div style={styles.actions}>
+                    <button
+                      onClick={() => void exportarPDF(s)}
+                      style={styles.pdfButton}
+                    >
+                      PDF
+                    </button>
 
-                  {(user?.rol === "admin" || user?.rol === "superadmin") && (
-                    <>
-                      <button
-                        onClick={() => editarServicio(s)}
-                        style={styles.editButton}
-                      >
-                        Editar
-                      </button>
+                    {puedeAdministrar && (
+                      <>
+                        <button
+                          onClick={() => editarServicio(s)}
+                          style={styles.editButton}
+                        >
+                          Editar
+                        </button>
 
-                      <button
-                        onClick={() => eliminarServicio(s.id)}
-                        style={styles.deleteButton}
-                      >
-                        Eliminar
-                      </button>
-                    </>
-                  )}
+                        <button
+                          onClick={() => eliminarServicio(s.id)}
+                          style={styles.deleteButton}
+                        >
+                          Eliminar
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </section>
 
@@ -1145,6 +1246,111 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: "12px",
     whiteSpace: "nowrap",
+  },
+
+  pageMobile: {
+    padding: "14px",
+  },
+  topBarMobile: {
+    flexDirection: "column",
+    gap: "12px",
+  },
+  filtersGridMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "12px",
+  },
+  dashboardMobile: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, 1fr)",
+    gap: "10px",
+    marginBottom: "18px",
+  },
+  layoutMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "18px",
+    alignItems: "start",
+  },
+  tableHeaderMobile: {
+    display: "none",
+  },
+  mobileServiceCard: {
+    background: "#fff",
+    borderTop: "1px solid #eee",
+    padding: "14px",
+    display: "grid",
+    gap: "12px",
+  },
+  mobileCardTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "10px",
+  },
+  mobileLabel: {
+    display: "block",
+    color: "#64748b",
+    fontSize: "12px",
+    fontWeight: 800,
+    marginBottom: "3px",
+  },
+  mobileSupport: {
+    color: "#111827",
+    fontSize: "18px",
+  },
+  mobileInfoGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "10px",
+  },
+  mobileDescription: {
+    background: "#f8fafc",
+    border: "1px solid #e5e7eb",
+    borderRadius: "10px",
+    padding: "10px",
+  },
+  mobileTotalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    background: "#111827",
+    color: "#fff",
+    borderRadius: "12px",
+    padding: "12px",
+    fontWeight: 900,
+  },
+  actionsMobile: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, 1fr)",
+    gap: "8px",
+  },
+  pdfButtonMobile: {
+    background: "#16a34a",
+    color: "#fff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 10px",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  editButtonMobile: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #bbb",
+    borderRadius: "10px",
+    padding: "12px 10px",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  deleteButtonMobile: {
+    background: "#b91c1c",
+    color: "#fff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 10px",
+    cursor: "pointer",
+    fontWeight: 900,
   },
   message: {
     margin: 0,
