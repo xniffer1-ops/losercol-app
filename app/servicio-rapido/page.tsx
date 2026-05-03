@@ -275,6 +275,35 @@ type SoportePDFData = {
 const formatoDinero = (valor: number) =>
   `$${Math.round(valor || 0).toLocaleString("es-CO")}`;
 
+const obtenerSoloDigitos = (valor: string) => valor.replace(/\D/g, "");
+
+const formatearCantidadKilos = (valor: string) => {
+  const digitos = obtenerSoloDigitos(valor);
+
+  if (!digitos) return "";
+
+  return Number(digitos).toLocaleString("es-CO");
+};
+
+const convertirKilosAToneladas = (valor: string) => {
+  const digitos = obtenerSoloDigitos(valor);
+
+  if (!digitos) return 0;
+
+  const kilos = Number(digitos);
+
+  if (!Number.isFinite(kilos) || kilos <= 0) return 0;
+
+  return kilos / 1000;
+};
+
+const formatearToneladas = (valor: number) => {
+  return Number(valor || 0).toLocaleString("es-CO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  });
+};
+
 const limpiarNombreArchivo = (valor: string) =>
   valor.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 80);
 
@@ -370,7 +399,7 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
         soporte.tipoCarpa || "Sin carpa",
         soporte.descripcion || "",
         soporte.unidad || "",
-        soporte.cantidad.toLocaleString("es-CO"),
+        formatearToneladas(soporte.cantidad),
         formatoDinero(soporte.valorUnitario),
         formatoDinero(soporte.totalConIva),
       ],
@@ -408,7 +437,7 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
     },
     body: [
       ["Valor unitario con IVA", formatoDinero(soporte.valorUnitario)],
-      ["Cantidad", soporte.cantidad.toLocaleString("es-CO")],
+      ["Cantidad", formatearToneladas(soporte.cantidad)],
       ["Valor carpa con IVA", formatoDinero(soporte.valorAdicionalCarpa)],
       ["Total con IVA incluido", formatoDinero(soporte.totalConIva)],
       ["Base antes de IVA", formatoDinero(soporte.baseAntesIva)],
@@ -610,11 +639,9 @@ export default function ServicioRapidoPage() {
     });
   }, [busquedaTarifa, tarifas]);
 
-  const cantidadNumero = Number(cantidad);
+  const cantidadNumero = convertirKilosAToneladas(cantidad);
 
-  const valorServicio =
-    (tarifaSeleccionada?.valorUnitario ?? 0) *
-    (Number.isFinite(cantidadNumero) ? cantidadNumero : 0);
+  const valorServicio = (tarifaSeleccionada?.valorUnitario ?? 0) * cantidadNumero;
 
   const IVA_PORCENTAJE = 0.19;
   const RETEIVA_PORCENTAJE = 0.04;
@@ -762,8 +789,8 @@ export default function ServicioRapidoPage() {
       return;
     }
 
-    if (!cantidad || !Number.isFinite(cantidadNumero) || cantidadNumero <= 0) {
-      mostrarMensaje("La cantidad debe ser mayor que cero.", "error");
+    if (!cantidad || cantidadNumero <= 0) {
+      mostrarMensaje("La cantidad en kilos debe ser mayor que cero.", "error");
       cantidadRef.current?.focus();
       return;
     }
@@ -1150,22 +1177,28 @@ export default function ServicioRapidoPage() {
           <div style={styles.gridSecondary}>
             <div style={styles.field}>
               <label htmlFor="cantidad" style={styles.label}>
-                Cantidad *
+                Cantidad en kilos *
               </label>
 
               <input
                 id="cantidad"
                 ref={cantidadRef}
-                type="number"
-                min="0"
-                step="any"
+                type="text"
+                inputMode="numeric"
                 value={cantidad}
-                onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                  setCantidad(event.target.value)
-                }
-                placeholder="0"
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  const valor = event.target.value.replace(/[^0-9.,]/g, "");
+                  setCantidad(valor);
+                }}
+                onBlur={() => setCantidad((prev) => formatearCantidadKilos(prev))}
+                placeholder="34.000"
+                autoComplete="off"
                 style={styles.input}
               />
+
+              <small style={styles.helper}>
+                Escribe kilos: 34000 o 34.000 se calculan como 34 toneladas.
+              </small>
             </div>
 
             <div style={styles.field}>
@@ -1287,6 +1320,13 @@ export default function ServicioRapidoPage() {
                 {Number(
                   tarifaSeleccionada?.valorUnitario || 0
                 ).toLocaleString("es-CO")}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Cantidad calculada</span>
+              <span style={styles.summaryValue}>
+                {formatearToneladas(cantidadNumero)} toneladas
               </span>
             </div>
 
