@@ -11,11 +11,15 @@ import {
   type FormEvent,
 } from "react";
 import Link from "next/link";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 type Cliente = {
   id: number;
   nombre: string;
   ccNit: string;
+  telefono?: string;
+  correo?: string;
 };
 
 type Vehiculo = {
@@ -39,6 +43,7 @@ type Tarifa = {
   codigo: string;
   descripcion: string;
   valorUnitario: number;
+  unidadMedida?: string;
 };
 
 type MensajeTipo = "ok" | "error" | "info";
@@ -168,10 +173,12 @@ const mapCliente = (item: AnyRecord): Cliente | null => {
   const id = toNumberSafe(item.id);
   const nombre = toStringSafe(item.nombre).trim();
   const ccNit = toStringSafe(item.ccNit ?? item.cc_nit ?? item.nit).trim();
+  const telefono = toStringSafe(item.telefono ?? item.celular ?? item.phone).trim();
+  const correo = toStringSafe(item.correo ?? item.email).trim();
 
   if (!id || !nombre) return null;
 
-  return { id, nombre, ccNit };
+  return { id, nombre, ccNit, telefono, correo };
 };
 
 const mapVehiculo = (item: AnyRecord): Vehiculo | null => {
@@ -209,10 +216,11 @@ const mapTarifa = (item: AnyRecord): Tarifa | null => {
   const valorUnitario = toNumberSafe(
     item.valorUnitario ?? item.valor_unitario ?? item.valor
   );
+  const unidadMedida = toStringSafe(item.unidadMedida ?? item.unidad_medida ?? item.unidad).trim();
 
   if (!id || !descripcion) return null;
 
-  return { id, codigo, descripcion, valorUnitario };
+  return { id, codigo, descripcion, valorUnitario, unidadMedida };
 };
 
 const mapVehiculoFromResponse = (value: unknown): Vehiculo | null => {
@@ -239,6 +247,218 @@ const tipoVehiculoDesdeCarpa = (tipoCarpa: string) => {
 
   return "Sencillo";
 };
+
+type SoportePDFData = {
+  numeroSoporte: string;
+  fecha: Date;
+  cliente: string;
+  documento: string;
+  telefono?: string;
+  placa: string;
+  centro: string;
+  seccion: string;
+  tarifaCodigo: string;
+  descripcion: string;
+  unidad: string;
+  cantidad: number;
+  valorUnitario: number;
+  tipoCarpa: string;
+  valorAdicionalCarpa: number;
+  totalConIva: number;
+  baseAntesIva: number;
+  ivaIncluido: number;
+  valorReteIva: number;
+  totalNeto: number;
+  facturaElectronica: boolean;
+};
+
+const formatoDinero = (valor: number) =>
+  `$${Math.round(valor || 0).toLocaleString("es-CO")}`;
+
+const limpiarNombreArchivo = (valor: string) =>
+  valor.replace(/[^a-zA-Z0-9-_]/g, "_").slice(0, 80);
+
+const normalizarTelefonoWhatsApp = (telefono?: string) => {
+  const soloNumeros = String(telefono || "").replace(/\D/g, "");
+
+  if (!soloNumeros || soloNumeros.length < 7) return "";
+
+  if (soloNumeros.startsWith("57") && soloNumeros.length >= 12) {
+    return soloNumeros;
+  }
+
+  if (soloNumeros.length === 10) {
+    return `57${soloNumeros}`;
+  }
+
+  return soloNumeros;
+};
+
+const cargarImagenComoBase64 = async (url: string): Promise<string> => {
+  const response = await fetch(url);
+
+  if (!response.ok) {
+    throw new Error("No se pudo cargar la imagen");
+  }
+
+  const blob = await response.blob();
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result));
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+const descargarSoportePDF = async (soporte: SoportePDFData) => {
+  const doc = new jsPDF();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  try {
+    const logoBase64 = await cargarImagenComoBase64("/logo-losercol.png");
+    doc.addImage(logoBase64, "PNG", 14, 10, 52, 24);
+  } catch (error) {
+    console.warn("No se pudo cargar el logo en el PDF:", error);
+  }
+
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "bold");
+  doc.text("Soporte de servicio", 14, 42);
+  doc.text(`No. ${soporte.numeroSoporte}`, 145, 42);
+
+  doc.setDrawColor(30, 30, 30);
+  doc.line(14, 47, 196, 47);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("Fecha:", 14, 58);
+  doc.text("Cliente:", 14, 66);
+  doc.text("Documento:", 14, 74);
+  doc.text("Factura electrónica:", 14, 82);
+
+  doc.text("Vehículo:", 110, 66);
+  doc.text("Centro:", 110, 74);
+  doc.text("Sección:", 110, 82);
+
+  doc.setFont("helvetica", "normal");
+  doc.text(soporte.fecha.toLocaleDateString("es-CO"), 35, 58);
+  doc.text(soporte.cliente || "-", 35, 66);
+  doc.text(soporte.documento || "-", 40, 74);
+  doc.text(soporte.facturaElectronica ? "Sí requiere" : "No requiere", 60, 82);
+
+  doc.text(soporte.placa || "-", 132, 66);
+  doc.text(soporte.centro || "-", 126, 74);
+  doc.text(soporte.seccion || "-", 128, 82);
+
+  autoTable(doc, {
+    startY: 94,
+    head: [
+      [
+        "Tarifa",
+        "Carpa adicional",
+        "Descripción",
+        "Unidad",
+        "Cantidad",
+        "Valor unit.",
+        "Total con IVA",
+      ],
+    ],
+    body: [
+      [
+        soporte.tarifaCodigo || "",
+        soporte.tipoCarpa || "Sin carpa",
+        soporte.descripcion || "",
+        soporte.unidad || "",
+        soporte.cantidad.toLocaleString("es-CO"),
+        formatoDinero(soporte.valorUnitario),
+        formatoDinero(soporte.totalConIva),
+      ],
+    ],
+    theme: "grid",
+    styles: {
+      fontSize: 8.5,
+      cellPadding: 2,
+    },
+    headStyles: {
+      fillColor: [245, 196, 0],
+      textColor: [17, 17, 17],
+      fontStyle: "bold",
+    },
+  });
+
+  const finalTablaY = (doc as unknown as { lastAutoTable?: { finalY?: number } })
+    .lastAutoTable?.finalY || 116;
+
+  autoTable(doc, {
+    startY: finalTablaY + 8,
+    theme: "grid",
+    styles: {
+      fontSize: 10,
+      cellPadding: 3,
+    },
+    columnStyles: {
+      0: {
+        fontStyle: "bold",
+        cellWidth: 80,
+      },
+      1: {
+        halign: "right",
+      },
+    },
+    body: [
+      ["Valor unitario con IVA", formatoDinero(soporte.valorUnitario)],
+      ["Cantidad", soporte.cantidad.toLocaleString("es-CO")],
+      ["Valor carpa con IVA", formatoDinero(soporte.valorAdicionalCarpa)],
+      ["Total con IVA incluido", formatoDinero(soporte.totalConIva)],
+      ["Base antes de IVA", formatoDinero(soporte.baseAntesIva)],
+      ["IVA incluido 19%", formatoDinero(soporte.ivaIncluido)],
+      [
+        "ReteIVA 4%",
+        soporte.valorReteIva > 0 ? `-${formatoDinero(soporte.valorReteIva)}` : "$0",
+      ],
+      ["Total neto", formatoDinero(soporte.totalNeto)],
+    ],
+    didParseCell: (data) => {
+      if (data.row.index === 7) {
+        data.cell.styles.fontStyle = "bold";
+        data.cell.styles.fontSize = 11;
+      }
+    },
+  });
+
+  const finalResumenY = (doc as unknown as { lastAutoTable?: { finalY?: number } })
+    .lastAutoTable?.finalY || finalTablaY + 52;
+
+  const aviso =
+    "Si desea solicitar la facturación electrónica envía un correo al: Auxfacturacion@losercol.com o al celular: 3147897436";
+
+  const avisoY = Math.max(finalResumenY + 12, pageHeight - 34);
+
+  doc.setDrawColor(220, 220, 220);
+  doc.setFillColor(248, 248, 248);
+  doc.roundedRect(14, avisoY, 182, 18, 2, 2, "FD");
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(9);
+  const textoAviso = doc.splitTextToSize(aviso, 174);
+  doc.text(textoAviso, 18, avisoY + 7);
+
+  doc.save(`${limpiarNombreArchivo(soporte.numeroSoporte)}_${limpiarNombreArchivo(soporte.placa || "servicio")}.pdf`);
+};
+
+const abrirWhatsAppSoporte = (telefono: string | undefined, numeroSoporte: string) => {
+  const telefonoWhatsApp = normalizarTelefonoWhatsApp(telefono);
+
+  if (!telefonoWhatsApp) return false;
+
+  const mensaje = `Hola, cordial saludo.\n\nAdjunto soporte de servicio LOSERCOL No. ${numeroSoporte}.\n\nGracias.`;
+  const url = `https://wa.me/${telefonoWhatsApp}?text=${encodeURIComponent(mensaje)}`;
+
+  window.open(url, "_blank", "noopener,noreferrer");
+  return true;
+};
+
 
 export default function ServicioRapidoPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -331,6 +551,18 @@ export default function ServicioRapidoPage() {
       null
     );
   }, [clientes, vehiculoEncontrado]);
+
+  const clienteSeleccionado = useMemo(() => {
+    return clientes.find((cliente) => cliente.id === Number(clienteId)) ?? null;
+  }, [clienteId, clientes]);
+
+  const centroSeleccionado = useMemo(() => {
+    return centros.find((centro) => centro.id === Number(centroOperacionId)) ?? null;
+  }, [centroOperacionId, centros]);
+
+  const seccionSeleccionada = useMemo(() => {
+    return secciones.find((seccion) => seccion.id === Number(seccionId)) ?? null;
+  }, [seccionId, secciones]);
 
   useEffect(() => {
     if (!placaNormalizada) {
@@ -606,7 +838,52 @@ export default function ServicioRapidoPage() {
       return;
     }
 
-    mostrarMensaje("Servicio guardado correctamente.", "ok");
+    const servicioCreado = extractSingleRecord(respuestaServicio.data);
+    const numeroSoporte =
+      toStringSafe(servicioCreado?.numeroSoporte).trim() ||
+      `SP-${String(toNumberSafe(servicioCreado?.id)).padStart(6, "0")}`;
+
+    const soportePDF: SoportePDFData = {
+      numeroSoporte,
+      fecha: new Date(),
+      cliente: clienteSeleccionado?.nombre || "-",
+      documento: clienteSeleccionado?.ccNit || "-",
+      telefono: clienteSeleccionado?.telefono,
+      placa: placaNormalizada,
+      centro: centroSeleccionado?.nombre || "-",
+      seccion: seccionSeleccionada?.nombre || "-",
+      tarifaCodigo: tarifaSeleccionada?.codigo || "",
+      descripcion: tarifaSeleccionada?.descripcion || "",
+      unidad: tarifaSeleccionada?.unidadMedida || "Tonelada",
+      cantidad: cantidadNumero,
+      valorUnitario: tarifaSeleccionada?.valorUnitario || 0,
+      tipoCarpa: tipoCarpa || "Sin carpa",
+      valorAdicionalCarpa,
+      totalConIva: subtotalBruto,
+      baseAntesIva,
+      ivaIncluido,
+      valorReteIva,
+      totalNeto,
+      facturaElectronica,
+    };
+
+    try {
+      await descargarSoportePDF(soportePDF);
+    } catch (error) {
+      console.error("Error descargando soporte PDF:", error);
+    }
+
+    const whatsappAbierto = abrirWhatsAppSoporte(
+      clienteSeleccionado?.telefono,
+      numeroSoporte
+    );
+
+    mostrarMensaje(
+      whatsappAbierto
+        ? "Servicio guardado. Se descargó el soporte y se abrió WhatsApp con el mensaje listo."
+        : "Servicio guardado. Se descargó el soporte, pero este cliente no tiene teléfono válido para WhatsApp.",
+      whatsappAbierto ? "ok" : "info"
+    );
     setGuardando(false);
 
     setPlaca("");
