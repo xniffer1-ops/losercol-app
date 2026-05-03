@@ -632,12 +632,41 @@ export default function ServicioRapidoPage() {
     if (!texto) return tarifas;
 
     return tarifas.filter((tarifa) => {
+      const combinado = `${tarifa.codigo} - ${tarifa.descripcion}`.toLowerCase();
+
       return (
         tarifa.codigo.toLowerCase().includes(texto) ||
-        tarifa.descripcion.toLowerCase().includes(texto)
+        tarifa.descripcion.toLowerCase().includes(texto) ||
+        combinado.includes(texto)
       );
     });
   }, [busquedaTarifa, tarifas]);
+
+  useEffect(() => {
+    const texto = busquedaTarifa.trim().toLowerCase();
+
+    if (!texto) return;
+
+    const tarifaExacta = tarifas.find((tarifa) => {
+      const codigo = tarifa.codigo.toLowerCase();
+      const descripcion = tarifa.descripcion.toLowerCase();
+      const combinado = `${tarifa.codigo} - ${tarifa.descripcion}`.toLowerCase();
+
+      return texto === codigo || texto === descripcion || texto === combinado;
+    });
+
+    const tarifaUnica =
+      tarifasFiltradas.length === 1 ? tarifasFiltradas[0] : null;
+
+    const tarifaParaSeleccionar = tarifaExacta ?? tarifaUnica;
+
+    if (
+      tarifaParaSeleccionar &&
+      tarifaId !== String(tarifaParaSeleccionar.id)
+    ) {
+      setTarifaId(String(tarifaParaSeleccionar.id));
+    }
+  }, [busquedaTarifa, tarifas, tarifasFiltradas, tarifaId]);
 
   const cantidadNumero = convertirKilosAToneladas(cantidad);
 
@@ -1130,9 +1159,10 @@ export default function ServicioRapidoPage() {
             <input
               id="tarifa-busqueda"
               value={busquedaTarifa}
-              onChange={(event: ChangeEvent<HTMLInputElement>) =>
-                setBusquedaTarifa(event.target.value)
-              }
+              onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                setBusquedaTarifa(event.target.value);
+                setTarifaId("");
+              }}
               placeholder="Código o descripción"
               autoComplete="off"
               style={styles.input}
@@ -1304,6 +1334,17 @@ export default function ServicioRapidoPage() {
           </div>
 
           <div style={styles.summaryBox}>
+            <div style={styles.summaryHeader}>
+              <span style={styles.summaryHeaderTitle}>Resumen para cobrar</span>
+              <span style={styles.summaryHeaderBadge}>
+                {formaPago === "credito"
+                  ? "Crédito"
+                  : formaPago === "efectivo"
+                  ? "Efectivo"
+                  : "Transferencia"}
+              </span>
+            </div>
+
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Servicio</span>
               <span style={styles.summaryValue}>
@@ -1316,10 +1357,7 @@ export default function ServicioRapidoPage() {
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Valor unitario</span>
               <span style={styles.summaryValue}>
-                $
-                {Number(
-                  tarifaSeleccionada?.valorUnitario || 0
-                ).toLocaleString("es-CO")}
+                {formatoDinero(tarifaSeleccionada?.valorUnitario || 0)}
               </span>
             </div>
 
@@ -1331,37 +1369,55 @@ export default function ServicioRapidoPage() {
             </div>
 
             <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Valor carpa</span>
+              <span style={styles.summaryLabel}>Valor servicio</span>
               <span style={styles.summaryValue}>
-                ${valorAdicionalCarpa.toLocaleString("es-CO")}
+                {formatoDinero(valorServicio)}
               </span>
             </div>
 
             <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Total con IVA incluido</span>
+              <span style={styles.summaryLabel}>Valor carpa</span>
               <span style={styles.summaryValue}>
-                ${subtotalBruto.toLocaleString("es-CO")}
+                {formatoDinero(valorAdicionalCarpa)}
               </span>
             </div>
+
+            <div style={styles.summaryDivider} />
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>Subtotal con IVA incluido</span>
+              <span style={styles.summaryValueStrong}>
+                {formatoDinero(subtotalBruto)}
+              </span>
+            </div>
+
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>ReteIVA 4%</span>
+              <span style={styles.summaryValue}>
+                {valorReteIva > 0 ? `- ${formatoDinero(valorReteIva)}` : "$0"}
+              </span>
+            </div>
+
+            <div style={styles.summaryTotalRow}>
+              <span style={styles.summaryTotalLabel}>Total a cobrar</span>
+              <span style={styles.summaryTotalValue}>
+                {formatoDinero(totalNeto)}
+              </span>
+            </div>
+
+            <div style={styles.summaryDivider} />
 
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Base antes de IVA</span>
               <span style={styles.summaryValue}>
-                ${baseAntesIva.toLocaleString("es-CO")}
+                {formatoDinero(baseAntesIva)}
               </span>
             </div>
 
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>IVA incluido 19%</span>
               <span style={styles.summaryValue}>
-                ${ivaIncluido.toLocaleString("es-CO")}
-              </span>
-            </div>
-
-            <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>ReteIVA (4%)</span>
-              <span style={styles.summaryValue}>
-                - ${valorReteIva.toLocaleString("es-CO")}
+                {formatoDinero(ivaIncluido)}
               </span>
             </div>
 
@@ -1369,13 +1425,6 @@ export default function ServicioRapidoPage() {
               <span style={styles.summaryLabel}>Factura electrónica</span>
               <span style={styles.summaryValue}>
                 {facturaElectronica ? "Sí requiere" : "No requiere"}
-              </span>
-            </div>
-
-            <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Total neto</span>
-              <span style={styles.summaryValueStrong}>
-                ${totalNeto.toLocaleString("es-CO")}
               </span>
             </div>
           </div>
@@ -1684,6 +1733,53 @@ const styles: Record<string, CSSProperties> = {
     display: "flex",
     flexDirection: "column",
     gap: "10px",
+  },
+  summaryHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "wrap",
+    marginBottom: "4px",
+  },
+  summaryHeaderTitle: {
+    color: "#0f172a",
+    fontSize: "16px",
+    fontWeight: 900,
+  },
+  summaryHeaderBadge: {
+    background: "#0f172a",
+    color: "#ffffff",
+    borderRadius: "999px",
+    padding: "7px 12px",
+    fontSize: "12px",
+    fontWeight: 900,
+  },
+  summaryDivider: {
+    height: "1px",
+    background: "#e2e8f0",
+    margin: "2px 0",
+  },
+  summaryTotalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "wrap",
+    borderRadius: "14px",
+    background: "#0f172a",
+    color: "#ffffff",
+    padding: "14px 16px",
+    marginTop: "2px",
+  },
+  summaryTotalLabel: {
+    fontSize: "16px",
+    fontWeight: 900,
+  },
+  summaryTotalValue: {
+    fontSize: "24px",
+    fontWeight: 900,
+    textAlign: "right",
   },
   summaryRow: {
     display: "flex",
