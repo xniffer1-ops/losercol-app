@@ -1326,7 +1326,7 @@ export default function ServicioRapidoPage() {
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Cantidad calculada</span>
               <span style={styles.summaryValue}>
-                {formatearToneladas(cantidadNumero)} toneladas
+                {formatearToneladas(cantidadNumero)}
               </span>
             </div>
 
