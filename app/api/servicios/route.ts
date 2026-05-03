@@ -53,6 +53,10 @@ function redondearPesos(valor: number) {
   return Math.round(valor);
 }
 
+function fechaInputHoy() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export async function GET(req: Request) {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -73,17 +77,15 @@ export async function GET(req: Request) {
       };
     }
 
-    if (fechaInicio || fechaFin) {
-      where.createdAt = {};
+    // Optimización 24/7:
+    // Si no envían fechas, por defecto solo se carga HOY.
+    const fechaInicioConsulta = fechaInicio || fechaInputHoy();
+    const fechaFinConsulta = fechaFin || fechaInicioConsulta;
 
-      if (fechaInicio) {
-        where.createdAt.gte = new Date(`${fechaInicio}T00:00:00`);
-      }
-
-      if (fechaFin) {
-        where.createdAt.lte = new Date(`${fechaFin}T23:59:59`);
-      }
-    }
+    where.createdAt = {
+      gte: new Date(`${fechaInicioConsulta}T00:00:00`),
+      lte: new Date(`${fechaFinConsulta}T23:59:59`),
+    };
 
     const servicios = await prisma.servicio.findMany({
       where,

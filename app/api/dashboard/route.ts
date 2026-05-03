@@ -9,6 +9,16 @@ function valorCarpa(tipo?: string | null) {
   return 0;
 }
 
+
+function fechaInputHoy() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function primerDiaMesInput() {
+  const hoy = new Date();
+  return new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10);
+}
+
 function valorRealServicio(servicio: {
   subtotal?: number | null;
   totalNeto?: number | null;
@@ -19,15 +29,34 @@ function valorRealServicio(servicio: {
   return totalNeto > 0 ? totalNeto : subtotal;
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  // 🔒 SOLO ADMIN / SUPERADMIN
   const { denied } = await requireRoles(["superadmin", "admin"]);
   if (denied) return denied;
 
   try {
+    const { searchParams } = new URL(req.url);
+
+    // Por defecto el dashboard carga solo el mes actual.
+    // Si el admin quiere revisar más, usa fechaInicio / fechaFin.
+    const fechaInicio = searchParams.get("fechaInicio") || primerDiaMesInput();
+    const fechaFin = searchParams.get("fechaFin") || fechaInputHoy();
+
+    const inicio = new Date(`${fechaInicio}T00:00:00`);
+    const fin = new Date(`${fechaFin}T23:59:59`);
+
+    const whereServicios = {
+      createdAt: {
+        gte: inicio,
+        lte: fin,
+      },
+    };
+
     const [totalClientes, totalVehiculos, servicios] = await Promise.all([
       prisma.cliente.count(),
       prisma.vehiculo.count(),
       prisma.servicio.findMany({
+        where: whereServicios,
         include: {
           cliente: true,
           vehiculo: true,
@@ -151,6 +180,8 @@ export async function GET() {
     }));
 
     return NextResponse.json({
+      fechaInicio,
+      fechaFin,
       totalClientes,
       totalVehiculos,
       totalServicios,

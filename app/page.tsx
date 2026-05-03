@@ -19,36 +19,56 @@ type User = {
   rol: "superadmin" | "admin" | "operador";
 } | null;
 
+const fechaHoyInput = () => new Date().toISOString().slice(0, 10);
+
+const primerDiaMesInput = () => {
+  const hoy = new Date();
+  return new Date(hoy.getFullYear(), hoy.getMonth(), 1)
+    .toISOString()
+    .slice(0, 10);
+};
+
 export default function Home() {
   const [data, setData] = useState<any>(null);
   const [user, setUser] = useState<User>(null);
+  const [fechaInicioDashboard, setFechaInicioDashboard] = useState(primerDiaMesInput());
+  const [fechaFinDashboard, setFechaFinDashboard] = useState(fechaHoyInput());
   const [mensaje, setMensaje] = useState("");
+
+  const cargarDashboard = async (
+    inicio = fechaInicioDashboard,
+    fin = fechaFinDashboard
+  ) => {
+    const params = new URLSearchParams();
+
+    if (inicio) params.set("fechaInicio", inicio);
+    if (fin) params.set("fechaFin", fin);
+
+    const query = params.toString() ? `?${params.toString()}` : "";
+    const resDash = await fetch(`/api/dashboard${query}`, {
+      cache: "no-store",
+    });
+    const dashData = await resDash.json();
+
+    if (!resDash.ok) {
+      setMensaje(dashData.error || "Error cargando dashboard");
+      setData(null);
+      return;
+    }
+
+    setMensaje("");
+    setData(dashData);
+  };
 
   useEffect(() => {
     const cargar = async () => {
       try {
         const resUser = await fetch("/api/me", { cache: "no-store" });
         const userData = await resUser.json();
-
-        if (!resUser.ok || !userData?.rol) {
-          setUser(null);
-          window.location.href = "/login";
-          return;
-        }
-
         setUser(userData);
 
-        if (userData.rol === "admin" || userData.rol === "superadmin") {
-          const resDash = await fetch("/api/dashboard", { cache: "no-store" });
-          const dashData = await resDash.json();
-
-          if (!resDash.ok) {
-            setMensaje(dashData.error || "Error cargando dashboard");
-            setData(null);
-            return;
-          }
-
-          setData(dashData);
+        if (userData?.rol === "admin" || userData?.rol === "superadmin") {
+          await cargarDashboard();
         }
       } catch {
         setUser(null);
@@ -120,21 +140,6 @@ export default function Home() {
     );
   }
 
-  if (mensaje) {
-    return (
-      <main style={styles.page}>
-        <div style={styles.errorBox}>
-          <h2 style={styles.sectionTitle}>No se pudo cargar el dashboard</h2>
-          <p>{mensaje}</p>
-
-          <button onClick={cerrarSesion} style={styles.logoutButton}>
-            Salir
-          </button>
-        </div>
-      </main>
-    );
-  }
-
   if (!data) {
     return <main style={styles.page}>Cargando dashboard...</main>;
   }
@@ -158,6 +163,52 @@ export default function Home() {
 
       <h1 style={styles.title}>LOSERCOL</h1>
       <p style={styles.subtitle}>Dashboard operativo y panel principal</p>
+
+      <section style={styles.dashboardFiltersCard}>
+        <div>
+          <label style={styles.filterLabel}>Fecha inicio</label>
+          <input
+            type="date"
+            value={fechaInicioDashboard}
+            onChange={(e) => setFechaInicioDashboard(e.target.value)}
+            style={styles.filterInput}
+          />
+        </div>
+
+        <div>
+          <label style={styles.filterLabel}>Fecha fin</label>
+          <input
+            type="date"
+            value={fechaFinDashboard}
+            onChange={(e) => setFechaFinDashboard(e.target.value)}
+            style={styles.filterInput}
+          />
+        </div>
+
+        <button
+          onClick={() =>
+            void cargarDashboard(fechaInicioDashboard, fechaFinDashboard)
+          }
+          style={styles.filterButton}
+        >
+          Aplicar filtro
+        </button>
+
+        <button
+          onClick={() => {
+            const inicio = primerDiaMesInput();
+            const fin = fechaHoyInput();
+            setFechaInicioDashboard(inicio);
+            setFechaFinDashboard(fin);
+            void cargarDashboard(inicio, fin);
+          }}
+          style={styles.filterSecondaryButton}
+        >
+          Mes actual
+        </button>
+      </section>
+
+      {mensaje && <p style={styles.errorText}>{mensaje}</p>}
 
       <section style={styles.kpiGrid}>
         <Card title="Total facturado" value={dinero(data.totalRecaudado)} />
@@ -221,6 +272,7 @@ export default function Home() {
           <MenuButton href="/operacion" label="Operación en vivo" />
           <MenuButton href="/historial" label="Historial" />
           <MenuButton href="/reportes" label="Reportes" />
+          
           <MenuButton href="/servicio-rapido" label="Servicio rápido" />
           <MenuButton href="/servicios" label="Servicios" />
           <MenuButton href="/caja" label="Caja" />
@@ -504,11 +556,61 @@ const styles: Record<string, React.CSSProperties> = {
     boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
   },
 
-  errorBox: {
+  dashboardFiltersCard: {
     background: "#fff",
     border: "1px solid #ddd",
     borderRadius: "14px",
-    padding: "22px",
-    maxWidth: "620px",
+    padding: "18px",
+    marginBottom: "18px",
+    display: "flex",
+    gap: "12px",
+    alignItems: "end",
+    flexWrap: "wrap",
+    boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
+  },
+
+  filterLabel: {
+    display: "block",
+    marginBottom: "6px",
+    color: "#374151",
+    fontWeight: 700,
+    fontSize: "14px",
+  },
+
+  filterInput: {
+    height: "44px",
+    borderRadius: "10px",
+    border: "1px solid #ccc",
+    padding: "0 12px",
+    color: "#111",
+    background: "#fff",
+    fontSize: "14px",
+  },
+
+  filterButton: {
+    height: "44px",
+    background: "#f5c400",
+    color: "#111",
+    border: "none",
+    borderRadius: "10px",
+    padding: "0 18px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  filterSecondaryButton: {
+    height: "44px",
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #ccc",
+    borderRadius: "10px",
+    padding: "0 18px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  errorText: {
+    color: "#b91c1c",
+    fontWeight: 800,
   },
 };

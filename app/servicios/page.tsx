@@ -71,7 +71,7 @@ type User = {
   id: number;
   nombre: string;
   email: string;
-  rol: "admin" | "operador";
+  rol: "superadmin" | "admin" | "operador";
 } | null;
 
 const initialForm = {
@@ -85,6 +85,8 @@ const initialForm = {
   valorUnitario: "",
   cantidad: "",
 };
+
+const fechaHoyInput = () => new Date().toISOString().slice(0, 10);
 
 export default function ServiciosPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -101,8 +103,8 @@ export default function ServiciosPage() {
   const [saving, setSaving] = useState(false);
 
   const [placaBusqueda, setPlacaBusqueda] = useState("");
-  const [fechaInicio, setFechaInicio] = useState("");
-  const [fechaFin, setFechaFin] = useState("");
+  const [fechaInicio, setFechaInicio] = useState(fechaHoyInput());
+  const [fechaFin, setFechaFin] = useState(fechaHoyInput());
   const [editandoId, setEditandoId] = useState<number | null>(null);
 
   const numeroSoporte = (s: Servicio) =>
@@ -407,12 +409,17 @@ export default function ServiciosPage() {
   };
 
   const limpiarFiltros = async () => {
+    const hoy = fechaHoyInput();
+
     setPlacaBusqueda("");
-    setFechaInicio("");
-    setFechaFin("");
+    setFechaInicio(hoy);
+    setFechaFin(hoy);
     setLoading(true);
 
-    const res = await fetch("/api/servicios", { cache: "no-store" });
+    const res = await fetch(
+      `/api/servicios?fechaInicio=${hoy}&fechaFin=${hoy}`,
+      { cache: "no-store" }
+    );
     const data = await res.json();
     setServicios(Array.isArray(data) ? data : []);
 
@@ -756,7 +763,7 @@ export default function ServiciosPage() {
                     PDF
                   </button>
 
-                  {user?.rol === "admin" && (
+                  {(user?.rol === "admin" || user?.rol === "superadmin") && (
                     <>
                       <button
                         onClick={() => editarServicio(s)}
