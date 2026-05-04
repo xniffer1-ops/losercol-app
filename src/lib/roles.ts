@@ -1,23 +1,34 @@
 import { NextResponse } from "next/server";
 import { getUser, type AuthUser, type Rol } from "@/src/lib/auth";
 
-type GuardResult = {
-  user: AuthUser | null;
-  denied: NextResponse | null;
+type GuardPermitido = {
+  user: AuthUser;
+  denied: null;
 };
+
+type GuardDenegado = {
+  user: AuthUser | null;
+  denied: NextResponse;
+};
+
+type GuardResult = GuardPermitido | GuardDenegado;
 
 function deniedJson(error: string, status: number) {
   return NextResponse.json({ error }, { status });
+}
+
+function noAutorizado(): GuardDenegado {
+  return {
+    user: null,
+    denied: deniedJson("No autorizado", 401),
+  };
 }
 
 export async function requireUser(): Promise<GuardResult> {
   const user = await getUser();
 
   if (!user) {
-    return {
-      user: null,
-      denied: deniedJson("No autorizado", 401),
-    };
+    return noAutorizado();
   }
 
   return { user, denied: null };
@@ -27,10 +38,7 @@ export async function requireAdmin(): Promise<GuardResult> {
   const user = await getUser();
 
   if (!user) {
-    return {
-      user: null,
-      denied: deniedJson("No autorizado", 401),
-    };
+    return noAutorizado();
   }
 
   if (user.rol !== "admin" && user.rol !== "superadmin") {
@@ -47,10 +55,7 @@ export async function requireSuperAdmin(): Promise<GuardResult> {
   const user = await getUser();
 
   if (!user) {
-    return {
-      user: null,
-      denied: deniedJson("No autorizado", 401),
-    };
+    return noAutorizado();
   }
 
   if (user.rol !== "superadmin") {
@@ -67,10 +72,7 @@ export async function requireRoles(rolesPermitidos: Rol[]): Promise<GuardResult>
   const user = await getUser();
 
   if (!user) {
-    return {
-      user: null,
-      denied: deniedJson("No autorizado", 401),
-    };
+    return noAutorizado();
   }
 
   if (!rolesPermitidos.includes(user.rol)) {
