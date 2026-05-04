@@ -259,7 +259,7 @@ export default function ReportesPage() {
         Valor: resumen.totalSinFacturaElectronica,
       },
       { Concepto: "Total cantidad / toneladas", Valor: resumen.totalCantidad },
-      { Concepto: "Total ReteIVA", Valor: resumen.totalReteIva },
+      { Concepto: "Total Retención 4%", Valor: resumen.totalReteIva },
       { Concepto: "Efectivo", Valor: resumen.pagos.efectivo },
       { Concepto: "Transferencia", Valor: resumen.pagos.transferencia },
       { Concepto: "Crédito", Valor: resumen.pagos.credito },
@@ -278,8 +278,8 @@ export default function ReportesPage() {
       Cantidad: numero(s.cantidad),
       "Forma de pago": textoPago(s.formaPago),
       "Factura electrónica": textoFacturaElectronica(s),
-      ReteIVA: s.reteIva ? "Sí" : "No",
-      "Valor ReteIVA": numero(s.valorReteIva),
+      "Retención 4%": s.reteIva ? "Sí" : "No",
+      "Valor Retención 4%": numero(s.valorReteIva),
       Subtotal: numero(s.subtotal),
       "Total neto": valorRealServicio(s),
     }));
@@ -326,7 +326,7 @@ export default function ReportesPage() {
           <div style={styles.breadcrumb}>📊 Reportes</div>
           <h1 style={styles.title}>Reportes operativos</h1>
           <p style={styles.subtitle}>
-            Servicios, pagos, ReteIVA y solicitudes de factura electrónica.
+            Servicios, pagos, retención 4% y solicitudes de factura electrónica.
           </p>
         </div>
 
@@ -423,7 +423,7 @@ export default function ReportesPage() {
         <div style={{ ...styles.kpiCard, ...styles.kpiRed }}>
           <div style={styles.iconBoxRed}>4%</div>
           <div>
-            <span style={styles.kpiLabel}>ReteIVA descontado</span>
+            <span style={styles.kpiLabel}>Retención 4%</span>
             <strong style={styles.kpiValueRed}>{dinero(resumen.totalReteIva)}</strong>
             <p style={styles.kpiText}>{resumen.totalConReteIva} servicio(s)</p>
           </div>

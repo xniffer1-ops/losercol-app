@@ -141,7 +141,7 @@ export default function ServiciosPage() {
     // IVA incluido dentro del total.
     const ivaIncluido = redondearPesos(totalConIva - baseAntesIva);
 
-    // ReteIVA sobre base antes de IVA.
+    // Retención 4% sobre base antes de IVA.
     const valorReteIva = s.reteIva
       ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
       : 0;
@@ -469,7 +469,7 @@ export default function ServiciosPage() {
         "Total con IVA incluido": valores.totalConIva,
         "Base antes de IVA": valores.baseAntesIva,
         "IVA incluido 19%": valores.ivaIncluido,
-        "ReteIVA 4%": valores.valorReteIva,
+        "Retención 4%": valores.valorReteIva,
         "Total neto": valores.totalNeto,
       };
     });
@@ -607,7 +607,7 @@ export default function ServiciosPage() {
           `$${valores.ivaIncluido.toLocaleString("es-CO")}`,
         ],
         [
-          "ReteIVA 4%",
+          "Retención 4%",
           valores.valorReteIva > 0
             ? `-$${valores.valorReteIva.toLocaleString("es-CO")}`
             : "$0",
