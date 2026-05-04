@@ -35,7 +35,9 @@ async function contarAdminsDisponibles() {
 
 export async function GET() {
   const { user, denied } = await requireRoles(["superadmin", "admin"]);
-  if (denied) return denied;
+  if (denied || !user) {
+    return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
 
   try {
     const usuarios = await prisma.usuario.findMany({
@@ -65,7 +67,9 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const { user, denied } = await requireRoles(["superadmin", "admin"]);
-  if (denied) return denied;
+  if (denied || !user) {
+    return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
 
   try {
     const body = await req.json();
@@ -157,7 +161,9 @@ export async function POST(req: Request) {
 
 export async function PUT(req: Request) {
   const { user, denied } = await requireRoles(["superadmin", "admin"]);
-  if (denied) return denied;
+  if (denied || !user) {
+    return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
 
   try {
     const body = await req.json();
@@ -272,7 +278,9 @@ export async function PUT(req: Request) {
 
 export async function DELETE(req: Request) {
   const { user, denied } = await requireRoles(["superadmin", "admin"]);
-  if (denied) return denied;
+  if (denied || !user) {
+    return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
 
   try {
     const body = await req.json();
