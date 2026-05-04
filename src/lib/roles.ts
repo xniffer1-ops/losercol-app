@@ -1,96 +1,82 @@
 import { NextResponse } from "next/server";
-import { getUser } from "@/src/lib/auth";
+import { getUser, type AuthUser, type Rol } from "@/src/lib/auth";
 
-type Rol = "superadmin" | "admin" | "operador";
+type GuardResult = {
+  user: AuthUser | null;
+  denied: NextResponse | null;
+};
 
-export async function requireUser() {
+function deniedJson(error: string, status: number) {
+  return NextResponse.json({ error }, { status });
+}
+
+export async function requireUser(): Promise<GuardResult> {
   const user = await getUser();
 
   if (!user) {
     return {
       user: null,
-      denied: NextResponse.json(
-        { error: "No autorizado" },
-        { status: 401 }
-      ),
+      denied: deniedJson("No autorizado", 401),
     };
   }
 
   return { user, denied: null };
 }
 
-export async function requireAdmin() {
+export async function requireAdmin(): Promise<GuardResult> {
   const user = await getUser();
 
   if (!user) {
     return {
       user: null,
-      denied: NextResponse.json(
-        { error: "No autorizado" },
-        { status: 401 }
-      ),
+      denied: deniedJson("No autorizado", 401),
     };
   }
 
   if (user.rol !== "admin" && user.rol !== "superadmin") {
     return {
       user,
-      denied: NextResponse.json(
-        { error: "Solo admin puede hacer esta acción" },
-        { status: 403 }
-      ),
+      denied: deniedJson("Solo admin puede hacer esta acción", 403),
     };
   }
 
   return { user, denied: null };
 }
 
-export async function requireSuperAdmin() {
+export async function requireSuperAdmin(): Promise<GuardResult> {
   const user = await getUser();
 
   if (!user) {
     return {
       user: null,
-      denied: NextResponse.json(
-        { error: "No autorizado" },
-        { status: 401 }
-      ),
+      denied: deniedJson("No autorizado", 401),
     };
   }
 
   if (user.rol !== "superadmin") {
     return {
       user,
-      denied: NextResponse.json(
-        { error: "Solo superadmin puede hacer esta acción" },
-        { status: 403 }
-      ),
+      denied: deniedJson("Solo superadmin puede hacer esta acción", 403),
     };
   }
 
   return { user, denied: null };
 }
 
-export async function requireRoles(rolesPermitidos: Rol[]) {
+export async function requireRoles(rolesPermitidos: Rol[]): Promise<GuardResult> {
   const user = await getUser();
 
   if (!user) {
     return {
       user: null,
-      denied: NextResponse.json(
-        { error: "No autorizado" },
-        { status: 401 }
-      ),
+      denied: deniedJson("No autorizado", 401),
     };
   }
 
-  if (!rolesPermitidos.includes(user.rol as Rol)) {
+  if (!rolesPermitidos.includes(user.rol)) {
     return {
       user,
-      denied: NextResponse.json(
-        { error: "No tienes permiso para esta acción" },
-        { status: 403 }
-      ),
+      denied: deniedJson("No tienes permiso para esta acción", 403),
     };
   }
 
