@@ -469,7 +469,7 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
       ["Base antes de IVA", formatoDinero(soporte.baseAntesIva)],
       ["IVA incluido 19%", formatoDinero(soporte.ivaIncluido)],
       [
-        "Retención 4%",
+        "Retefuente 4%",
         soporte.valorReteIva > 0 ? `-${formatoDinero(soporte.valorReteIva)}` : "$0",
       ],
       ["Total neto", formatoDinero(soporte.totalNeto)],
@@ -718,7 +718,7 @@ export default function ServicioRapidoPage() {
   // IVA incluido dentro del subtotal.
   const ivaIncluido = redondearPesos(subtotalBruto - baseAntesIva);
 
-  // Retención sobre la base antes de IVA.
+  // Retefuente sobre la base antes de IVA.
   const valorReteIva = aplicaReteIva
     ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
     : 0;
@@ -1306,7 +1306,7 @@ export default function ServicioRapidoPage() {
 
           <div style={styles.fastOptionsGrid}>
             <div style={styles.toggleCard}>
-              <span style={styles.toggleTitle}>Retención 4%</span>
+              <span style={styles.toggleTitle}>Retefuente 4%</span>
 
               <div style={styles.toggleGroup}>
                 <button
@@ -1425,7 +1425,7 @@ export default function ServicioRapidoPage() {
             </div>
 
             <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Retención 4%</span>
+              <span style={styles.summaryLabel}>Retefuente 4%</span>
               <span style={styles.summaryValue}>
                 {valorReteIva > 0 ? `- ${formatoDinero(valorReteIva)}` : "$0"}
               </span>
