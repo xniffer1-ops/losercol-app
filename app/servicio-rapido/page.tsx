@@ -235,17 +235,43 @@ const mapClienteFromResponse = (value: unknown): Cliente | null => {
 
 const valorCarpa = (tipoCarpa: string) => {
   if (tipoCarpa === "Tracto Mula") return 46500;
+  if (tipoCarpa === "Media Tracto Mula") return 23250;
+
   if (tipoCarpa === "Doble Troque") return 23150;
+  if (tipoCarpa === "Media Doble Troque") return 11575;
+
   if (tipoCarpa === "Sencillo") return 16950;
+  if (tipoCarpa === "Media Sencillo") return 8475;
+
   return 0;
 };
 
 const tipoVehiculoDesdeCarpa = (tipoCarpa: string) => {
-  if (tipoCarpa === "Tracto Mula") return "Tracto Mula";
-  if (tipoCarpa === "Doble Troque") return "Doble Troque";
-  if (tipoCarpa === "Sencillo") return "Sencillo";
+  if (tipoCarpa === "Tracto Mula" || tipoCarpa === "Media Tracto Mula") {
+    return "Tracto Mula";
+  }
+
+  if (tipoCarpa === "Doble Troque" || tipoCarpa === "Media Doble Troque") {
+    return "Doble Troque";
+  }
+
+  if (tipoCarpa === "Sencillo" || tipoCarpa === "Media Sencillo") {
+    return "Sencillo";
+  }
 
   return "Sencillo";
+};
+
+const esTarifaDeCarpa = (tarifa: Tarifa) => {
+  const codigo = tarifa.codigo.toUpperCase().trim();
+  const descripcion = tarifa.descripcion.toLowerCase();
+
+  return (
+    codigo === "LS009" ||
+    codigo === "LS010" ||
+    codigo === "LS011" ||
+    descripcion.includes("carpe y descarpe")
+  );
 };
 
 type SoportePDFData = {
@@ -622,16 +648,20 @@ export default function ServicioRapidoPage() {
     }
   }, [placaNormalizada, vehiculoEncontrado, clienteFueManual]);
 
+  const tarifasDisponibles = useMemo(() => {
+    return tarifas.filter((tarifa) => !esTarifaDeCarpa(tarifa));
+  }, [tarifas]);
+
   const tarifaSeleccionada = useMemo(() => {
-    return tarifas.find((tarifa) => tarifa.id === Number(tarifaId)) ?? null;
-  }, [tarifaId, tarifas]);
+    return tarifasDisponibles.find((tarifa) => tarifa.id === Number(tarifaId)) ?? null;
+  }, [tarifaId, tarifasDisponibles]);
 
   const tarifasFiltradas = useMemo(() => {
     const texto = busquedaTarifa.trim().toLowerCase();
 
-    if (!texto) return tarifas;
+    if (!texto) return tarifasDisponibles;
 
-    return tarifas.filter((tarifa) => {
+    return tarifasDisponibles.filter((tarifa) => {
       const combinado = `${tarifa.codigo} - ${tarifa.descripcion}`.toLowerCase();
 
       return (
@@ -640,14 +670,14 @@ export default function ServicioRapidoPage() {
         combinado.includes(texto)
       );
     });
-  }, [busquedaTarifa, tarifas]);
+  }, [busquedaTarifa, tarifasDisponibles]);
 
   useEffect(() => {
     const texto = busquedaTarifa.trim().toLowerCase();
 
     if (!texto) return;
 
-    const tarifaExacta = tarifas.find((tarifa) => {
+    const tarifaExacta = tarifasDisponibles.find((tarifa) => {
       const codigo = tarifa.codigo.toLowerCase();
       const descripcion = tarifa.descripcion.toLowerCase();
       const combinado = `${tarifa.codigo} - ${tarifa.descripcion}`.toLowerCase();
@@ -666,7 +696,7 @@ export default function ServicioRapidoPage() {
     ) {
       setTarifaId(String(tarifaParaSeleccionar.id));
     }
-  }, [busquedaTarifa, tarifas, tarifasFiltradas, tarifaId]);
+  }, [busquedaTarifa, tarifasDisponibles, tarifasFiltradas, tarifaId]);
 
   const cantidadNumero = convertirKilosAToneladas(cantidad);
 
@@ -1245,9 +1275,12 @@ export default function ServicioRapidoPage() {
                 style={styles.select}
               >
                 <option value="">Sin carpa / no aplica</option>
-                <option value="Tracto Mula">Carpa de tractomula</option>
-                <option value="Sencillo">Carpa de sencillo</option>
-                <option value="Doble Troque">Carpa de doble troque</option>
+                <option value="Tracto Mula">Carpa de tractomula - $46.500</option>
+                <option value="Media Tracto Mula">Media carpa tractomula - $23.250</option>
+                <option value="Sencillo">Carpa de sencillo - $16.950</option>
+                <option value="Media Sencillo">Media carpa sencillo - $8.475</option>
+                <option value="Doble Troque">Carpa de doble troque - $23.150</option>
+                <option value="Media Doble Troque">Media carpa doble troque - $11.575</option>
               </select>
             </div>
 
