@@ -285,9 +285,22 @@ export default function ServiciosPage() {
 
   const valorAdicionalCarpa = valorCarpa(form.tipoCarpa);
 
-  const subtotalPreview =
-    Number(form.valorUnitario || 0) * Number(form.cantidad || 0) +
-    valorAdicionalCarpa;
+  const valorServicioPreview = redondearPesos(
+    Number(form.valorUnitario || 0) * Number(form.cantidad || 0)
+  );
+
+  // La tarifa y la carpa ya tienen IVA incluido.
+  const subtotalPreview = redondearPesos(valorServicioPreview + valorAdicionalCarpa);
+  const baseAntesIvaPreview = redondearPesos(
+    subtotalPreview / (1 + IVA_PORCENTAJE)
+  );
+  const ivaIncluidoPreview = redondearPesos(
+    subtotalPreview - baseAntesIvaPreview
+  );
+  const retefuentePreview = form.reteIva
+    ? redondearPesos(baseAntesIvaPreview * RETEIVA_PORCENTAJE)
+    : 0;
+  const totalNetoPreview = redondearPesos(subtotalPreview - retefuentePreview);
 
   const totalServicios = servicios.length;
 
@@ -795,7 +808,7 @@ export default function ServiciosPage() {
             <span>Centro</span>
             <span>Descripción</span>
             <span>Factura</span>
-            <span>Subtotal</span>
+            <span>Total neto</span>
             <span>Acciones</span>
           </div>
 
@@ -921,7 +934,7 @@ export default function ServiciosPage() {
                     </span>
                   </span>
 
-                  <span>${Number(s.subtotal).toLocaleString("es-CO")}</span>
+                  <span>${Number(totalMostrar || 0).toLocaleString("es-CO")}</span>
 
                   <div style={styles.actions}>
                     <button
@@ -1123,8 +1136,38 @@ export default function ServiciosPage() {
             )}
 
             <div style={styles.preview}>
-              Subtotal total:{" "}
-              <strong>${subtotalPreview.toLocaleString("es-CO")}</strong>
+              <div style={styles.previewLine}>
+                <span>Valor servicio con IVA</span>
+                <strong>${valorServicioPreview.toLocaleString("es-CO")}</strong>
+              </div>
+              <div style={styles.previewLine}>
+                <span>Valor carpa con IVA</span>
+                <strong>${valorAdicionalCarpa.toLocaleString("es-CO")}</strong>
+              </div>
+              <div style={styles.previewLine}>
+                <span>Subtotal con IVA incluido</span>
+                <strong>${subtotalPreview.toLocaleString("es-CO")}</strong>
+              </div>
+              <div style={styles.previewLine}>
+                <span>Base antes de IVA</span>
+                <strong>${baseAntesIvaPreview.toLocaleString("es-CO")}</strong>
+              </div>
+              <div style={styles.previewLine}>
+                <span>IVA incluido 19%</span>
+                <strong>${ivaIncluidoPreview.toLocaleString("es-CO")}</strong>
+              </div>
+              <div style={styles.previewLine}>
+                <span>Retefuente 4%</span>
+                <strong>
+                  {retefuentePreview > 0
+                    ? `-$${retefuentePreview.toLocaleString("es-CO")}`
+                    : "$0"}
+                </strong>
+              </div>
+              <div style={styles.previewTotalLine}>
+                <span>Total neto</span>
+                <strong>${totalNetoPreview.toLocaleString("es-CO")}</strong>
+              </div>
             </div>
 
             <button type="submit" style={styles.saveButton} disabled={saving}>
@@ -1279,6 +1322,23 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "8px",
     padding: "12px",
     color: "#111",
+    display: "grid",
+    gap: "8px",
+  },
+  previewLine: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "10px",
+    fontSize: "14px",
+  },
+  previewTotalLine: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "10px",
+    borderTop: "1px solid #ddd",
+    paddingTop: "10px",
+    fontSize: "16px",
+    fontWeight: 900,
   },
   actions: {
     display: "flex",
