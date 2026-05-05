@@ -221,37 +221,39 @@ export default function VehiculosPage() {
             <span>Acciones</span>
           </div>
 
-          {loading ? (
-            <div style={styles.empty}>Cargando vehículos...</div>
-          ) : vehiculos.length === 0 ? (
-            <div style={styles.empty}>No hay vehículos guardados</div>
-          ) : (
-            vehiculos.map((vehiculo) => (
-              <div key={vehiculo.id} style={styles.tableRow}>
-                <span>{vehiculo.placa}</span>
-                <span>{vehiculo.tipoVehiculo}</span>
-                <span>{vehiculo.cliente?.nombre}</span>
-                <span>{vehiculo.cliente?.ccNit}</span>
-                <span style={styles.actions}>
-                  <button
-                    type="button"
-                    onClick={() => editarVehiculo(vehiculo)}
-                    style={styles.editButton}
-                  >
-                    Editar
-                  </button>
+          <div style={styles.tableBody}>
+            {loading ? (
+              <div style={styles.empty}>Cargando vehículos...</div>
+            ) : vehiculos.length === 0 ? (
+              <div style={styles.empty}>No hay vehículos guardados</div>
+            ) : (
+              vehiculos.map((vehiculo) => (
+                <div key={vehiculo.id} style={styles.tableRow}>
+                  <span>{vehiculo.placa}</span>
+                  <span>{vehiculo.tipoVehiculo}</span>
+                  <span>{vehiculo.cliente?.nombre}</span>
+                  <span>{vehiculo.cliente?.ccNit}</span>
+                  <span style={styles.actions}>
+                    <button
+                      type="button"
+                      onClick={() => editarVehiculo(vehiculo)}
+                      style={styles.editButton}
+                    >
+                      Editar
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => void eliminarVehiculo(vehiculo)}
-                    style={styles.deleteButton}
-                  >
-                    Eliminar
-                  </button>
-                </span>
-              </div>
-            ))
-          )}
+                    <button
+                      type="button"
+                      onClick={() => void eliminarVehiculo(vehiculo)}
+                      style={styles.deleteButton}
+                    >
+                      Eliminar
+                    </button>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </section>
 
         <section style={styles.formCard}>
@@ -370,6 +372,9 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #ddd",
     borderRadius: "10px",
     overflow: "hidden",
+    maxHeight: "calc(100vh - 135px)",
+    display: "flex",
+    flexDirection: "column",
   },
   tableHeader: {
     display: "grid",
@@ -378,6 +383,13 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#f5c400",
     padding: "14px",
     fontWeight: 700,
+    position: "sticky",
+    top: 0,
+    zIndex: 2,
+  },
+  tableBody: {
+    overflowY: "auto",
+    flex: 1,
   },
   tableRow: {
     display: "grid",
@@ -393,6 +405,11 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #ddd",
     borderRadius: "10px",
     padding: "20px",
+    position: "sticky",
+    top: "20px",
+    alignSelf: "start",
+    maxHeight: "calc(100vh - 40px)",
+    overflowY: "auto",
   },
   formTitle: {
     marginTop: 0,
