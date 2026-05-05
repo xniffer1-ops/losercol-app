@@ -31,7 +31,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { denied, user } = await requireUser();
+  const { denied } = await requireUser();
   if (denied) return denied;
 
   try {
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     await registrarAccion(
       "CREAR",
       "Vehículos",
-      `Creó el vehículo ${placa} para el cliente ${cliente.nombre}`
+      `Creó el vehículo ${placa} tipo ${tipoVehiculo} para el cliente ${cliente.nombre}`
     );
 
     return NextResponse.json(vehiculo, { status: 201 });

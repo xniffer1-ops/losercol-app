@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 type Cliente = {
@@ -17,18 +17,34 @@ type Vehiculo = {
   cliente: Cliente;
 };
 
+const initialForm = {
+  id: "",
+  placa: "",
+  tipoVehiculo: "",
+  clienteId: "",
+};
+
+function limpiarInterno(valor: string) {
+  return String(valor || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
+}
+
 export default function VehiculosPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [vehiculos, setVehiculos] = useState<Vehiculo[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [editandoId, setEditandoId] = useState<number | null>(null);
 
-  const [form, setForm] = useState({
-    placa: "",
-    tipoVehiculo: "",
-    clienteId: "",
-  });
+  const [form, setForm] = useState(initialForm);
+
+  const clienteSeleccionado = useMemo(
+    () => clientes.find((cliente) => cliente.id === Number(form.clienteId)),
+    [clientes, form.clienteId]
+  );
 
   const cargarTodo = async () => {
     try {
@@ -50,17 +66,87 @@ export default function VehiculosPage() {
   };
 
   useEffect(() => {
-    cargarTodo();
+    void cargarTodo();
   }, []);
+
+  const generarPlacaInterna = (cliente?: Cliente) => {
+    const referencia = limpiarInterno(cliente?.ccNit || cliente?.nombre || "");
+    return referencia ? `INTERNO-${referencia}` : "INTERNO";
+  };
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
-    setForm((prev) => ({
-      ...prev,
-      [name]: value,
-    }));
+
+    setForm((prev) => {
+      const nuevo = {
+        ...prev,
+        [name]: value,
+      };
+
+      if (name === "tipoVehiculo" && value === "Movimiento interno") {
+        const cliente = clientes.find((c) => c.id === Number(nuevo.clienteId));
+        nuevo.placa = generarPlacaInterna(cliente);
+      }
+
+      if (
+        name === "clienteId" &&
+        nuevo.tipoVehiculo === "Movimiento interno" &&
+        !editandoId
+      ) {
+        const cliente = clientes.find((c) => c.id === Number(value));
+        nuevo.placa = generarPlacaInterna(cliente);
+      }
+
+      return nuevo;
+    });
+  };
+
+  const resetForm = () => {
+    setForm(initialForm);
+    setEditandoId(null);
+    setMensaje("");
+  };
+
+  const editarVehiculo = (vehiculo: Vehiculo) => {
+    setEditandoId(vehiculo.id);
+    setForm({
+      id: String(vehiculo.id),
+      placa: vehiculo.placa,
+      tipoVehiculo: vehiculo.tipoVehiculo,
+      clienteId: String(vehiculo.clienteId),
+    });
+    setMensaje("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const eliminarVehiculo = async (vehiculo: Vehiculo) => {
+    const ok = window.confirm(
+      `¿Seguro deseas eliminar el vehículo ${vehiculo.placa}?\n\nSi ya tiene servicios asociados, el sistema no lo eliminará para proteger el historial.`
+    );
+
+    if (!ok) return;
+
+    setMensaje("");
+
+    try {
+      const res = await fetch(`/api/vehiculos/${vehiculo.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMensaje(data.error || "Error al eliminar vehículo");
+        return;
+      }
+
+      setMensaje("Vehículo eliminado correctamente");
+      await cargarTodo();
+    } catch {
+      setMensaje("Error de conexión");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -75,17 +161,22 @@ export default function VehiculosPage() {
     try {
       setSaving(true);
 
-      const res = await fetch("/api/vehiculos", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          placa: form.placa,
-          tipoVehiculo: form.tipoVehiculo,
-          clienteId: Number(form.clienteId),
-        }),
-      });
+      const payload = {
+        placa: form.placa,
+        tipoVehiculo: form.tipoVehiculo,
+        clienteId: Number(form.clienteId),
+      };
+
+      const res = await fetch(
+        editandoId ? `/api/vehiculos/${editandoId}` : "/api/vehiculos",
+        {
+          method: editandoId ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
       const data = await res.json();
 
@@ -94,12 +185,14 @@ export default function VehiculosPage() {
         return;
       }
 
-      setMensaje("Vehículo guardado correctamente");
-      setForm({
-        placa: "",
-        tipoVehiculo: "",
-        clienteId: "",
-      });
+      setMensaje(
+        editandoId
+          ? "Vehículo actualizado correctamente"
+          : "Vehículo guardado correctamente"
+      );
+
+      setForm(initialForm);
+      setEditandoId(null);
 
       await cargarTodo();
     } catch {
@@ -125,6 +218,7 @@ export default function VehiculosPage() {
             <span>Tipo de Vehículo</span>
             <span>Cliente</span>
             <span>CC/NIT</span>
+            <span>Acciones</span>
           </div>
 
           {loading ? (
@@ -138,13 +232,32 @@ export default function VehiculosPage() {
                 <span>{vehiculo.tipoVehiculo}</span>
                 <span>{vehiculo.cliente?.nombre}</span>
                 <span>{vehiculo.cliente?.ccNit}</span>
+                <span style={styles.actions}>
+                  <button
+                    type="button"
+                    onClick={() => editarVehiculo(vehiculo)}
+                    style={styles.editButton}
+                  >
+                    Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => void eliminarVehiculo(vehiculo)}
+                    style={styles.deleteButton}
+                  >
+                    Eliminar
+                  </button>
+                </span>
               </div>
             ))
           )}
         </section>
 
         <section style={styles.formCard}>
-          <h2 style={styles.formTitle}>Adicionar Vehículo</h2>
+          <h2 style={styles.formTitle}>
+            {editandoId ? "Editar Vehículo" : "Adicionar Vehículo"}
+          </h2>
 
           <form onSubmit={handleSubmit} style={styles.form}>
             <input
@@ -162,6 +275,11 @@ export default function VehiculosPage() {
               style={styles.input}
             >
               <option value="">Tipo de vehículo</option>
+              <option value="Tracto Mula">Tracto Mula</option>
+              <option value="Sencillo">Sencillo</option>
+              <option value="Doble Troque">Doble Troque</option>
+              <option value="Turbo">Turbo</option>
+              <option value="Movimiento interno">Movimiento interno</option>
               <option value="TM">TM</option>
               <option value="SC">SC</option>
               <option value="DT">DT</option>
@@ -182,9 +300,31 @@ export default function VehiculosPage() {
               ))}
             </select>
 
+            {form.tipoVehiculo === "Movimiento interno" && (
+              <div style={styles.infoBox}>
+                Este vehículo queda como referencia interna del cliente{" "}
+                <strong>{clienteSeleccionado?.nombre || "seleccionado"}</strong>.
+                Úsalo cuando el servicio sea un movimiento interno sin placa real.
+              </div>
+            )}
+
             <button type="submit" style={styles.saveButton} disabled={saving}>
-              {saving ? "Guardando..." : "Guardar vehículo"}
+              {saving
+                ? "Guardando..."
+                : editandoId
+                ? "Actualizar vehículo"
+                : "Guardar vehículo"}
             </button>
+
+            {editandoId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                style={styles.cancelButton}
+              >
+                Cancelar edición
+              </button>
+            )}
 
             {mensaje && <p style={styles.message}>{mensaje}</p>}
           </form>
@@ -233,7 +373,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableHeader: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1.4fr 1fr",
+    gridTemplateColumns: "1fr 1fr 1.4fr 1fr 1fr",
     gap: "10px",
     background: "#f5c400",
     padding: "14px",
@@ -241,11 +381,12 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableRow: {
     display: "grid",
-    gridTemplateColumns: "1fr 1fr 1.4fr 1fr",
+    gridTemplateColumns: "1fr 1fr 1.4fr 1fr 1fr",
     gap: "10px",
     padding: "12px 14px",
     borderTop: "1px solid #eee",
     background: "#fff",
+    alignItems: "center",
   },
   formCard: {
     background: "#fff",
@@ -266,6 +407,8 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "8px",
     border: "1px solid #ccc",
     fontSize: "14px",
+    color: "#111",
+    background: "#fff",
   },
   saveButton: {
     background: "#f5c400",
@@ -275,6 +418,47 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px",
     fontWeight: 700,
     cursor: "pointer",
+  },
+  cancelButton: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #ccc",
+    borderRadius: "8px",
+    padding: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  editButton: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #bbb",
+    borderRadius: "6px",
+    padding: "8px 10px",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  deleteButton: {
+    background: "#b91c1c",
+    color: "#fff",
+    border: "none",
+    borderRadius: "6px",
+    padding: "8px 10px",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  actions: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  infoBox: {
+    background: "#eef6ff",
+    border: "1px solid #bfdbfe",
+    borderRadius: "8px",
+    padding: "12px",
+    color: "#1e3a8a",
+    fontSize: "14px",
+    lineHeight: 1.4,
   },
   message: {
     margin: 0,

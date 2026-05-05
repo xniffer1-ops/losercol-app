@@ -26,7 +26,7 @@ export function validarTelefono(valor: string) {
 
 export function validarRol(valor: string) {
   const limpio = limpiarTexto(valor).toLowerCase();
-  return limpio === "admin" || limpio === "operador";
+  return limpio === "admin" || limpio === "operador" || limpio === "superadmin";
 }
 
 export function validarTipoVehiculo(valor: string) {
@@ -39,6 +39,8 @@ export function validarTipoVehiculo(valor: string) {
     "Tracto Mula",
     "Doble Troque",
     "Sencillo",
+    "Turbo",
+    "Movimiento interno",
   ].includes(limpio);
 }
 
