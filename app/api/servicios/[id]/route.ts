@@ -12,6 +12,19 @@ function validarNumeroPositivo(valor: unknown) {
   return Number.isFinite(numero) && numero > 0;
 }
 
+function normalizarFormaPago(formaPago: unknown) {
+  return limpiarTexto(formaPago || "credito").toLowerCase();
+}
+
+function validarFormaPago(formaPago: string) {
+  return (
+    formaPago === "" ||
+    formaPago === "credito" ||
+    formaPago === "efectivo" ||
+    formaPago === "transferencia"
+  );
+}
+
 function valorCarpa(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
   if (tipoCarpa === "Media Tracto Mula") return 23250;
@@ -114,6 +127,7 @@ export async function PUT(req: Request, { params }: Params) {
     const vehiculoId = Number(body.vehiculoId);
     const centroOperacionId = Number(body.centroOperacionId);
     const tipoCarpa = limpiarTexto(body.tipoCarpa);
+    const formaPago = normalizarFormaPago(body.formaPago);
     const reteIva = normalizarBoolean(body.reteIva);
     const facturaElectronica = normalizarBoolean(body.facturaElectronica);
 
@@ -134,6 +148,13 @@ export async function PUT(req: Request, { params }: Params) {
     if (!validarTipoCarpa(tipoCarpa)) {
       return NextResponse.json(
         { error: "Tipo de carpa inválido" },
+        { status: 400 }
+      );
+    }
+
+    if (!validarFormaPago(formaPago)) {
+      return NextResponse.json(
+        { error: "Forma de pago inválida" },
         { status: 400 }
       );
     }
@@ -164,6 +185,7 @@ export async function PUT(req: Request, { params }: Params) {
         descripcion: tarifa.descripcion,
         valorUnitario: tarifa.valorUnitario,
         tipoCarpa: tipoCarpa || null,
+        formaPago,
         unidadMedida: tarifa.unidadMedida,
         presentacion: tarifa.presentacion,
         categoria: tarifa.categoria,
@@ -191,7 +213,7 @@ export async function PUT(req: Request, { params }: Params) {
     await registrarAccion(
       "EDITAR",
       "Servicios",
-      `Editó servicio ${servicio.descripcion} de placa ${servicio.vehiculo?.placa}`
+      `Editó soporte ${servicio.numeroSoporte || servicio.id} - ${servicio.descripcion} de placa ${servicio.vehiculo?.placa} - pago: ${formaPago} - Retefuente: ${reteIva ? "sí" : "no"} - Factura electrónica: ${facturaElectronica ? "sí" : "no"}`
     );
 
     return NextResponse.json(servicio);

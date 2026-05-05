@@ -11,6 +11,15 @@ import {
 } from "@/src/lib/validaciones";
 
 export async function GET() {
+  const user = await getUser();
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "No autorizado" },
+      { status: 401 }
+    );
+  }
+
   try {
     const clientes = await prisma.cliente.findMany({
       orderBy: { id: "desc" },
@@ -29,7 +38,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const user = await getUser();
 
-  if (!user || (user.rol !== "admin" && user.rol !== "operador")) {
+  if (!user || (user.rol !== "admin" && user.rol !== "operador" && user.rol !== "superadmin")) {
     return NextResponse.json(
       { error: "No tienes permiso para hacer esta acción" },
       { status: 403 }

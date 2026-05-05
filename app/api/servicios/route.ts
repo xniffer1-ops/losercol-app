@@ -60,7 +60,18 @@ function redondearPesos(valor: number) {
 }
 
 function fechaInputHoy() {
-  return new Date().toISOString().slice(0, 10);
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = partes.find((parte) => parte.type === "year")?.value || "";
+  const month = partes.find((parte) => parte.type === "month")?.value || "";
+  const day = partes.find((parte) => parte.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
 }
 
 export async function GET(req: Request) {
@@ -89,8 +100,8 @@ export async function GET(req: Request) {
     const fechaFinConsulta = fechaFin || fechaInicioConsulta;
 
     where.createdAt = {
-      gte: new Date(`${fechaInicioConsulta}T00:00:00`),
-      lte: new Date(`${fechaFinConsulta}T23:59:59`),
+      gte: new Date(`${fechaInicioConsulta}T00:00:00.000-05:00`),
+      lte: new Date(`${fechaFinConsulta}T23:59:59.999-05:00`),
     };
 
     const servicios = await prisma.servicio.findMany({
@@ -137,7 +148,7 @@ export async function POST(req: Request) {
       },
     });
 
-    if (cierre && user?.rol !== "admin") {
+    if (cierre && user?.rol !== "admin" && user?.rol !== "superadmin") {
       return NextResponse.json(
         {
           error:

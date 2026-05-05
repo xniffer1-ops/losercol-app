@@ -51,6 +51,7 @@ type Servicio = {
   valorReteIva?: number;
   totalNeto?: number;
   facturaElectronica?: boolean;
+  formaPago?: string | null;
   clienteId: number;
   vehiculoId: number;
   centroOperacionId: number;
@@ -81,12 +82,28 @@ const initialForm = {
   seccionId: "",
   tarifaId: "",
   tipoCarpa: "",
+  formaPago: "credito",
+  reteIva: false,
+  facturaElectronica: false,
   descripcion: "",
   valorUnitario: "",
   cantidad: "",
 };
 
-const fechaHoyInput = () => new Date().toISOString().slice(0, 10);
+const fechaHoyInput = () => {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = partes.find((parte) => parte.type === "year")?.value || "";
+  const month = partes.find((parte) => parte.type === "month")?.value || "";
+  const day = partes.find((parte) => parte.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
+};
 
 export default function ServiciosPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -113,8 +130,11 @@ export default function ServiciosPage() {
 
   const valorCarpa = (tipo: string) => {
     if (tipo === "Tracto Mula") return 46500;
+    if (tipo === "Media Tracto Mula") return 23250;
     if (tipo === "Doble Troque") return 23150;
+    if (tipo === "Media Doble Troque") return 11575;
     if (tipo === "Sencillo") return 16950;
+    if (tipo === "Media Sencillo") return 8475;
     return 0;
   };
 
@@ -271,10 +291,10 @@ export default function ServiciosPage() {
 
   const totalServicios = servicios.length;
 
-  const totalFacturado = servicios.reduce(
-    (acc, s) => acc + Number(s.subtotal || 0),
-    0
-  );
+  const totalFacturado = servicios.reduce((acc, s) => {
+    const valores = calcularValoresServicio(s);
+    return acc + Number(valores.totalNeto || s.totalNeto || s.subtotal || 0);
+  }, 0);
 
   const totalCantidad = servicios.reduce(
     (acc, s) => acc + Number(s.cantidad || 0),
@@ -289,6 +309,12 @@ export default function ServiciosPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
+
+    if (e.target instanceof HTMLInputElement && e.target.type === "checkbox") {
+      const checked = e.target.checked;
+      setForm((prev) => ({ ...prev, [name]: checked }));
+      return;
+    }
 
     if (name === "clienteId") {
       setForm((prev) => ({
@@ -346,6 +372,9 @@ export default function ServiciosPage() {
         seccionId: Number(form.seccionId),
         tarifaId: Number(form.tarifaId),
         tipoCarpa: form.tipoCarpa,
+        formaPago: form.formaPago,
+        reteIva: form.reteIva,
+        facturaElectronica: form.facturaElectronica,
         cantidad: Number(form.cantidad),
       };
 
@@ -386,6 +415,9 @@ export default function ServiciosPage() {
       seccionId: s.seccionId ? String(s.seccionId) : "",
       tarifaId: s.tarifaId ? String(s.tarifaId) : "",
       tipoCarpa: s.tipoCarpa || "",
+      formaPago: s.formaPago || "credito",
+      reteIva: Boolean(s.reteIva),
+      facturaElectronica: Boolean(s.facturaElectronica),
       descripcion: s.descripcion,
       valorUnitario: String(s.valorUnitario),
       cantidad: String(s.cantidad),
@@ -459,6 +491,7 @@ export default function ServiciosPage() {
         Seccion: s.seccion?.nombre || "",
         Tarifa: s.tarifa?.codigo || "",
         "Carpa adicional": s.tipoCarpa || "",
+        "Forma de pago": s.formaPago || "credito",
         "Factura electrónica": textoFacturaElectronica(s),
         Descripcion: s.descripcion,
         Unidad: s.unidadMedida || "",
@@ -641,6 +674,34 @@ export default function ServiciosPage() {
     doc.save(`${soporte}_${s.vehiculo?.placa || "servicio"}.pdf`);
   };
 
+  const normalizarTelefonoWhatsApp = (telefono?: string) => {
+    const soloNumeros = String(telefono || "").replace(/\D/g, "");
+
+    if (!soloNumeros || soloNumeros.length < 7) return "";
+    if (soloNumeros.startsWith("57") && soloNumeros.length >= 12) return soloNumeros;
+    if (soloNumeros.length === 10) return `57${soloNumeros}`;
+
+    return soloNumeros;
+  };
+
+  const reenviarWhatsApp = async (s: Servicio) => {
+    await exportarPDF(s);
+
+    const telefono = normalizarTelefonoWhatsApp(s.cliente?.telefono);
+
+    if (!telefono) {
+      alert("El cliente no tiene un teléfono válido para WhatsApp.");
+      return;
+    }
+
+    const mensaje = `Hola, cordial saludo.\n\nAdjunto soporte de servicio LOSERCOL No. ${numeroSoporte(s)}.\n\nGracias.`;
+    window.open(
+      `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`,
+      "_blank",
+      "noopener,noreferrer"
+    );
+  };
+
   return (
     <main style={isMobile ? { ...styles.page, ...styles.pageMobile } : styles.page}>
       <div style={isMobile ? { ...styles.topBar, ...styles.topBarMobile } : styles.topBar}>
@@ -810,6 +871,13 @@ export default function ServiciosPage() {
                         PDF
                       </button>
 
+                      <button
+                        onClick={() => void reenviarWhatsApp(s)}
+                        style={styles.whatsappButtonMobile}
+                      >
+                        WhatsApp
+                      </button>
+
                       {puedeAdministrar && (
                         <>
                           <button
@@ -861,6 +929,13 @@ export default function ServiciosPage() {
                       style={styles.pdfButton}
                     >
                       PDF
+                    </button>
+
+                    <button
+                      onClick={() => void reenviarWhatsApp(s)}
+                      style={styles.whatsappButton}
+                    >
+                      WhatsApp
                     </button>
 
                     {puedeAdministrar && (
@@ -977,9 +1052,43 @@ export default function ServiciosPage() {
             >
               <option value="">Sin carpa adicional</option>
               <option value="Tracto Mula">Carpa Tracto Mula - $46.500</option>
+              <option value="Media Tracto Mula">Media carpa tractomula - $23.250</option>
               <option value="Doble Troque">Carpa Doble Troque - $23.150</option>
+              <option value="Media Doble Troque">Media carpa doble troque - $11.575</option>
               <option value="Sencillo">Carpa Sencillo - $16.950</option>
+              <option value="Media Sencillo">Media carpa sencillo - $8.475</option>
             </select>
+
+            <select
+              name="formaPago"
+              value={form.formaPago}
+              onChange={handleChange}
+              style={styles.input}
+            >
+              <option value="credito">Crédito</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+            </select>
+
+            <label style={styles.checkboxRow}>
+              <input
+                name="reteIva"
+                type="checkbox"
+                checked={Boolean(form.reteIva)}
+                onChange={handleChange}
+              />
+              <span>Aplica Retefuente 4%</span>
+            </label>
+
+            <label style={styles.checkboxRow}>
+              <input
+                name="facturaElectronica"
+                type="checkbox"
+                checked={Boolean(form.facturaElectronica)}
+                onChange={handleChange}
+              />
+              <span>Requiere factura electrónica</span>
+            </label>
 
             <input
               value={form.descripcion}
@@ -1227,6 +1336,25 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px 10px",
     cursor: "pointer",
   },
+  whatsappButton: {
+    background: "#0f766e",
+    color: "#fff",
+    border: "none",
+    borderRadius: "6px",
+    padding: "8px 10px",
+    cursor: "pointer",
+  },
+  checkboxRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    background: "#f7f7f7",
+    border: "1px solid #ddd",
+    borderRadius: "8px",
+    padding: "12px",
+    color: "#111",
+    fontWeight: 700,
+  },
   facturaSi: {
     display: "inline-flex",
     padding: "6px 10px",
@@ -1322,7 +1450,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   actionsMobile: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
+    gridTemplateColumns: "repeat(4, 1fr)",
     gap: "8px",
   },
   pdfButtonMobile: {
@@ -1345,6 +1473,15 @@ const styles: Record<string, React.CSSProperties> = {
   },
   deleteButtonMobile: {
     background: "#b91c1c",
+    color: "#fff",
+    border: "none",
+    borderRadius: "10px",
+    padding: "12px 10px",
+    cursor: "pointer",
+    fontWeight: 900,
+  },
+  whatsappButtonMobile: {
+    background: "#0f766e",
     color: "#fff",
     border: "none",
     borderRadius: "10px",
