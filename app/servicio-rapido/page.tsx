@@ -532,7 +532,7 @@ export default function ServicioRapidoPage() {
   const [busquedaTarifa, setBusquedaTarifa] = useState("");
   const [cantidad, setCantidad] = useState("");
   const [tipoCarpa, setTipoCarpa] = useState("");
-  const [formaPago, setFormaPago] = useState("credito");
+  const [formaPago, setFormaPago] = useState("efectivo");
 
   const [aplicaReteIva, setAplicaReteIva] = useState(false);
   const [facturaElectronica, setFacturaElectronica] = useState(false);
@@ -734,7 +734,7 @@ export default function ServicioRapidoPage() {
     setBusquedaTarifa("");
     setCantidad("");
     setTipoCarpa("");
-    setFormaPago("credito");
+    setFormaPago("efectivo");
     setAplicaReteIva(false);
     setFacturaElectronica(false);
     setMensaje("");
@@ -765,7 +765,7 @@ export default function ServicioRapidoPage() {
       ccNit: documento,
       telefono: telefono || "No registrado",
       correo: correo || "sin-correo@losercol.com",
-      formaPago: formaPago || "credito",
+      formaPago: formaPago || "efectivo",
     });
 
     if (!respuesta.ok) {
@@ -980,7 +980,7 @@ export default function ServicioRapidoPage() {
     setBusquedaTarifa("");
     setCantidad("");
     setTipoCarpa("");
-    setFormaPago("credito");
+    setFormaPago("efectivo");
     setAplicaReteIva(false);
     setFacturaElectronica(false);
     placaRef.current?.focus();
@@ -1297,9 +1297,9 @@ export default function ServicioRapidoPage() {
                 }
                 style={styles.select}
               >
-                <option value="credito">Crédito</option>
                 <option value="efectivo">Efectivo</option>
                 <option value="transferencia">Transferencia</option>
+                <option value="credito">Crédito</option>
               </select>
             </div>
           </div>

@@ -12,19 +12,44 @@ type Cliente = {
   formaPago: string;
 };
 
-export default function ClientesPage() {
-  const [form, setForm] = useState({
-    ccNit: "",
-    nombre: "",
-    correo: "",
-    telefono: "",
-    formaPago: "",
-  });
+const initialForm = {
+  ccNit: "",
+  nombre: "",
+  correo: "",
+  telefono: "",
+  formaPago: "efectivo",
+};
 
+function normalizarPagoVisual(valor: string) {
+  const pago = String(valor || "").toLowerCase();
+
+  if (pago === "credito" || pago === "crédito") return "Crédito";
+  if (pago === "efectivo") return "Efectivo";
+  if (pago === "transferencia") return "Transferencia";
+
+  return valor || "-";
+}
+
+function normalizarPagoValor(valor: string) {
+  const pago = String(valor || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (pago === "credito") return "credito";
+  if (pago === "efectivo") return "efectivo";
+  if (pago === "transferencia") return "transferencia";
+
+  return "";
+}
+
+export default function ClientesPage() {
+  const [form, setForm] = useState(initialForm);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState("");
+  const [editandoId, setEditandoId] = useState<number | null>(null);
 
   const cargarClientes = async () => {
     try {
@@ -39,7 +64,7 @@ export default function ClientesPage() {
   };
 
   useEffect(() => {
-    cargarClientes();
+    void cargarClientes();
   }, []);
 
   const handleChange = (
@@ -47,6 +72,53 @@ export default function ClientesPage() {
   ) => {
     const { name, value } = e.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const resetForm = () => {
+    setForm(initialForm);
+    setEditandoId(null);
+    setMensaje("");
+  };
+
+  const editarCliente = (cliente: Cliente) => {
+    setEditandoId(cliente.id);
+    setForm({
+      ccNit: cliente.ccNit || "",
+      nombre: cliente.nombre || "",
+      correo: cliente.correo || "",
+      telefono: cliente.telefono || "",
+      formaPago: normalizarPagoValor(cliente.formaPago) || "efectivo",
+    });
+    setMensaje("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const eliminarCliente = async (cliente: Cliente) => {
+    const ok = window.confirm(
+      `¿Seguro deseas eliminar el cliente ${cliente.nombre}?\n\nSi tiene vehículos o servicios asociados, el sistema no lo eliminará para proteger el historial.`
+    );
+
+    if (!ok) return;
+
+    setMensaje("");
+
+    try {
+      const res = await fetch(`/api/clientes/${cliente.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMensaje(data.error || "Error al eliminar cliente");
+        return;
+      }
+
+      setMensaje("Cliente eliminado correctamente");
+      await cargarClientes();
+    } catch {
+      setMensaje("Error de conexión al eliminar");
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -67,13 +139,16 @@ export default function ClientesPage() {
     try {
       setSaving(true);
 
-      const res = await fetch("/api/clientes", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(form),
-      });
+      const res = await fetch(
+        editandoId ? `/api/clientes/${editandoId}` : "/api/clientes",
+        {
+          method: editandoId ? "PUT" : "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(form),
+        }
+      );
 
       const data = await res.json();
 
@@ -82,14 +157,14 @@ export default function ClientesPage() {
         return;
       }
 
-      setMensaje("Cliente guardado correctamente");
-      setForm({
-        ccNit: "",
-        nombre: "",
-        correo: "",
-        telefono: "",
-        formaPago: "",
-      });
+      setMensaje(
+        editandoId
+          ? "Cliente actualizado correctamente"
+          : "Cliente guardado correctamente"
+      );
+
+      setForm(initialForm);
+      setEditandoId(null);
 
       await cargarClientes();
     } catch {
@@ -116,27 +191,50 @@ export default function ClientesPage() {
             <span>Correo</span>
             <span>Teléfono</span>
             <span>Forma de Pago</span>
+            <span>Acciones</span>
           </div>
 
-          {loading ? (
-            <div style={styles.empty}>Cargando clientes...</div>
-          ) : clientes.length === 0 ? (
-            <div style={styles.empty}>No hay clientes guardados</div>
-          ) : (
-            clientes.map((cliente) => (
-              <div key={cliente.id} style={styles.tableRow}>
-                <span>{cliente.ccNit}</span>
-                <span>{cliente.nombre}</span>
-                <span>{cliente.correo}</span>
-                <span>{cliente.telefono}</span>
-                <span>{cliente.formaPago}</span>
-              </div>
-            ))
-          )}
+          <div style={styles.tableBody}>
+            {loading ? (
+              <div style={styles.empty}>Cargando clientes...</div>
+            ) : clientes.length === 0 ? (
+              <div style={styles.empty}>No hay clientes guardados</div>
+            ) : (
+              clientes.map((cliente) => (
+                <div key={cliente.id} style={styles.tableRow}>
+                  <span>{cliente.ccNit}</span>
+                  <span>{cliente.nombre}</span>
+                  <span>{cliente.correo}</span>
+                  <span>{cliente.telefono}</span>
+                  <span>{normalizarPagoVisual(cliente.formaPago)}</span>
+
+                  <span style={styles.actions}>
+                    <button
+                      type="button"
+                      onClick={() => editarCliente(cliente)}
+                      style={styles.editButton}
+                    >
+                      Editar
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => void eliminarCliente(cliente)}
+                      style={styles.deleteButton}
+                    >
+                      Eliminar
+                    </button>
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
         </section>
 
         <section style={styles.formCard}>
-          <h2 style={styles.formTitle}>Adicionar Cliente</h2>
+          <h2 style={styles.formTitle}>
+            {editandoId ? "Editar Cliente" : "Adicionar Cliente"}
+          </h2>
 
           <form onSubmit={handleSubmit} style={styles.form}>
             <input
@@ -178,15 +276,28 @@ export default function ClientesPage() {
               onChange={handleChange}
               style={styles.input}
             >
-              <option value="">Forma de pago</option>
-              <option value="Efectivo">Efectivo</option>
-              <option value="Transferencia">Transferencia</option>
-              <option value="Crédito">Crédito</option>
+              <option value="efectivo">Efectivo</option>
+              <option value="transferencia">Transferencia</option>
+              <option value="credito">Crédito</option>
             </select>
 
             <button type="submit" style={styles.saveButton} disabled={saving}>
-              {saving ? "Guardando..." : "Guardar cliente"}
+              {saving
+                ? "Guardando..."
+                : editandoId
+                ? "Actualizar cliente"
+                : "Guardar cliente"}
             </button>
+
+            {editandoId && (
+              <button
+                type="button"
+                onClick={resetForm}
+                style={styles.cancelButton}
+              >
+                Cancelar edición
+              </button>
+            )}
 
             {mensaje && <p style={styles.message}>{mensaje}</p>}
           </form>
@@ -232,28 +343,44 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #ddd",
     borderRadius: "10px",
     overflow: "hidden",
+    maxHeight: "calc(100vh - 150px)",
+    display: "flex",
+    flexDirection: "column",
   },
   tableHeader: {
     display: "grid",
-    gridTemplateColumns: "1fr 1.3fr 1.4fr 1fr 1fr",
+    gridTemplateColumns: "1fr 1.3fr 1.4fr 1fr 1fr 1fr",
     gap: "10px",
     background: "#f5c400",
     padding: "14px",
     fontWeight: 700,
+    position: "sticky",
+    top: 0,
+    zIndex: 2,
+  },
+  tableBody: {
+    overflowY: "auto",
+    flex: 1,
   },
   tableRow: {
     display: "grid",
-    gridTemplateColumns: "1fr 1.3fr 1.4fr 1fr 1fr",
+    gridTemplateColumns: "1fr 1.3fr 1.4fr 1fr 1fr 1fr",
     gap: "10px",
     padding: "12px 14px",
     borderTop: "1px solid #eee",
     background: "#fff",
+    alignItems: "center",
   },
   formCard: {
     background: "#fff",
     border: "1px solid #ddd",
     borderRadius: "10px",
     padding: "20px",
+    position: "sticky",
+    top: "20px",
+    alignSelf: "start",
+    maxHeight: "calc(100vh - 40px)",
+    overflowY: "auto",
   },
   formTitle: {
     marginTop: 0,
@@ -268,6 +395,8 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "8px",
     border: "1px solid #ccc",
     fontSize: "14px",
+    color: "#111",
+    background: "#fff",
   },
   saveButton: {
     background: "#f5c400",
@@ -277,6 +406,38 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px",
     fontWeight: 700,
     cursor: "pointer",
+  },
+  cancelButton: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #ccc",
+    borderRadius: "8px",
+    padding: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  editButton: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #bbb",
+    borderRadius: "6px",
+    padding: "8px 10px",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  deleteButton: {
+    background: "#b91c1c",
+    color: "#fff",
+    border: "none",
+    borderRadius: "6px",
+    padding: "8px 10px",
+    cursor: "pointer",
+    fontWeight: 700,
+  },
+  actions: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
   },
   message: {
     margin: 0,

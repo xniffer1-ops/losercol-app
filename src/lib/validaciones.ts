@@ -44,8 +44,21 @@ export function validarTipoVehiculo(valor: string) {
   ].includes(limpio);
 }
 
+export function normalizarFormaPago(valor: unknown) {
+  const limpio = limpiarTexto(valor)
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\\u0300-\\u036f]/g, "");
+
+  if (limpio === "credito") return "credito";
+  if (limpio === "efectivo") return "efectivo";
+  if (limpio === "transferencia") return "transferencia";
+
+  return limpio;
+}
+
 export function validarFormaPago(valor: string) {
-  const limpio = limpiarTexto(valor).toLowerCase();
+  const limpio = normalizarFormaPago(valor);
   return ["credito", "efectivo", "transferencia"].includes(limpio);
 }
 

@@ -8,16 +8,28 @@ import {
   validarEmail,
   validarFormaPago,
   validarTelefono,
+  normalizarFormaPago,
 } from "@/src/lib/validaciones";
+
+function correoSeguro(valor: unknown) {
+  const correo = limpiarTexto(valor).toLowerCase();
+  return correo || "sin-correo@losercol.com";
+}
+
+function telefonoSeguro(valor: unknown) {
+  const telefono = limpiarTexto(valor);
+  return telefono || "3147897436";
+}
+
+function puedeGestionarCliente(rol?: string) {
+  return rol === "admin" || rol === "operador" || rol === "superadmin";
+}
 
 export async function GET() {
   const user = await getUser();
 
   if (!user) {
-    return NextResponse.json(
-      { error: "No autorizado" },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
@@ -28,6 +40,7 @@ export async function GET() {
     return NextResponse.json(clientes);
   } catch (error) {
     console.error("Error GET /api/clientes:", error);
+
     return NextResponse.json(
       { error: "Error al obtener clientes" },
       { status: 500 }
@@ -38,7 +51,7 @@ export async function GET() {
 export async function POST(req: Request) {
   const user = await getUser();
 
-  if (!user || (user.rol !== "admin" && user.rol !== "operador" && user.rol !== "superadmin")) {
+  if (!user || !puedeGestionarCliente(user.rol)) {
     return NextResponse.json(
       { error: "No tienes permiso para hacer esta acción" },
       { status: 403 }
@@ -50,9 +63,9 @@ export async function POST(req: Request) {
 
     const ccNit = limpiarTexto(body.ccNit);
     const nombre = limpiarTexto(body.nombre);
-    const correo = limpiarTexto(body.correo);
-    const telefono = limpiarTexto(body.telefono);
-    const formaPago = limpiarTexto(body.formaPago);
+    const correo = correoSeguro(body.correo);
+    const telefono = telefonoSeguro(body.telefono);
+    const formaPago = normalizarFormaPago(body.formaPago || "efectivo");
 
     if (!ccNit || !nombre || !correo || !telefono || !formaPago) {
       return NextResponse.json(
@@ -114,6 +127,7 @@ export async function POST(req: Request) {
     return NextResponse.json(cliente, { status: 201 });
   } catch (error) {
     console.error("Error POST /api/clientes:", error);
+
     return NextResponse.json(
       { error: "Error al guardar cliente" },
       { status: 500 }
