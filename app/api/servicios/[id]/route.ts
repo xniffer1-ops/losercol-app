@@ -3,6 +3,48 @@ import { prisma } from "../../../../src/lib/prisma";
 import { requireAdmin, requireUser } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
+function limpiarTexto(valor: unknown) {
+  return String(valor || "").trim();
+}
+
+function validarNumeroPositivo(valor: unknown) {
+  const numero = Number(valor);
+  return Number.isFinite(numero) && numero > 0;
+}
+
+function valorCarpa(tipoCarpa: string) {
+  if (tipoCarpa === "Tracto Mula") return 46500;
+  if (tipoCarpa === "Media Tracto Mula") return 23250;
+  if (tipoCarpa === "Doble Troque") return 23150;
+  if (tipoCarpa === "Media Doble Troque") return 11575;
+  if (tipoCarpa === "Sencillo") return 16950;
+  if (tipoCarpa === "Media Sencillo") return 8475;
+  return 0;
+}
+
+function validarTipoCarpa(tipoCarpa: string) {
+  return (
+    tipoCarpa === "" ||
+    tipoCarpa === "Tracto Mula" ||
+    tipoCarpa === "Media Tracto Mula" ||
+    tipoCarpa === "Doble Troque" ||
+    tipoCarpa === "Media Doble Troque" ||
+    tipoCarpa === "Sencillo" ||
+    tipoCarpa === "Media Sencillo"
+  );
+}
+
+function normalizarBoolean(valor: unknown) {
+  return valor === true || valor === "true" || valor === "si" || valor === "sí";
+}
+
+const IVA_PORCENTAJE = 0.19;
+const RETEFUENTE_PORCENTAJE = 0.04;
+
+function redondearPesos(valor: number) {
+  return Math.round(valor);
+}
+
 type Params = {
   params: Promise<{
     id: string;
@@ -71,17 +113,27 @@ export async function PUT(req: Request, { params }: Params) {
     const clienteId = Number(body.clienteId);
     const vehiculoId = Number(body.vehiculoId);
     const centroOperacionId = Number(body.centroOperacionId);
+    const tipoCarpa = limpiarTexto(body.tipoCarpa);
+    const reteIva = normalizarBoolean(body.reteIva);
+    const facturaElectronica = normalizarBoolean(body.facturaElectronica);
 
     if (
       !tarifaId ||
       !seccionId ||
-      !cantidad ||
       !clienteId ||
       !vehiculoId ||
-      !centroOperacionId
+      !centroOperacionId ||
+      !validarNumeroPositivo(cantidad)
     ) {
       return NextResponse.json(
-        { error: "Todos los campos son obligatorios" },
+        { error: "Todos los campos son obligatorios y la cantidad debe ser mayor a 0" },
+        { status: 400 }
+      );
+    }
+
+    if (!validarTipoCarpa(tipoCarpa)) {
+      return NextResponse.json(
+        { error: "Tipo de carpa inválido" },
         { status: 400 }
       );
     }
@@ -97,18 +149,30 @@ export async function PUT(req: Request, { params }: Params) {
       );
     }
 
-    const subtotal = tarifa.valorUnitario * cantidad;
+    const valorServicio = redondearPesos(Number(tarifa.valorUnitario) * cantidad);
+    const valorAdicionalCarpa = redondearPesos(valorCarpa(tipoCarpa));
+    const subtotal = redondearPesos(valorServicio + valorAdicionalCarpa);
+    const baseAntesIva = redondearPesos(subtotal / (1 + IVA_PORCENTAJE));
+    const valorReteIva = reteIva
+      ? redondearPesos(baseAntesIva * RETEFUENTE_PORCENTAJE)
+      : 0;
+    const totalNeto = redondearPesos(subtotal - valorReteIva);
 
     const servicio = await prisma.servicio.update({
       where: { id },
       data: {
         descripcion: tarifa.descripcion,
         valorUnitario: tarifa.valorUnitario,
+        tipoCarpa: tipoCarpa || null,
         unidadMedida: tarifa.unidadMedida,
         presentacion: tarifa.presentacion,
         categoria: tarifa.categoria,
         cantidad,
         subtotal,
+        reteIva,
+        valorReteIva,
+        totalNeto,
+        facturaElectronica,
         clienteId,
         vehiculoId,
         centroOperacionId,

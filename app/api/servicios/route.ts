@@ -28,8 +28,11 @@ function validarFormaPago(formaPago: string) {
 
 function valorCarpa(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
+  if (tipoCarpa === "Media Tracto Mula") return 23250;
   if (tipoCarpa === "Doble Troque") return 23150;
+  if (tipoCarpa === "Media Doble Troque") return 11575;
   if (tipoCarpa === "Sencillo") return 16950;
+  if (tipoCarpa === "Media Sencillo") return 8475;
   return 0;
 }
 
@@ -37,8 +40,11 @@ function validarTipoCarpa(tipoCarpa: string) {
   return (
     tipoCarpa === "" ||
     tipoCarpa === "Tracto Mula" ||
+    tipoCarpa === "Media Tracto Mula" ||
     tipoCarpa === "Doble Troque" ||
-    tipoCarpa === "Sencillo"
+    tipoCarpa === "Media Doble Troque" ||
+    tipoCarpa === "Sencillo" ||
+    tipoCarpa === "Media Sencillo"
   );
 }
 
@@ -246,12 +252,12 @@ export async function POST(req: Request) {
     // IVA incluido dentro del subtotal.
     const ivaIncluido = redondearPesos(subtotal - baseAntesIva);
 
-    // ReteIVA se calcula sobre la base antes de IVA, no sobre el total con IVA.
+    // Retefuente se calcula sobre la base antes de IVA, no sobre el total con IVA.
     const valorReteIva = reteIva
       ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
       : 0;
 
-    // Total neto después de descontar ReteIVA.
+    // Total neto después de descontar Retefuente.
     const totalNeto = redondearPesos(subtotal - valorReteIva);
 
     const servicio = await prisma.servicio.create({
@@ -291,7 +297,7 @@ export async function POST(req: Request) {
       "Servicios",
       `Creó soporte ${numeroSoporte} - ${tarifa.descripcion}${
         tipoCarpa ? ` + carpa ${tipoCarpa}` : ""
-      } - pago: ${formaPago} - Base IVA: $${baseAntesIva.toLocaleString("es-CO")} - IVA incluido: $${ivaIncluido.toLocaleString("es-CO")} - ReteIVA: ${
+      } - pago: ${formaPago} - Base IVA: $${baseAntesIva.toLocaleString("es-CO")} - IVA incluido: $${ivaIncluido.toLocaleString("es-CO")} - Retefuente: ${
         reteIva ? "sí" : "no"
       } - Factura electrónica: ${facturaElectronica ? "sí" : "no"}`
     );
