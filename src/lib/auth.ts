@@ -1,9 +1,25 @@
 import { cookies } from "next/headers";
 import jwt from "jsonwebtoken";
+import { prisma } from "@/src/lib/prisma";
+import {
+  parsearPermisos,
+  type PermisosUsuario,
+  type Rol as RolPermiso,
+} from "@/src/lib/permisos";
 
-export type Rol = "superadmin" | "admin" | "operador";
+export type Rol = RolPermiso;
 
 export type AuthUser = {
+  id: number;
+  nombre: string;
+  email: string;
+  rol: Rol;
+  permisos: PermisosUsuario;
+  exp?: number;
+  iat?: number;
+};
+
+type TokenUser = {
   id: number;
   nombre: string;
   email: string;
@@ -13,13 +29,18 @@ export type AuthUser = {
 };
 
 function rolValido(rol: unknown): rol is Rol {
-  return rol === "superadmin" || rol === "admin" || rol === "operador";
+  return (
+    rol === "superadmin" ||
+    rol === "admin" ||
+    rol === "auxiliar" ||
+    rol === "operador"
+  );
 }
 
-function esUsuarioValido(value: unknown): value is AuthUser {
+function esTokenValido(value: unknown): value is TokenUser {
   if (!value || typeof value !== "object") return false;
 
-  const user = value as Partial<AuthUser>;
+  const user = value as Partial<TokenUser>;
 
   return (
     typeof user.id === "number" &&
@@ -45,9 +66,30 @@ export async function getUser(): Promise<AuthUser | null> {
   try {
     const decoded = jwt.verify(token, secret);
 
-    if (!esUsuarioValido(decoded)) return null;
+    if (!esTokenValido(decoded)) return null;
 
-    return decoded;
+    const usuarioDb = await prisma.usuario.findUnique({
+      where: { id: decoded.id },
+      select: {
+        id: true,
+        nombre: true,
+        email: true,
+        rol: true,
+        permisos: true,
+      },
+    });
+
+    if (!usuarioDb || !rolValido(usuarioDb.rol)) return null;
+
+    return {
+      id: usuarioDb.id,
+      nombre: usuarioDb.nombre,
+      email: usuarioDb.email,
+      rol: usuarioDb.rol,
+      permisos: parsearPermisos(usuarioDb.permisos, usuarioDb.rol),
+      exp: decoded.exp,
+      iat: decoded.iat,
+    };
   } catch {
     return null;
   }

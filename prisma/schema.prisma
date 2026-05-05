@@ -82,6 +82,7 @@ model Usuario {
   email     String   @unique
   password  String
   rol       String   @default("operador")
+  permisos  String   @default("{}")
   createdAt DateTime @default(now())
 }
 

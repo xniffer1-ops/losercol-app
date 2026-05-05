@@ -12,11 +12,41 @@ import {
   CartesianGrid,
 } from "recharts";
 
+type AccionPermiso =
+  | "ver"
+  | "crear"
+  | "editar"
+  | "eliminar"
+  | "pdf"
+  | "whatsapp"
+  | "cerrar"
+  | "reabrir"
+  | "exportar"
+  | "cambiarPassword"
+  | "cambiarRol";
+
+type ModuloPermiso =
+  | "dashboard"
+  | "clientes"
+  | "vehiculos"
+  | "centros"
+  | "tarifas"
+  | "servicioRapido"
+  | "servicios"
+  | "caja"
+  | "reportes"
+  | "historial"
+  | "usuarios"
+  | "backup";
+
+type PermisosUsuario = Record<ModuloPermiso, Partial<Record<AccionPermiso, boolean>>>;
+
 type User = {
   id: number;
   nombre: string;
   email: string;
-  rol: "superadmin" | "admin" | "operador";
+  rol: "superadmin" | "admin" | "auxiliar" | "operador";
+  permisos?: PermisosUsuario;
 } | null;
 
 function fechaColombiaInput(fecha = new Date()) {
@@ -40,6 +70,16 @@ const primerDiaMesInput = () => {
   const fechaColombia = fechaHoyInput();
   return `${fechaColombia.slice(0, 8)}01`;
 };
+
+function tienePermiso(
+  user: User,
+  modulo: ModuloPermiso,
+  accion: AccionPermiso = "ver"
+) {
+  if (!user) return false;
+  if (user.rol === "superadmin") return true;
+  return Boolean(user.permisos?.[modulo]?.[accion]);
+}
 
 export default function Home() {
   const [data, setData] = useState<any>(null);
@@ -80,7 +120,11 @@ export default function Home() {
         const userData = await resUser.json();
         setUser(userData);
 
-        if (userData?.rol === "admin" || userData?.rol === "superadmin") {
+        if (
+          userData?.rol === "admin" ||
+          userData?.rol === "superadmin" ||
+          userData?.permisos?.dashboard?.ver
+        ) {
           await cargarDashboard();
         }
       } catch {
@@ -89,7 +133,7 @@ export default function Home() {
       }
     };
 
-    cargar();
+    void cargar();
   }, []);
 
   const cerrarSesion = async () => {
@@ -104,7 +148,21 @@ export default function Home() {
     return <main style={styles.page}>Cargando...</main>;
   }
 
-  if (user.rol === "operador") {
+  const puedeDashboard = tienePermiso(user, "dashboard");
+  const menuItems = [
+    { href: "/clientes", label: "Clientes", modulo: "clientes" as ModuloPermiso },
+    { href: "/vehiculos", label: "Vehículos", modulo: "vehiculos" as ModuloPermiso },
+    { href: "/centros", label: "Centros", modulo: "centros" as ModuloPermiso },
+    { href: "/usuarios", label: "Usuarios", modulo: "usuarios" as ModuloPermiso },
+    { href: "/tarifas", label: "Tarifas", modulo: "tarifas" as ModuloPermiso },
+    { href: "/historial", label: "Historial", modulo: "historial" as ModuloPermiso },
+    { href: "/reportes", label: "Reportes", modulo: "reportes" as ModuloPermiso },
+    { href: "/servicio-rapido", label: "Servicio rápido", modulo: "servicioRapido" as ModuloPermiso },
+    { href: "/servicios", label: "Servicios", modulo: "servicios" as ModuloPermiso },
+    { href: "/caja", label: "Caja", modulo: "caja" as ModuloPermiso },
+  ].filter((item) => tienePermiso(user, item.modulo));
+
+  if (!puedeDashboard || !data) {
     return (
       <main style={styles.operatorPage}>
         <div style={styles.operatorTop}>
@@ -121,40 +179,33 @@ export default function Home() {
         </div>
 
         <section style={styles.quickCard}>
-          <h2 style={styles.quickTitle}>Acciones rápidas</h2>
+          <h2 style={styles.quickTitle}>Acciones permitidas</h2>
           <p style={styles.quickText}>
-            Selecciona la opción que necesitas:
+            Solo aparecen los módulos autorizados para este usuario.
           </p>
 
           <div style={styles.operatorGrid}>
-            <QuickButton
-              href="/servicio-rapido"
-              title="Crear servicio"
-              desc="Registrar un vehículo rápido"
-              icon="➕"
-            />
-
-            <QuickButton
-              href="/servicios"
-              title="Servicios"
-              desc="Consultar servicios guardados"
-              icon="📋"
-            />
-
-            <QuickButton
-              href="/caja"
-              title="Caja"
-              desc="Ver pagos, recaudos y cerrar caja"
-              icon="💰"
-            />
+            {menuItems.map((item) => (
+              <QuickButton
+                key={item.href}
+                href={item.href}
+                title={item.label}
+                desc="Ingresar al módulo"
+                icon={
+                  item.modulo === "servicioRapido"
+                    ? "➕"
+                    : item.modulo === "servicios"
+                    ? "📋"
+                    : item.modulo === "caja"
+                    ? "💰"
+                    : "📌"
+                }
+              />
+            ))}
           </div>
         </section>
       </main>
     );
-  }
-
-  if (!data) {
-    return <main style={styles.page}>Cargando dashboard...</main>;
   }
 
   return (
@@ -277,18 +328,9 @@ export default function Home() {
         <h2 style={styles.sectionTitle}>Menú principal</h2>
 
         <div style={styles.menuGrid}>
-          <MenuButton href="/clientes" label="Clientes" />
-          <MenuButton href="/vehiculos" label="Vehículos" />
-          <MenuButton href="/centros" label="Centros" />
-          <MenuButton href="/usuarios" label="Usuarios" />
-          <MenuButton href="/tarifas" label="Tarifas" />
-          <MenuButton href="/operacion" label="Operación en vivo" />
-          <MenuButton href="/historial" label="Historial" />
-          <MenuButton href="/reportes" label="Reportes" />
-          
-          <MenuButton href="/servicio-rapido" label="Servicio rápido" />
-          <MenuButton href="/servicios" label="Servicios" />
-          <MenuButton href="/caja" label="Caja" />
+          {menuItems.map((item) => (
+            <MenuButton key={item.href} href={item.href} label={item.label} />
+          ))}
         </div>
       </section>
     </main>

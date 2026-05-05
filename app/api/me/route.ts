@@ -21,5 +21,6 @@ export async function GET() {
     nombre: user.nombre,
     email: user.email,
     rol: user.rol,
+    permisos: user.permisos,
   });
 }

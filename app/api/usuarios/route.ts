@@ -4,11 +4,20 @@ import bcrypt from "bcryptjs";
 import { requireRoles } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 import { limpiarTexto, validarEmail } from "@/src/lib/validaciones";
+import {
+  parsearPermisos,
+  serializarPermisos,
+} from "@/src/lib/permisos";
 
-type RolUsuario = "superadmin" | "admin" | "operador";
+type RolUsuario = "superadmin" | "admin" | "auxiliar" | "operador";
 
 function validarRolUsuario(rol: string): rol is RolUsuario {
-  return rol === "superadmin" || rol === "admin" || rol === "operador";
+  return (
+    rol === "superadmin" ||
+    rol === "admin" ||
+    rol === "auxiliar" ||
+    rol === "operador"
+  );
 }
 
 function puedeVerUsuario(rolActual: string, rolUsuario: string) {
@@ -33,6 +42,24 @@ async function contarAdminsDisponibles() {
   });
 }
 
+function usuarioRespuesta(usuario: {
+  id: number;
+  nombre: string;
+  email: string;
+  rol: string;
+  permisos?: string | null;
+  createdAt?: Date;
+}) {
+  return {
+    id: usuario.id,
+    nombre: usuario.nombre,
+    email: usuario.email,
+    rol: usuario.rol,
+    permisos: parsearPermisos(usuario.permisos, usuario.rol),
+    createdAt: usuario.createdAt,
+  };
+}
+
 export async function GET() {
   const { user, denied } = await requireRoles(["superadmin", "admin"]);
   if (denied || !user) {
@@ -46,14 +73,15 @@ export async function GET() {
         nombre: true,
         email: true,
         rol: true,
+        permisos: true,
         createdAt: true,
       },
       orderBy: { id: "desc" },
     });
 
-    const usuariosPermitidos = usuarios.filter((usuario) =>
-      puedeVerUsuario(user.rol, usuario.rol)
-    );
+    const usuariosPermitidos = usuarios
+      .filter((usuario) => puedeVerUsuario(user.rol, usuario.rol))
+      .map(usuarioRespuesta);
 
     return NextResponse.json(usuariosPermitidos);
   } catch (error) {
@@ -124,6 +152,7 @@ export async function POST(req: Request) {
     }
 
     const hash = await bcrypt.hash(password, 10);
+    const permisos = serializarPermisos(body.permisos, rol);
 
     const usuario = await prisma.usuario.create({
       data: {
@@ -131,25 +160,17 @@ export async function POST(req: Request) {
         email,
         password: hash,
         rol,
+        permisos,
       },
     });
 
     await registrarAccion(
       "CREAR",
       "Usuarios",
-      `Creó el usuario ${email} con rol ${rol}`
+      `Creó el usuario ${email} con rol ${rol} y permisos personalizados`
     );
 
-    return NextResponse.json(
-      {
-        id: usuario.id,
-        nombre: usuario.nombre,
-        email: usuario.email,
-        rol: usuario.rol,
-        createdAt: usuario.createdAt,
-      },
-      { status: 201 }
-    );
+    return NextResponse.json(usuarioRespuesta(usuario), { status: 201 });
   } catch (error) {
     console.error("Error POST /api/usuarios:", error);
     return NextResponse.json(
@@ -171,6 +192,7 @@ export async function PUT(req: Request) {
     const id = Number(body.id);
     const password = limpiarTexto(body.password);
     const rol = limpiarTexto(body.rol);
+    const tienePermisosBody = Object.prototype.hasOwnProperty.call(body, "permisos");
 
     if (!id) {
       return NextResponse.json(
@@ -200,6 +222,7 @@ export async function PUT(req: Request) {
     const data: {
       password?: string;
       rol?: string;
+      permisos?: string;
     } = {};
 
     if (password) {
@@ -212,6 +235,8 @@ export async function PUT(req: Request) {
 
       data.password = await bcrypt.hash(password, 10);
     }
+
+    const rolFinal = rol || usuarioObjetivo.rol;
 
     if (rol) {
       if (!validarRolUsuario(rol)) {
@@ -227,7 +252,8 @@ export async function PUT(req: Request) {
 
       if (
         usuarioObjetivo.rol !== "operador" &&
-        rol === "operador" &&
+        usuarioObjetivo.rol !== "auxiliar" &&
+        (rol === "operador" || rol === "auxiliar") &&
         (await contarAdminsDisponibles()) <= 1
       ) {
         return NextResponse.json(
@@ -239,7 +265,11 @@ export async function PUT(req: Request) {
       data.rol = rol;
     }
 
-    if (!data.password && !data.rol) {
+    if (tienePermisosBody) {
+      data.permisos = serializarPermisos(body.permisos, rolFinal);
+    }
+
+    if (!data.password && !data.rol && !data.permisos) {
       return NextResponse.json(
         { error: "No hay cambios para guardar" },
         { status: 400 }
@@ -254,6 +284,7 @@ export async function PUT(req: Request) {
         nombre: true,
         email: true,
         rol: true,
+        permisos: true,
         createdAt: true,
       },
     });
@@ -263,10 +294,12 @@ export async function PUT(req: Request) {
       "Usuarios",
       `Actualizó usuario ${usuarioObjetivo.email}${
         data.password ? " - cambió contraseña" : ""
-      }${data.rol ? ` - cambió rol a ${data.rol}` : ""}`
+      }${data.rol ? ` - cambió rol a ${data.rol}` : ""}${
+        data.permisos ? " - actualizó permisos" : ""
+      }`
     );
 
-    return NextResponse.json(usuarioActualizado);
+    return NextResponse.json(usuarioRespuesta(usuarioActualizado));
   } catch (error) {
     console.error("Error PUT /api/usuarios:", error);
     return NextResponse.json(
@@ -320,6 +353,7 @@ export async function DELETE(req: Request) {
 
     if (
       usuarioObjetivo.rol !== "operador" &&
+      usuarioObjetivo.rol !== "auxiliar" &&
       (await contarAdminsDisponibles()) <= 1
     ) {
       return NextResponse.json(

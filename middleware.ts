@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-type Rol = "superadmin" | "admin" | "operador";
+type Rol = "superadmin" | "admin" | "auxiliar" | "operador";
 
 type TokenPayload = {
   id?: number;
@@ -13,15 +13,28 @@ type TokenPayload = {
 
 const rutasPublicas = ["/login", "/api/login", "/api/logout"];
 
-const paginasOperador = [
-  "/",
-  "/servicio-rapido",
-  "/servicios",
-  "/soportes",
-  "/caja",
-];
+const paginasPorRol: Record<Rol, string[]> = {
+  superadmin: ["*"],
+  admin: ["*"],
+  auxiliar: [
+    "/",
+    "/clientes",
+    "/vehiculos",
+    "/servicio-rapido",
+    "/servicios",
+    "/caja",
+    "/reportes",
+  ],
+  operador: [
+    "/",
+    "/servicio-rapido",
+    "/servicios",
+    "/soportes",
+    "/caja",
+  ],
+};
 
-const apisLecturaOperador = [
+const apisLecturaOperativa = [
   "/api/me",
   "/api/clientes",
   "/api/vehiculos",
@@ -30,9 +43,11 @@ const apisLecturaOperador = [
   "/api/secciones",
   "/api/tarifas",
   "/api/caja",
+  "/api/dashboard",
+  "/api/reportes",
 ];
 
-const apisPostOperador = [
+const apisPostOperativa = [
   "/api/clientes",
   "/api/vehiculos",
   "/api/servicios",
@@ -52,6 +67,8 @@ function agregarHeadersSeguridad(response: NextResponse) {
 }
 
 function coincide(pathname: string, rutas: string[]) {
+  if (rutas.includes("*")) return true;
+
   return rutas.some(
     (ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`)
   );
@@ -89,7 +106,12 @@ function leerJsonBase64Url(valor: string) {
 }
 
 function rolValido(rol: unknown): rol is Rol {
-  return rol === "superadmin" || rol === "admin" || rol === "operador";
+  return (
+    rol === "superadmin" ||
+    rol === "admin" ||
+    rol === "auxiliar" ||
+    rol === "operador"
+  );
 }
 
 async function verificarToken(token: string): Promise<TokenPayload | null> {
@@ -147,15 +169,18 @@ function respuestaNoAutorizado(req: NextRequest) {
   return response;
 }
 
-function operadorPuedeUsarApi(pathname: string, method: string) {
+function rolPuedeUsarApi(rol: Rol, pathname: string, method: string) {
+  if (rol === "superadmin" || rol === "admin") return true;
+
   if (method === "GET") {
-    return coincide(pathname, apisLecturaOperador);
+    return coincide(pathname, apisLecturaOperativa);
   }
 
   if (method === "POST") {
-    return coincide(pathname, apisPostOperador);
+    return coincide(pathname, apisPostOperativa);
   }
 
+  // Auxiliar y operario no pueden editar/eliminar por API si no se valida dentro de la API.
   return false;
 }
 
@@ -186,23 +211,21 @@ export async function middleware(req: NextRequest) {
 
   const user = await verificarToken(token);
 
-  if (!user) {
+  if (!user || !user.rol) {
     return agregarHeadersSeguridad(respuestaNoAutorizado(req));
   }
 
-  if (user.rol === "operador") {
-    if (pathname.startsWith("/api")) {
-      if (!operadorPuedeUsarApi(pathname, req.method)) {
-        return agregarHeadersSeguridad(
-          NextResponse.json(
-            { error: "No tienes permiso para esta API" },
-            { status: 403 }
-          )
-        );
-      }
-    } else if (!coincide(pathname, paginasOperador)) {
-      return agregarHeadersSeguridad(NextResponse.redirect(new URL("/", req.url)));
+  if (pathname.startsWith("/api")) {
+    if (!rolPuedeUsarApi(user.rol, pathname, req.method)) {
+      return agregarHeadersSeguridad(
+        NextResponse.json(
+          { error: "No tienes permiso para esta API" },
+          { status: 403 }
+        )
+      );
     }
+  } else if (!coincide(pathname, paginasPorRol[user.rol])) {
+    return agregarHeadersSeguridad(NextResponse.redirect(new URL("/", req.url)));
   }
 
   return agregarHeadersSeguridad(NextResponse.next());
