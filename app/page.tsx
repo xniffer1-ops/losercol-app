@@ -19,13 +19,26 @@ type User = {
   rol: "superadmin" | "admin" | "operador";
 } | null;
 
-const fechaHoyInput = () => new Date().toISOString().slice(0, 10);
+function fechaColombiaInput(fecha = new Date()) {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(fecha);
+
+  const year = partes.find((parte) => parte.type === "year")?.value || "";
+  const month = partes.find((parte) => parte.type === "month")?.value || "";
+  const day = partes.find((parte) => parte.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
+}
+
+const fechaHoyInput = () => fechaColombiaInput();
 
 const primerDiaMesInput = () => {
-  const hoy = new Date();
-  return new Date(hoy.getFullYear(), hoy.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
+  const fechaColombia = fechaHoyInput();
+  return `${fechaColombia.slice(0, 8)}01`;
 };
 
 export default function Home() {

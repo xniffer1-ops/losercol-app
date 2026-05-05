@@ -4,19 +4,56 @@ import { requireRoles } from "@/src/lib/roles";
 
 function valorCarpa(tipo?: string | null) {
   if (tipo === "Tracto Mula") return 46500;
+  if (tipo === "Media Tracto Mula") return 23250;
   if (tipo === "Doble Troque") return 23150;
+  if (tipo === "Media Doble Troque") return 11575;
   if (tipo === "Sencillo") return 16950;
+  if (tipo === "Media Sencillo") return 8475;
   return 0;
 }
 
+function fechaColombiaInput(fecha = new Date()) {
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(fecha);
+
+  const year = partes.find((parte) => parte.type === "year")?.value || "";
+  const month = partes.find((parte) => parte.type === "month")?.value || "";
+  const day = partes.find((parte) => parte.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
+}
 
 function fechaInputHoy() {
-  return new Date().toISOString().slice(0, 10);
+  return fechaColombiaInput();
 }
 
 function primerDiaMesInput() {
-  const hoy = new Date();
-  return new Date(hoy.getFullYear(), hoy.getMonth(), 1).toISOString().slice(0, 10);
+  const fechaColombia = fechaInputHoy();
+  return `${fechaColombia.slice(0, 8)}01`;
+}
+
+function rangoDiaColombia(fecha: string) {
+  return {
+    inicio: new Date(`${fecha}T00:00:00.000-05:00`),
+    fin: new Date(`${fecha}T23:59:59.999-05:00`),
+  };
+}
+
+function fechaColombiaDesdeDate(fecha: Date) {
+  return fechaColombiaInput(fecha);
+}
+
+function fechaColombiaLegible(fecha: Date) {
+  return new Intl.DateTimeFormat("es-CO", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(fecha);
 }
 
 function valorRealServicio(servicio: {
@@ -42,8 +79,8 @@ export async function GET(req: Request) {
     const fechaInicio = searchParams.get("fechaInicio") || primerDiaMesInput();
     const fechaFin = searchParams.get("fechaFin") || fechaInputHoy();
 
-    const inicio = new Date(`${fechaInicio}T00:00:00`);
-    const fin = new Date(`${fechaFin}T23:59:59`);
+    const { inicio } = rangoDiaColombia(fechaInicio);
+    const { fin } = rangoDiaColombia(fechaFin);
 
     const whereServicios = {
       createdAt: {
@@ -70,12 +107,13 @@ export async function GET(req: Request) {
       }),
     ]);
 
-    const hoy = new Date();
-    hoy.setHours(0, 0, 0, 0);
+    const hoyColombia = fechaInputHoy();
+    const { inicio: inicioHoy, fin: finHoy } = rangoDiaColombia(hoyColombia);
 
-    const serviciosHoy = servicios.filter(
-      (s) => new Date(s.createdAt) >= hoy
-    );
+    const serviciosHoy = servicios.filter((s) => {
+      const fechaServicio = new Date(s.createdAt);
+      return fechaServicio >= inicioHoy && fechaServicio <= finHoy;
+    });
 
     const totalServicios = servicios.length;
 
@@ -117,22 +155,33 @@ export async function GET(req: Request) {
 
     const carpas = {
       tractoMula: {
-        cantidad: servicios.filter((s) => s.tipoCarpa === "Tracto Mula").length,
+        cantidad: servicios.filter(
+          (s) => s.tipoCarpa === "Tracto Mula" || s.tipoCarpa === "Media Tracto Mula"
+        ).length,
         valor: servicios
-          .filter((s) => s.tipoCarpa === "Tracto Mula")
+          .filter(
+            (s) => s.tipoCarpa === "Tracto Mula" || s.tipoCarpa === "Media Tracto Mula"
+          )
           .reduce((acc, s) => acc + valorCarpa(s.tipoCarpa), 0),
       },
       dobleTroque: {
-        cantidad: servicios.filter((s) => s.tipoCarpa === "Doble Troque")
-          .length,
+        cantidad: servicios.filter(
+          (s) => s.tipoCarpa === "Doble Troque" || s.tipoCarpa === "Media Doble Troque"
+        ).length,
         valor: servicios
-          .filter((s) => s.tipoCarpa === "Doble Troque")
+          .filter(
+            (s) => s.tipoCarpa === "Doble Troque" || s.tipoCarpa === "Media Doble Troque"
+          )
           .reduce((acc, s) => acc + valorCarpa(s.tipoCarpa), 0),
       },
       sencillo: {
-        cantidad: servicios.filter((s) => s.tipoCarpa === "Sencillo").length,
+        cantidad: servicios.filter(
+          (s) => s.tipoCarpa === "Sencillo" || s.tipoCarpa === "Media Sencillo"
+        ).length,
         valor: servicios
-          .filter((s) => s.tipoCarpa === "Sencillo")
+          .filter(
+            (s) => s.tipoCarpa === "Sencillo" || s.tipoCarpa === "Media Sencillo"
+          )
           .reduce((acc, s) => acc + valorCarpa(s.tipoCarpa), 0),
       },
     };
@@ -150,7 +199,7 @@ export async function GET(req: Request) {
     const porDiaMap: Record<string, any> = {};
 
     servicios.forEach((s) => {
-      const fecha = new Date(s.createdAt).toLocaleDateString("es-CO");
+      const fecha = fechaColombiaLegible(new Date(s.createdAt));
 
       if (!porDiaMap[fecha]) {
         porDiaMap[fecha] = {
