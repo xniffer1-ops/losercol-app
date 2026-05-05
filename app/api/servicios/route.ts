@@ -74,6 +74,13 @@ function fechaInputHoy() {
   return `${year}-${month}-${day}`;
 }
 
+function rangoDiaColombia(fecha: string) {
+  return {
+    inicio: new Date(`${fecha}T00:00:00.000-05:00`),
+    fin: new Date(`${fecha}T23:59:59.999-05:00`),
+  };
+}
+
 export async function GET(req: Request) {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -99,9 +106,12 @@ export async function GET(req: Request) {
     const fechaInicioConsulta = fechaInicio || fechaInputHoy();
     const fechaFinConsulta = fechaFin || fechaInicioConsulta;
 
+    const rangoInicio = rangoDiaColombia(fechaInicioConsulta);
+    const rangoFin = rangoDiaColombia(fechaFinConsulta);
+
     where.createdAt = {
-      gte: new Date(`${fechaInicioConsulta}T00:00:00.000-05:00`),
-      lte: new Date(`${fechaFinConsulta}T23:59:59.999-05:00`),
+      gte: rangoInicio.inicio,
+      lte: rangoFin.fin,
     };
 
     const servicios = await prisma.servicio.findMany({
@@ -136,7 +146,7 @@ export async function POST(req: Request) {
     const user = await getUser();
     const body = await req.json();
 
-    const fechaHoy = new Date().toISOString().slice(0, 10);
+    const fechaHoy = fechaInputHoy();
     const usuario = user?.email || user?.nombre || "sin usuario";
 
     const cierre = await prisma.cierreCaja.findUnique({

@@ -5,7 +5,25 @@ import { getUser } from "@/src/lib/auth";
 import { registrarAccion } from "@/src/lib/historial";
 
 function fechaColombiaHoy() {
-  return new Date().toISOString().slice(0, 10);
+  const partes = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Bogota",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const year = partes.find((parte) => parte.type === "year")?.value || "";
+  const month = partes.find((parte) => parte.type === "month")?.value || "";
+  const day = partes.find((parte) => parte.type === "day")?.value || "";
+
+  return `${year}-${month}-${day}`;
+}
+
+function rangoDiaColombia(fecha: string) {
+  return {
+    inicio: new Date(`${fecha}T00:00:00.000-05:00`),
+    fin: new Date(`${fecha}T23:59:59.999-05:00`),
+  };
 }
 
 function normalizarPago(valor: unknown) {
@@ -56,8 +74,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const inicio = new Date(`${fecha}T00:00:00`);
-    const fin = new Date(`${fecha}T23:59:59`);
+    const { inicio, fin } = rangoDiaColombia(fecha);
 
     const servicios = await prisma.servicio.findMany({
       where: {
@@ -126,9 +143,9 @@ export async function DELETE(req: Request) {
   try {
     const user = await getUser();
 
-    if (!user || user.rol !== "admin") {
+    if (!user || (user.rol !== "admin" && user.rol !== "superadmin")) {
       return NextResponse.json(
-        { error: "Solo admin puede abrir nuevamente la caja" },
+        { error: "Solo admin o superadmin puede abrir nuevamente la caja" },
         { status: 403 }
       );
     }

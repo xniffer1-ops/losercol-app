@@ -182,6 +182,7 @@ export default function CajaPage() {
 
   const horaServicio = (createdAt: string) =>
     new Date(createdAt).toLocaleTimeString("es-CO", {
+      timeZone: "America/Bogota",
       hour: "2-digit",
       minute: "2-digit",
     });
