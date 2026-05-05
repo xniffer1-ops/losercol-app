@@ -15,6 +15,10 @@ type Historial = {
 
 type FiltroTipo = "todos" | "servicios" | "factura";
 
+function mostrarRolHistorial(rol: string) {
+  return String(rol || "").toLowerCase() === "superadmin" ? "admin" : rol;
+}
+
 export default function HistorialPage() {
   const [historial, setHistorial] = useState<Historial[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,7 +55,7 @@ export default function HistorialPage() {
       const modulo = String(h.modulo || "").toLowerCase();
       const detalle = String(h.detalle || "").toLowerCase();
       const usuario = String(h.usuario || "").toLowerCase();
-      const rol = String(h.rol || "").toLowerCase();
+      const rol = mostrarRolHistorial(String(h.rol || "")).toLowerCase();
       const accion = String(h.accion || "").toLowerCase();
 
       const coincideBusqueda =
@@ -185,7 +189,7 @@ export default function HistorialPage() {
               <div key={h.id} style={styles.row}>
                 <span>{new Date(h.createdAt).toLocaleString("es-CO")}</span>
                 <span>{h.usuario}</span>
-                <span>{h.rol}</span>
+                <span>{mostrarRolHistorial(h.rol)}</span>
                 <strong>{h.accion}</strong>
                 <span>{h.modulo}</span>
 
