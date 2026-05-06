@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
 import { registrarAccion } from "@/src/lib/historial";
-import { requirePermiso } from "@/src/lib/roles";
+import { getUser } from "@/src/lib/auth";
+import { tienePermiso, type AccionPermiso, type ModuloPermiso } from "@/src/lib/permisos";
 import {
   limpiarTexto,
   validarCcNit,
@@ -21,9 +22,44 @@ function telefonoSeguro(valor: unknown) {
   return telefono || "3147897436";
 }
 
+async function requirePermisoInterno(
+  permisosPermitidos: Array<[ModuloPermiso, AccionPermiso]>
+) {
+  const user = await getUser();
+
+  if (!user) {
+    return {
+      user: null,
+      denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }),
+    };
+  }
+
+  if (user.rol === "superadmin") {
+    return { user, denied: null };
+  }
+
+  const permitido = permisosPermitidos.some(([modulo, accion]) =>
+    tienePermiso(user.permisos, modulo, accion)
+  );
+
+  if (!permitido) {
+    return {
+      user,
+      denied: NextResponse.json(
+        { error: "No tienes permiso para esta acción" },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return { user, denied: null };
+}
 
 export async function GET() {
-  const { denied } = await requirePermiso("clientes", "ver");
+  const { denied } = await requirePermisoInterno([
+    ["clientes", "ver"],
+    ["servicioRapido", "ver"],
+  ]);
   if (denied) return denied;
 
   try {
@@ -43,7 +79,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requirePermiso("clientes", "crear");
+  const { denied } = await requirePermisoInterno([
+    ["clientes", "crear"],
+    ["servicioRapido", "crear"],
+  ]);
   if (denied) return denied;
 
   try {
