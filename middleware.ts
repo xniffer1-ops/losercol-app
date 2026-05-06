@@ -20,6 +20,8 @@ const paginasPorRol: Record<Rol, string[]> = {
     "/",
     "/clientes",
     "/vehiculos",
+    "/centros",
+    "/tarifas",
     "/servicio-rapido",
     "/servicios",
     "/caja",

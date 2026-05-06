@@ -150,16 +150,76 @@ export default function Home() {
 
   const puedeDashboard = tienePermiso(user, "dashboard");
   const menuItems = [
-    { href: "/clientes", label: "Clientes", modulo: "clientes" as ModuloPermiso },
-    { href: "/vehiculos", label: "Vehículos", modulo: "vehiculos" as ModuloPermiso },
-    { href: "/centros", label: "Centros", modulo: "centros" as ModuloPermiso },
-    { href: "/usuarios", label: "Usuarios", modulo: "usuarios" as ModuloPermiso },
-    { href: "/tarifas", label: "Tarifas", modulo: "tarifas" as ModuloPermiso },
-    { href: "/historial", label: "Historial", modulo: "historial" as ModuloPermiso },
-    { href: "/reportes", label: "Reportes", modulo: "reportes" as ModuloPermiso },
-    { href: "/servicio-rapido", label: "Servicio rápido", modulo: "servicioRapido" as ModuloPermiso },
-    { href: "/servicios", label: "Servicios", modulo: "servicios" as ModuloPermiso },
-    { href: "/caja", label: "Caja", modulo: "caja" as ModuloPermiso },
+    {
+      href: "/clientes",
+      label: "Clientes",
+      modulo: "clientes" as ModuloPermiso,
+      icon: "👥",
+      desc: "Administrar clientes",
+    },
+    {
+      href: "/vehiculos",
+      label: "Vehículos",
+      modulo: "vehiculos" as ModuloPermiso,
+      icon: "🚚",
+      desc: "Registrar y consultar placas",
+    },
+    {
+      href: "/centros",
+      label: "Centros",
+      modulo: "centros" as ModuloPermiso,
+      icon: "🏭",
+      desc: "Centros de operación",
+    },
+    {
+      href: "/usuarios",
+      label: "Usuarios",
+      modulo: "usuarios" as ModuloPermiso,
+      icon: "🔐",
+      desc: "Accesos y permisos",
+    },
+    {
+      href: "/tarifas",
+      label: "Tarifas",
+      modulo: "tarifas" as ModuloPermiso,
+      icon: "🏷️",
+      desc: "Valores de servicios",
+    },
+    {
+      href: "/historial",
+      label: "Historial",
+      modulo: "historial" as ModuloPermiso,
+      icon: "🕘",
+      desc: "Registro de acciones",
+    },
+    {
+      href: "/reportes",
+      label: "Reportes",
+      modulo: "reportes" as ModuloPermiso,
+      icon: "📊",
+      desc: "Informes y exportaciones",
+    },
+    {
+      href: "/servicio-rapido",
+      label: "Servicio rápido",
+      modulo: "servicioRapido" as ModuloPermiso,
+      icon: "➕",
+      desc: "Crear soporte rápido",
+    },
+    {
+      href: "/servicios",
+      label: "Servicios",
+      modulo: "servicios" as ModuloPermiso,
+      icon: "📋",
+      desc: "Consultar soportes",
+    },
+    {
+      href: "/caja",
+      label: "Caja",
+      modulo: "caja" as ModuloPermiso,
+      icon: "💰",
+      desc: "Cuadre y cierre diario",
+    },
   ].filter((item) => tienePermiso(user, item.modulo));
 
   if (!puedeDashboard || !data) {
@@ -179,9 +239,9 @@ export default function Home() {
         </div>
 
         <section style={styles.quickCard}>
-          <h2 style={styles.quickTitle}>Acciones permitidas</h2>
+          <h2 style={styles.quickTitle}>Panel de trabajo</h2>
           <p style={styles.quickText}>
-            Solo aparecen los módulos autorizados para este usuario.
+            Selecciona el módulo que necesitas para continuar.
           </p>
 
           <div style={styles.operatorGrid}>
@@ -190,16 +250,8 @@ export default function Home() {
                 key={item.href}
                 href={item.href}
                 title={item.label}
-                desc="Ingresar al módulo"
-                icon={
-                  item.modulo === "servicioRapido"
-                    ? "➕"
-                    : item.modulo === "servicios"
-                    ? "📋"
-                    : item.modulo === "caja"
-                    ? "💰"
-                    : "📌"
-                }
+                desc={item.desc}
+                icon={item.icon}
               />
             ))}
           </div>
@@ -329,7 +381,12 @@ export default function Home() {
 
         <div style={styles.menuGrid}>
           {menuItems.map((item) => (
-            <MenuButton key={item.href} href={item.href} label={item.label} />
+            <MenuButton
+              key={item.href}
+              href={item.href}
+              label={item.label}
+              icon={item.icon}
+            />
           ))}
         </div>
       </section>
@@ -355,10 +412,21 @@ function Card({
   );
 }
 
-function MenuButton({ href, label }: { href: string; label: string }) {
+function MenuButton({
+  href,
+  label,
+  icon,
+}: {
+  href: string;
+  label: string;
+  icon: string;
+}) {
   return (
     <Link href={href} style={styles.link}>
-      <button style={styles.menuButton}>{label}</button>
+      <button style={styles.menuButton}>
+        <span style={styles.menuIcon}>{icon}</span>
+        <span>{label}</span>
+      </button>
     </Link>
   );
 }
@@ -609,6 +677,14 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#111",
     cursor: "pointer",
     boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: "12px",
+  },
+
+  menuIcon: {
+    fontSize: "30px",
   },
 
   dashboardFiltersCard: {
