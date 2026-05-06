@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
-import { getUser } from "@/src/lib/auth";
 import { registrarAccion } from "@/src/lib/historial";
+import { requirePermiso } from "@/src/lib/roles";
 import {
   limpiarTexto,
   validarCcNit,
@@ -21,16 +21,10 @@ function telefonoSeguro(valor: unknown) {
   return telefono || "3147897436";
 }
 
-function puedeGestionarCliente(rol?: string) {
-  return rol === "admin" || rol === "operador" || rol === "superadmin";
-}
 
 export async function GET() {
-  const user = await getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
+  const { denied } = await requirePermiso("clientes", "ver");
+  if (denied) return denied;
 
   try {
     const clientes = await prisma.cliente.findMany({
@@ -49,20 +43,14 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const user = await getUser();
-
-  if (!user || !puedeGestionarCliente(user.rol)) {
-    return NextResponse.json(
-      { error: "No tienes permiso para hacer esta acción" },
-      { status: 403 }
-    );
-  }
+  const { denied } = await requirePermiso("clientes", "crear");
+  if (denied) return denied;
 
   try {
     const body = await req.json();
 
-    const ccNit = limpiarTexto(body.ccNit).toUpperCase();
-    const nombre = limpiarTexto(body.nombre).toUpperCase();
+    const ccNit = limpiarTexto(body.ccNit);
+    const nombre = limpiarTexto(body.nombre);
     const correo = correoSeguro(body.correo);
     const telefono = telefonoSeguro(body.telefono);
     const formaPago = normalizarFormaPago(body.formaPago || "efectivo");

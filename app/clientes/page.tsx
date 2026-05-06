@@ -12,6 +12,27 @@ type Cliente = {
   formaPago: string;
 };
 
+type AccionClientes = "ver" | "crear" | "editar" | "eliminar";
+
+type UsuarioActual = {
+  id: number;
+  nombre: string;
+  email: string;
+  rol: "superadmin" | "admin" | "auxiliar" | "operador";
+  permisos?: {
+    clientes?: Partial<Record<AccionClientes, boolean>>;
+  };
+} | null;
+
+function tienePermisoClientes(
+  usuario: UsuarioActual,
+  accion: AccionClientes
+) {
+  if (!usuario) return false;
+  if (usuario.rol === "superadmin") return true;
+  return Boolean(usuario.permisos?.clientes?.[accion]);
+}
+
 const initialForm = {
   ccNit: "",
   nombre: "",
@@ -50,11 +71,19 @@ export default function ClientesPage() {
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [usuarioActual, setUsuarioActual] = useState<UsuarioActual>(null);
 
   const cargarClientes = async () => {
     try {
-      const res = await fetch("/api/clientes", { cache: "no-store" });
+      const [resMe, res] = await Promise.all([
+        fetch("/api/me", { cache: "no-store" }),
+        fetch("/api/clientes", { cache: "no-store" }),
+      ]);
+
+      const dataMe = await resMe.json();
       const data = await res.json();
+
+      setUsuarioActual(resMe.ok ? dataMe : null);
       setClientes(Array.isArray(data) ? data : []);
     } catch {
       setMensaje("No se pudieron cargar los clientes");
@@ -66,6 +95,10 @@ export default function ClientesPage() {
   useEffect(() => {
     void cargarClientes();
   }, []);
+
+  const puedeCrear = tienePermisoClientes(usuarioActual, "crear");
+  const puedeEditar = tienePermisoClientes(usuarioActual, "editar");
+  const puedeEliminar = tienePermisoClientes(usuarioActual, "eliminar");
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
@@ -81,6 +114,11 @@ export default function ClientesPage() {
   };
 
   const editarCliente = (cliente: Cliente) => {
+    if (!puedeEditar) {
+      setMensaje("No tienes permiso para editar clientes");
+      return;
+    }
+
     setEditandoId(cliente.id);
     setForm({
       ccNit: cliente.ccNit || "",
@@ -94,6 +132,11 @@ export default function ClientesPage() {
   };
 
   const eliminarCliente = async (cliente: Cliente) => {
+    if (!puedeEliminar) {
+      setMensaje("No tienes permiso para eliminar clientes");
+      return;
+    }
+
     const ok = window.confirm(
       `¿Seguro deseas eliminar el cliente ${cliente.nombre}?\n\nSi tiene vehículos o servicios asociados, el sistema no lo eliminará para proteger el historial.`
     );
@@ -124,6 +167,16 @@ export default function ClientesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje("");
+
+    if (editandoId && !puedeEditar) {
+      setMensaje("No tienes permiso para editar clientes");
+      return;
+    }
+
+    if (!editandoId && !puedeCrear) {
+      setMensaje("No tienes permiso para crear clientes");
+      return;
+    }
 
     if (
       !form.ccNit.trim() ||
@@ -209,21 +262,29 @@ export default function ClientesPage() {
                   <span>{normalizarPagoVisual(cliente.formaPago)}</span>
 
                   <span style={styles.actions}>
-                    <button
-                      type="button"
-                      onClick={() => editarCliente(cliente)}
-                      style={styles.editButton}
-                    >
-                      Editar
-                    </button>
+                    {puedeEditar && (
+                      <button
+                        type="button"
+                        onClick={() => editarCliente(cliente)}
+                        style={styles.editButton}
+                      >
+                        Editar
+                      </button>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => void eliminarCliente(cliente)}
-                      style={styles.deleteButton}
-                    >
-                      Eliminar
-                    </button>
+                    {puedeEliminar && (
+                      <button
+                        type="button"
+                        onClick={() => void eliminarCliente(cliente)}
+                        style={styles.deleteButton}
+                      >
+                        Eliminar
+                      </button>
+                    )}
+
+                    {!puedeEditar && !puedeEliminar && (
+                      <span style={styles.noActions}>Solo consulta</span>
+                    )}
                   </span>
                 </div>
               ))
@@ -235,6 +296,12 @@ export default function ClientesPage() {
           <h2 style={styles.formTitle}>
             {editandoId ? "Editar Cliente" : "Adicionar Cliente"}
           </h2>
+
+          {!editandoId && !puedeCrear && (
+            <div style={styles.infoBox}>
+              Este usuario solo puede consultar clientes. No tiene permiso para crear nuevos registros.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} style={styles.form}>
             <input
@@ -281,7 +348,11 @@ export default function ClientesPage() {
               <option value="credito">Crédito</option>
             </select>
 
-            <button type="submit" style={styles.saveButton} disabled={saving}>
+            <button
+              type="submit"
+              style={styles.saveButton}
+              disabled={saving || (editandoId ? !puedeEditar : !puedeCrear)}
+            >
               {saving
                 ? "Guardando..."
                 : editandoId
@@ -438,6 +509,20 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     gap: "8px",
     flexWrap: "wrap",
+  },
+  noActions: {
+    color: "#64748b",
+    fontWeight: 700,
+    fontSize: "13px",
+  },
+  infoBox: {
+    background: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    color: "#1d4ed8",
+    borderRadius: "8px",
+    padding: "12px",
+    fontWeight: 700,
+    marginBottom: "12px",
   },
   message: {
     margin: 0,

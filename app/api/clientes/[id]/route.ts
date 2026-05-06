@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { getUser } from "@/src/lib/auth";
 import { registrarAccion } from "@/src/lib/historial";
+import { requirePermiso } from "@/src/lib/roles";
 import {
   limpiarTexto,
   validarCcNit,
@@ -17,19 +17,10 @@ type Params = {
   }>;
 };
 
-function puedeAdministrarCliente(rol?: string) {
-  return rol === "admin" || rol === "superadmin";
-}
 
 export async function PUT(req: Request, { params }: Params) {
-  const user = await getUser();
-
-  if (!user || !puedeAdministrarCliente(user.rol)) {
-    return NextResponse.json(
-      { error: "Solo admin o superadmin puede editar clientes" },
-      { status: 403 }
-    );
-  }
+  const { denied } = await requirePermiso("clientes", "editar");
+  if (denied) return denied;
 
   try {
     const { id: rawId } = await params;
@@ -128,14 +119,8 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const user = await getUser();
-
-  if (!user || !puedeAdministrarCliente(user.rol)) {
-    return NextResponse.json(
-      { error: "Solo admin o superadmin puede eliminar clientes" },
-      { status: 403 }
-    );
-  }
+  const { denied } = await requirePermiso("clientes", "eliminar");
+  if (denied) return denied;
 
   try {
     const { id: rawId } = await params;
