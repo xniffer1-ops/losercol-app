@@ -57,6 +57,8 @@ type PostJsonResult = {
   message: string;
 };
 
+const CODIGOS_MOVIMIENTO_INTERNO = new Set(["LS012", "LS008", "LS006", "LS005", "LS003"]);
+
 const isRecord = (value: unknown): value is AnyRecord => {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 };
@@ -272,6 +274,17 @@ const esTarifaDeCarpa = (tarifa: Tarifa) => {
     codigo === "LS010" ||
     codigo === "LS011" ||
     descripcion.includes("carpe y descarpe")
+  );
+};
+
+const esTarifaMovimientoInterno = (tarifa: Tarifa) => {
+  const codigo = tarifa.codigo.trim().toUpperCase();
+  const texto = `${tarifa.codigo} ${tarifa.descripcion}`.toLowerCase();
+
+  return (
+    CODIGOS_MOVIMIENTO_INTERNO.has(codigo) ||
+    texto.includes("movimiento") ||
+    texto.includes("interno")
   );
 };
 
@@ -676,10 +689,7 @@ export default function ServicioRapidoPage() {
     const tarifasSinCarpa = tarifas.filter((tarifa) => !esTarifaDeCarpa(tarifa));
 
     if (esMovimientoInterno) {
-      return tarifasSinCarpa.filter((tarifa) => {
-        const texto = `${tarifa.codigo} ${tarifa.descripcion}`.toLowerCase();
-        return texto.includes("movimiento") || texto.includes("interno");
-      });
+      return tarifasSinCarpa.filter((tarifa) => esTarifaMovimientoInterno(tarifa));
     }
 
     return tarifasSinCarpa;
@@ -1091,7 +1101,9 @@ export default function ServicioRapidoPage() {
                     : styles.operationButton
                 }
               >
-                Servicio con vehículo
+                <span style={styles.operationButtonIcon}>🚚</span>
+                <span style={styles.operationButtonLabel}>Servicio con vehículo</span>
+                <span style={styles.operationButtonText}>Cargue o descargue con placa y carpa opcional.</span>
               </button>
 
               <button
@@ -1110,7 +1122,9 @@ export default function ServicioRapidoPage() {
                     : styles.operationButton
                 }
               >
-                Movimiento interno
+                <span style={styles.operationButtonIcon}>🏭</span>
+                <span style={styles.operationButtonLabel}>Movimiento interno</span>
+                <span style={styles.operationButtonText}>Usa vehículo interno del cliente y trabaja a crédito.</span>
               </button>
 
               <button
@@ -1128,9 +1142,11 @@ export default function ServicioRapidoPage() {
                     : styles.operationButton
                 }
               >
-                Solo carpa
+                <span style={styles.operationButtonIcon}>🧾</span>
+                <span style={styles.operationButtonLabel}>Solo carpa</span>
+                <span style={styles.operationButtonText}>Genera un soporte rápido solo por el valor de la carpa.</span>
               </button>
-            </div>
+            </div></div>
 
             <small style={styles.helper}>
               {esMovimientoInterno
@@ -1803,6 +1819,64 @@ const styles: Record<string, CSSProperties> = {
     margin: "0 0 12px",
     color: "#0f172a",
     fontSize: "16px",
+  },
+  operationBox: {
+    marginBottom: "18px",
+    borderRadius: "18px",
+    border: "1px solid #dbe4f0",
+    background: "linear-gradient(180deg, #f8fbff 0%, #f1f5f9 100%)",
+    padding: "14px",
+    boxShadow: "inset 0 1px 0 rgba(255,255,255,0.8)",
+  },
+  operationTitle: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "8px",
+    fontSize: "14px",
+    fontWeight: 900,
+    color: "#0f172a",
+    marginBottom: "10px",
+  },
+  operationButtons: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
+    gap: "10px",
+    marginBottom: "8px",
+  },
+  operationButton: {
+    border: "1px solid #d6deea",
+    borderRadius: "16px",
+    background: "#ffffff",
+    padding: "14px 14px 13px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "flex-start",
+    gap: "4px",
+    cursor: "pointer",
+    textAlign: "left",
+    boxShadow: "0 6px 16px rgba(15, 23, 42, 0.06)",
+    minHeight: "96px",
+  },
+  operationButtonActive: {
+    background: "linear-gradient(135deg, #0f172a 0%, #0f5fb8 100%)",
+    color: "#ffffff",
+    border: "1px solid #0f5fb8",
+    boxShadow: "0 12px 24px rgba(15, 95, 184, 0.24)",
+  },
+  operationButtonIcon: {
+    fontSize: "20px",
+    lineHeight: 1,
+  },
+  operationButtonLabel: {
+    fontSize: "14px",
+    fontWeight: 900,
+    lineHeight: 1.2,
+  },
+  operationButtonText: {
+    fontSize: "12px",
+    lineHeight: 1.35,
+    opacity: 0.9,
   },
   searchBlock: {
     marginTop: "20px",
