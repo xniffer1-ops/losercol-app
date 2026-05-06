@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 
 const SESSION_SECONDS = 60 * 60 * 8; // 8 horas
-const ROLES_PERMITIDOS = ["superadmin", "admin", "operador"] as const;
+const ROLES_PERMITIDOS = ["superadmin", "admin", "auxiliar", "operador"] as const;
 
 type RolPermitido = (typeof ROLES_PERMITIDOS)[number];
 
