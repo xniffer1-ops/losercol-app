@@ -17,6 +17,29 @@ type Vehiculo = {
   cliente: Cliente;
 };
 
+type AccionPermiso = "ver" | "crear" | "editar" | "eliminar";
+
+type PermisosVehiculos = Partial<Record<AccionPermiso, boolean>>;
+
+type UsuarioActual = {
+  id: number;
+  nombre: string;
+  email: string;
+  rol: "superadmin" | "admin" | "auxiliar" | "operador";
+  permisos?: {
+    vehiculos?: PermisosVehiculos;
+  };
+} | null;
+
+function tienePermisoVehiculos(
+  usuario: UsuarioActual,
+  accion: AccionPermiso
+) {
+  if (!usuario) return false;
+  if (usuario.rol === "superadmin") return true;
+  return Boolean(usuario.permisos?.vehiculos?.[accion]);
+}
+
 const initialForm = {
   id: "",
   placa: "",
@@ -38,6 +61,7 @@ export default function VehiculosPage() {
   const [saving, setSaving] = useState(false);
   const [mensaje, setMensaje] = useState("");
   const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [usuarioActual, setUsuarioActual] = useState<UsuarioActual>(null);
 
   const [form, setForm] = useState(initialForm);
 
@@ -46,16 +70,23 @@ export default function VehiculosPage() {
     [clientes, form.clienteId]
   );
 
+  const puedeCrear = tienePermisoVehiculos(usuarioActual, "crear");
+  const puedeEditar = tienePermisoVehiculos(usuarioActual, "editar");
+  const puedeEliminar = tienePermisoVehiculos(usuarioActual, "eliminar");
+
   const cargarTodo = async () => {
     try {
-      const [resClientes, resVehiculos] = await Promise.all([
+      const [resMe, resClientes, resVehiculos] = await Promise.all([
+        fetch("/api/me", { cache: "no-store" }),
         fetch("/api/clientes", { cache: "no-store" }),
         fetch("/api/vehiculos", { cache: "no-store" }),
       ]);
 
+      const dataMe = await resMe.json();
       const dataClientes = await resClientes.json();
       const dataVehiculos = await resVehiculos.json();
 
+      setUsuarioActual(resMe.ok ? dataMe : null);
       setClientes(Array.isArray(dataClientes) ? dataClientes : []);
       setVehiculos(Array.isArray(dataVehiculos) ? dataVehiculos : []);
     } catch {
@@ -110,6 +141,11 @@ export default function VehiculosPage() {
   };
 
   const editarVehiculo = (vehiculo: Vehiculo) => {
+    if (!puedeEditar) {
+      setMensaje("No tienes permiso para editar vehículos");
+      return;
+    }
+
     setEditandoId(vehiculo.id);
     setForm({
       id: String(vehiculo.id),
@@ -122,6 +158,11 @@ export default function VehiculosPage() {
   };
 
   const eliminarVehiculo = async (vehiculo: Vehiculo) => {
+    if (!puedeEliminar) {
+      setMensaje("No tienes permiso para eliminar vehículos");
+      return;
+    }
+
     const ok = window.confirm(
       `¿Seguro deseas eliminar el vehículo ${vehiculo.placa}?\n\nSi ya tiene servicios asociados, el sistema no lo eliminará para proteger el historial.`
     );
@@ -152,6 +193,16 @@ export default function VehiculosPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje("");
+
+    if (editandoId && !puedeEditar) {
+      setMensaje("No tienes permiso para editar vehículos");
+      return;
+    }
+
+    if (!editandoId && !puedeCrear) {
+      setMensaje("No tienes permiso para crear vehículos");
+      return;
+    }
 
     if (!form.placa.trim() || !form.tipoVehiculo.trim() || !form.clienteId) {
       setMensaje("Completa todos los campos");
@@ -234,21 +285,29 @@ export default function VehiculosPage() {
                   <span>{vehiculo.cliente?.nombre}</span>
                   <span>{vehiculo.cliente?.ccNit}</span>
                   <span style={styles.actions}>
-                    <button
-                      type="button"
-                      onClick={() => editarVehiculo(vehiculo)}
-                      style={styles.editButton}
-                    >
-                      Editar
-                    </button>
+                    {puedeEditar && (
+                      <button
+                        type="button"
+                        onClick={() => editarVehiculo(vehiculo)}
+                        style={styles.editButton}
+                      >
+                        Editar
+                      </button>
+                    )}
 
-                    <button
-                      type="button"
-                      onClick={() => void eliminarVehiculo(vehiculo)}
-                      style={styles.deleteButton}
-                    >
-                      Eliminar
-                    </button>
+                    {puedeEliminar && (
+                      <button
+                        type="button"
+                        onClick={() => void eliminarVehiculo(vehiculo)}
+                        style={styles.deleteButton}
+                      >
+                        Eliminar
+                      </button>
+                    )}
+
+                    {!puedeEditar && !puedeEliminar && (
+                      <span style={styles.noActions}>Solo consulta</span>
+                    )}
                   </span>
                 </div>
               ))
@@ -260,6 +319,12 @@ export default function VehiculosPage() {
           <h2 style={styles.formTitle}>
             {editandoId ? "Editar Vehículo" : "Adicionar Vehículo"}
           </h2>
+
+          {!editandoId && !puedeCrear && (
+            <div style={styles.infoBox}>
+              Este usuario solo puede consultar vehículos. No tiene permiso para crear nuevos registros.
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} style={styles.form}>
             <input
@@ -310,7 +375,11 @@ export default function VehiculosPage() {
               </div>
             )}
 
-            <button type="submit" style={styles.saveButton} disabled={saving}>
+            <button
+              type="submit"
+              style={styles.saveButton}
+              disabled={saving || (editandoId ? !puedeEditar : !puedeCrear)}
+            >
               {saving
                 ? "Guardando..."
                 : editandoId
@@ -467,6 +536,11 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     gap: "8px",
     flexWrap: "wrap",
+  },
+  noActions: {
+    color: "#64748b",
+    fontWeight: 700,
+    fontSize: "13px",
   },
   infoBox: {
     background: "#eef6ff",

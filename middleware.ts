@@ -36,26 +36,6 @@ const paginasPorRol: Record<Rol, string[]> = {
   ],
 };
 
-const apisLecturaOperativa = [
-  "/api/me",
-  "/api/clientes",
-  "/api/vehiculos",
-  "/api/servicios",
-  "/api/centros",
-  "/api/secciones",
-  "/api/tarifas",
-  "/api/caja",
-  "/api/dashboard",
-  "/api/reportes",
-];
-
-const apisPostOperativa = [
-  "/api/clientes",
-  "/api/vehiculos",
-  "/api/servicios",
-  "/api/caja/cerrar",
-];
-
 function agregarHeadersSeguridad(response: NextResponse) {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -172,18 +152,11 @@ function respuestaNoAutorizado(req: NextRequest) {
 }
 
 function rolPuedeUsarApi(rol: Rol, pathname: string, method: string) {
-  if (rol === "superadmin" || rol === "admin") return true;
-
-  if (method === "GET") {
-    return coincide(pathname, apisLecturaOperativa);
-  }
-
-  if (method === "POST") {
-    return coincide(pathname, apisPostOperativa);
-  }
-
-  // Auxiliar y operario no pueden editar/eliminar por API si no se valida dentro de la API.
-  return false;
+  // El middleware solo valida sesión y rutas generales.
+  // Los permisos finos se validan dentro de cada API con requirePermiso().
+  // Así un auxiliar con vehiculos.editar puede hacer PUT /api/vehiculos/[id],
+  // pero si no tiene vehiculos.eliminar, DELETE queda bloqueado en la API.
+  return true;
 }
 
 export async function middleware(req: NextRequest) {

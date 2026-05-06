@@ -1146,7 +1146,7 @@ export default function ServicioRapidoPage() {
                 <span style={styles.operationButtonLabel}>Solo carpa</span>
                 <span style={styles.operationButtonText}>Genera un soporte rápido solo por el valor de la carpa.</span>
               </button>
-            </div></div>
+            </div>
 
             <small style={styles.helper}>
               {esMovimientoInterno

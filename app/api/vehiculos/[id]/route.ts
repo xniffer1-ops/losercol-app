@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireAdmin } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 import {
   limpiarPlaca,
@@ -15,7 +15,7 @@ type Params = {
 };
 
 export async function PUT(req: Request, { params }: Params) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("vehiculos", "editar");
   if (denied) return denied;
 
   try {
@@ -109,7 +109,7 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 export async function DELETE(req: Request, { params }: Params) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("vehiculos", "eliminar");
   if (denied) return denied;
 
   try {
