@@ -72,7 +72,7 @@ type User = {
   id: number;
   nombre: string;
   email: string;
-  rol: "superadmin" | "admin" | "operador";
+  rol: "superadmin" | "admin" | "auxiliar" | "operador";
 } | null;
 
 const initialForm = {
@@ -82,7 +82,7 @@ const initialForm = {
   seccionId: "",
   tarifaId: "",
   tipoCarpa: "",
-  formaPago: "credito",
+  formaPago: "efectivo",
   reteIva: false,
   facturaElectronica: false,
   descripcion: "",
@@ -502,7 +502,7 @@ export default function ServiciosPage() {
         Vehiculo: s.vehiculo?.placa || "",
         Centro: s.centroOperacion?.nombre || "",
         Seccion: s.seccion?.nombre || "",
-        Tarifa: s.tarifa?.codigo || "",
+        Tarifa: s.tarifa?.codigo || (s.descripcion?.toUpperCase().includes("CARPA") ? "CARPA" : ""),
         "Carpa adicional": s.tipoCarpa || "",
         "Forma de pago": s.formaPago || "credito",
         "Factura electrónica": textoFacturaElectronica(s),
@@ -587,7 +587,7 @@ export default function ServiciosPage() {
       ],
       body: [
         [
-          s.tarifa?.codigo || "",
+          s.tarifa?.codigo || (s.descripcion?.toUpperCase().includes("CARPA") ? "CARPA" : ""),
           s.tipoCarpa || "Sin carpa",
           s.descripcion || "",
           s.unidadMedida || "",

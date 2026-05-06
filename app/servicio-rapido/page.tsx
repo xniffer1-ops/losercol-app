@@ -47,6 +47,7 @@ type Tarifa = {
 };
 
 type MensajeTipo = "ok" | "error" | "info";
+type TipoOperacion = "servicioVehiculo" | "movimientoInterno" | "soloCarpa";
 type AnyRecord = Record<string, unknown>;
 
 type PostJsonResult = {
@@ -502,6 +503,13 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
   doc.save(`${limpiarNombreArchivo(soporte.numeroSoporte)}_${limpiarNombreArchivo(soporte.placa || "servicio")}.pdf`);
 };
 
+
+const placaInternaCliente = (cliente: Cliente | null) => {
+  const documento = obtenerSoloDigitos(cliente?.ccNit || "");
+  const base = documento || String(cliente?.id || "0");
+  return `INTERNO-${base}`;
+};
+
 const abrirWhatsAppSoporte = (telefono: string | undefined, numeroSoporte: string) => {
   const telefonoWhatsApp = normalizarTelefonoWhatsApp(telefono);
 
@@ -522,6 +530,7 @@ export default function ServicioRapidoPage() {
   const [secciones, setSecciones] = useState<Seccion[]>([]);
   const [tarifas, setTarifas] = useState<Tarifa[]>([]);
 
+  const [tipoOperacion, setTipoOperacion] = useState<TipoOperacion>("servicioVehiculo");
   const [placa, setPlaca] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [clienteFueManual, setClienteFueManual] = useState(false);
@@ -619,7 +628,20 @@ export default function ServicioRapidoPage() {
     return secciones.find((seccion) => seccion.id === Number(seccionId)) ?? null;
   }, [seccionId, secciones]);
 
+  const esMovimientoInterno = tipoOperacion === "movimientoInterno";
+  const esSoloCarpa = tipoOperacion === "soloCarpa";
+  const requierePlaca = !esMovimientoInterno;
+  const requiereTarifa = !esSoloCarpa;
+  const placaParaOperacion = esMovimientoInterno
+    ? placaInternaCliente(clienteSeleccionado)
+    : placaNormalizada;
+
   useEffect(() => {
+    if (esMovimientoInterno) {
+      setVehiculoId("");
+      return;
+    }
+
     if (!placaNormalizada) {
       setVehiculoId("");
 
@@ -646,11 +668,22 @@ export default function ServicioRapidoPage() {
     if (!clienteFueManual) {
       setClienteId("");
     }
-  }, [placaNormalizada, vehiculoEncontrado, clienteFueManual]);
+  }, [placaNormalizada, vehiculoEncontrado, clienteFueManual, esMovimientoInterno]);
 
   const tarifasDisponibles = useMemo(() => {
-    return tarifas.filter((tarifa) => !esTarifaDeCarpa(tarifa));
-  }, [tarifas]);
+    if (esSoloCarpa) return [];
+
+    const tarifasSinCarpa = tarifas.filter((tarifa) => !esTarifaDeCarpa(tarifa));
+
+    if (esMovimientoInterno) {
+      return tarifasSinCarpa.filter((tarifa) => {
+        const texto = `${tarifa.codigo} ${tarifa.descripcion}`.toLowerCase();
+        return texto.includes("movimiento") || texto.includes("interno");
+      });
+    }
+
+    return tarifasSinCarpa;
+  }, [tarifas, esMovimientoInterno, esSoloCarpa]);
 
   const tarifaSeleccionada = useMemo(() => {
     return tarifasDisponibles.find((tarifa) => tarifa.id === Number(tarifaId)) ?? null;
@@ -699,8 +732,11 @@ export default function ServicioRapidoPage() {
   }, [busquedaTarifa, tarifasDisponibles, tarifasFiltradas, tarifaId]);
 
   const cantidadNumero = convertirKilosAToneladas(cantidad);
+  const cantidadOperativa = esSoloCarpa ? 1 : cantidadNumero;
 
-  const valorServicio = (tarifaSeleccionada?.valorUnitario ?? 0) * cantidadNumero;
+  const valorServicio = esSoloCarpa
+    ? 0
+    : (tarifaSeleccionada?.valorUnitario ?? 0) * cantidadOperativa;
 
   const IVA_PORCENTAJE = 0.19;
   const RETEIVA_PORCENTAJE = 0.04;
@@ -726,6 +762,7 @@ export default function ServicioRapidoPage() {
   const totalNeto = redondearPesos(subtotalBruto - valorReteIva);
 
   const limpiarFormulario = () => {
+    setTipoOperacion("servicioVehiculo");
     setPlaca("");
     setClienteId("");
     setClienteFueManual(false);
@@ -745,10 +782,10 @@ export default function ServicioRapidoPage() {
   const crearClienteRapido = async () => {
     setMensaje("");
 
-    const nombre = nuevoClienteNombre.trim();
-    const documento = nuevoClienteDocumento.trim();
+    const nombre = nuevoClienteNombre.trim().toUpperCase();
+    const documento = nuevoClienteDocumento.trim().toUpperCase();
     const telefono = nuevoClienteTelefono.trim();
-    const correo = nuevoClienteCorreo.trim();
+    const correo = nuevoClienteCorreo.trim().toLowerCase();
 
     if (!nombre || !documento) {
       mostrarMensaje(
@@ -822,7 +859,7 @@ export default function ServicioRapidoPage() {
   const guardar = async () => {
     setMensaje("");
 
-    if (!placaNormalizada) {
+    if (requierePlaca && !placaNormalizada) {
       mostrarMensaje("La placa es obligatoria.", "error");
       placaRef.current?.focus();
       return;
@@ -843,26 +880,42 @@ export default function ServicioRapidoPage() {
       return;
     }
 
-    if (!tarifaId) {
+    if (requiereTarifa && !tarifaId) {
       mostrarMensaje("Selecciona una tarifa.", "error");
       return;
     }
 
-    if (!cantidad || cantidadNumero <= 0) {
+    if (!esSoloCarpa && (!cantidad || cantidadNumero <= 0)) {
       mostrarMensaje("La cantidad en kilos debe ser mayor que cero.", "error");
       cantidadRef.current?.focus();
+      return;
+    }
+
+    if (esSoloCarpa && (!tipoCarpa || valorAdicionalCarpa <= 0)) {
+      mostrarMensaje("Selecciona el tipo de carpa que deseas cobrar.", "error");
       return;
     }
 
     setGuardando(true);
 
     let vehiculoFinalId = vehiculoId;
+    let placaFinal = placaParaOperacion;
+
+    if (esMovimientoInterno) {
+      placaFinal = placaInternaCliente(clienteSeleccionado);
+      const vehiculoInterno = vehiculos.find(
+        (vehiculo) => vehiculo.placa.toUpperCase() === placaFinal.toUpperCase()
+      );
+      vehiculoFinalId = vehiculoInterno ? String(vehiculoInterno.id) : "";
+    }
 
     if (!vehiculoFinalId) {
       const respuestaVehiculo = await postJsonSafe("/api/vehiculos", {
-        placa: placaNormalizada,
+        placa: placaFinal,
         clienteId: Number(clienteId),
-        tipoVehiculo: tipoVehiculoDesdeCarpa(tipoCarpa),
+        tipoVehiculo: esMovimientoInterno
+          ? "Movimiento interno"
+          : tipoVehiculoDesdeCarpa(tipoCarpa),
       });
 
       if (!respuestaVehiculo.ok) {
@@ -887,7 +940,7 @@ export default function ServicioRapidoPage() {
 
       const vehiculoNormalizado: Vehiculo = {
         ...nuevoVehiculo,
-        placa: nuevoVehiculo.placa || placaNormalizada,
+        placa: nuevoVehiculo.placa || placaFinal,
         clienteId: nuevoVehiculo.clienteId || Number(clienteId),
       };
 
@@ -902,13 +955,18 @@ export default function ServicioRapidoPage() {
       });
     }
 
+    const descripcionPDF = esSoloCarpa
+      ? `SERVICIO DE CARPA - ${tipoCarpa}`
+      : tarifaSeleccionada?.descripcion || "";
+
     const respuestaServicio = await postJsonSafe("/api/servicios", {
+      tipoOperacion,
       clienteId: Number(clienteId),
       vehiculoId: Number(vehiculoFinalId),
       centroOperacionId: Number(centroOperacionId),
       seccionId: Number(seccionId),
-      tarifaId: Number(tarifaId),
-      cantidad: cantidadNumero,
+      tarifaId: requiereTarifa ? Number(tarifaId) : null,
+      cantidad: cantidadOperativa,
       tipoCarpa: tipoCarpa.trim() || null,
       formaPago,
       reteIva: aplicaReteIva,
@@ -935,14 +993,14 @@ export default function ServicioRapidoPage() {
       cliente: clienteSeleccionado?.nombre || "-",
       documento: clienteSeleccionado?.ccNit || "-",
       telefono: clienteSeleccionado?.telefono,
-      placa: placaNormalizada,
+      placa: placaFinal,
       centro: centroSeleccionado?.nombre || "-",
       seccion: seccionSeleccionada?.nombre || "-",
-      tarifaCodigo: tarifaSeleccionada?.codigo || "",
-      descripcion: tarifaSeleccionada?.descripcion || "",
-      unidad: tarifaSeleccionada?.unidadMedida || "Tonelada",
-      cantidad: cantidadNumero,
-      valorUnitario: tarifaSeleccionada?.valorUnitario || 0,
+      tarifaCodigo: esSoloCarpa ? "CARPA" : tarifaSeleccionada?.codigo || "",
+      descripcion: descripcionPDF,
+      unidad: esSoloCarpa ? "Servicio" : tarifaSeleccionada?.unidadMedida || "Tonelada",
+      cantidad: cantidadOperativa,
+      valorUnitario: esSoloCarpa ? 0 : tarifaSeleccionada?.valorUnitario || 0,
       tipoCarpa: tipoCarpa || "Sin carpa",
       valorAdicionalCarpa,
       totalConIva: subtotalBruto,
@@ -966,8 +1024,8 @@ export default function ServicioRapidoPage() {
 
     mostrarMensaje(
       whatsappAbierto
-        ? "Servicio guardado. Se descargó el soporte y se abrió WhatsApp con el mensaje listo."
-        : "Servicio guardado. Se descargó el soporte, pero este cliente no tiene teléfono válido para WhatsApp.",
+        ? "Soporte guardado. Se descargó el PDF y se abrió WhatsApp con el mensaje listo."
+        : "Soporte guardado. Se descargó el PDF, pero este cliente no tiene teléfono válido para WhatsApp.",
       whatsappAbierto ? "ok" : "info"
     );
     setGuardando(false);
@@ -983,6 +1041,7 @@ export default function ServicioRapidoPage() {
     setFormaPago("efectivo");
     setAplicaReteIva(false);
     setFacturaElectronica(false);
+    setTipoOperacion("servicioVehiculo");
     placaRef.current?.focus();
   };
 
@@ -1014,7 +1073,76 @@ export default function ServicioRapidoPage() {
             void guardar();
           }}
         >
+          <div style={styles.operationBox}>
+            <span style={styles.operationTitle}>Tipo de operación</span>
+
+            <div style={styles.operationButtons}>
+              <button
+                type="button"
+                onClick={() => {
+                  setTipoOperacion("servicioVehiculo");
+                  setFormaPago("efectivo");
+                  setTarifaId("");
+                  setBusquedaTarifa("");
+                }}
+                style={
+                  tipoOperacion === "servicioVehiculo"
+                    ? { ...styles.operationButton, ...styles.operationButtonActive }
+                    : styles.operationButton
+                }
+              >
+                Servicio con vehículo
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTipoOperacion("movimientoInterno");
+                  setPlaca("");
+                  setVehiculoId("");
+                  setFormaPago("credito");
+                  setTarifaId("");
+                  setBusquedaTarifa("");
+                }}
+                style={
+                  tipoOperacion === "movimientoInterno"
+                    ? { ...styles.operationButton, ...styles.operationButtonActive }
+                    : styles.operationButton
+                }
+              >
+                Movimiento interno
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setTipoOperacion("soloCarpa");
+                  setTarifaId("");
+                  setBusquedaTarifa("");
+                  setCantidad("");
+                  setFormaPago("efectivo");
+                }}
+                style={
+                  tipoOperacion === "soloCarpa"
+                    ? { ...styles.operationButton, ...styles.operationButtonActive }
+                    : styles.operationButton
+                }
+              >
+                Solo carpa
+              </button>
+            </div>
+
+            <small style={styles.helper}>
+              {esMovimientoInterno
+                ? "Movimiento interno no exige placa real; se usa un vehículo interno del cliente."
+                : esSoloCarpa
+                ? "Solo carpa permite generar un soporte únicamente por la carpa seleccionada."
+                : "Servicio con vehículo cobra el cargue/descargue y opcionalmente la carpa."}
+            </small>
+          </div>
+
           <div style={styles.grid}>
+            {requierePlaca && (
             <div style={styles.field}>
               <label htmlFor="placa" style={styles.label}>
                 Placa *
@@ -1042,6 +1170,7 @@ export default function ServicioRapidoPage() {
                   : "Escribe la placa para buscar el vehículo."}
               </small>
             </div>
+            )}
 
             <div style={styles.field}>
               <label htmlFor="cliente" style={styles.label}>
@@ -1181,6 +1310,8 @@ export default function ServicioRapidoPage() {
             </div>
           )}
 
+          {!esSoloCarpa && (
+          <>
           <div style={styles.searchBlock}>
             <label htmlFor="tarifa-busqueda" style={styles.label}>
               Buscar tarifa *
@@ -1233,8 +1364,11 @@ export default function ServicioRapidoPage() {
               </div>
             )}
           </div>
+          </>
+          )}
 
           <div style={styles.gridSecondary}>
+            {!esSoloCarpa && (
             <div style={styles.field}>
               <label htmlFor="cantidad" style={styles.label}>
                 Cantidad en kilos *
@@ -1260,6 +1394,7 @@ export default function ServicioRapidoPage() {
                 Escribe kilos: 34000 o 34.000 se calculan como 34 toneladas.
               </small>
             </div>
+            )}
 
             <div style={styles.field}>
               <label htmlFor="tipoCarpa" style={styles.label}>
@@ -1381,7 +1516,9 @@ export default function ServicioRapidoPage() {
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Servicio</span>
               <span style={styles.summaryValue}>
-                {tarifaSeleccionada
+                {esSoloCarpa
+                  ? `SOLO CARPA - ${tipoCarpa || "selecciona tipo de carpa"}`
+                  : tarifaSeleccionada
                   ? `${tarifaSeleccionada.codigo} - ${tarifaSeleccionada.descripcion}`
                   : "Aún no has seleccionado una tarifa"}
               </span>
@@ -1390,14 +1527,14 @@ export default function ServicioRapidoPage() {
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Valor unitario</span>
               <span style={styles.summaryValue}>
-                {formatoDinero(tarifaSeleccionada?.valorUnitario || 0)}
+                {formatoDinero(esSoloCarpa ? 0 : tarifaSeleccionada?.valorUnitario || 0)}
               </span>
             </div>
 
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Cantidad calculada</span>
               <span style={styles.summaryValue}>
-                {formatearToneladas(cantidadNumero)}
+                {esSoloCarpa ? "1" : formatearToneladas(cantidadNumero)}
               </span>
             </div>
 

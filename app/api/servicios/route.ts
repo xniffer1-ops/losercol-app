@@ -14,7 +14,10 @@ function validarNumeroPositivo(valor: unknown) {
 }
 
 function normalizarFormaPago(formaPago: unknown) {
-  return limpiarTexto(formaPago || "credito").toLowerCase();
+  return limpiarTexto(formaPago || "efectivo")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
 }
 
 function validarFormaPago(formaPago: string) {
@@ -50,6 +53,14 @@ function validarTipoCarpa(tipoCarpa: string) {
 
 function normalizarBoolean(valor: unknown) {
   return valor === true || valor === "true" || valor === "si" || valor === "sí";
+}
+
+function normalizarTipoOperacion(valor: unknown) {
+  const tipo = limpiarTexto(valor || "servicioVehiculo");
+
+  if (tipo === "movimientoInterno") return "movimientoInterno";
+  if (tipo === "soloCarpa") return "soloCarpa";
+  return "servicioVehiculo";
 }
 
 const IVA_PORCENTAJE = 0.19;
@@ -101,8 +112,6 @@ export async function GET(req: Request) {
       };
     }
 
-    // Optimización 24/7:
-    // Si no envían fechas, por defecto solo se carga HOY.
     const fechaInicioConsulta = fechaInicio || fechaInputHoy();
     const fechaFinConsulta = fechaFin || fechaInicioConsulta;
 
@@ -168,9 +177,13 @@ export async function POST(req: Request) {
       );
     }
 
+    const tipoOperacion = normalizarTipoOperacion(body.tipoOperacion);
+    const esSoloCarpa = tipoOperacion === "soloCarpa";
+
     const tarifaId = Number(body.tarifaId);
     const seccionId = Number(body.seccionId);
-    const cantidad = Number(body.cantidad);
+    const cantidadRecibida = Number(body.cantidad);
+    const cantidad = esSoloCarpa ? 1 : cantidadRecibida;
     const clienteId = Number(body.clienteId);
     const vehiculoId = Number(body.vehiculoId);
     const centroOperacionId = Number(body.centroOperacionId);
@@ -179,19 +192,26 @@ export async function POST(req: Request) {
     const reteIva = normalizarBoolean(body.reteIva);
     const facturaElectronica = normalizarBoolean(body.facturaElectronica);
 
-    if (
-      !tarifaId ||
-      !seccionId ||
-      !clienteId ||
-      !vehiculoId ||
-      !centroOperacionId ||
-      !validarNumeroPositivo(cantidad)
-    ) {
+    if (!seccionId || !clienteId || !vehiculoId || !centroOperacionId) {
+      return NextResponse.json(
+        { error: "Cliente, vehículo, centro y sección son obligatorios" },
+        { status: 400 }
+      );
+    }
+
+    if (!esSoloCarpa && (!tarifaId || !validarNumeroPositivo(cantidad))) {
       return NextResponse.json(
         {
           error:
-            "Todos los campos son obligatorios y la cantidad debe ser mayor a 0",
+            "Selecciona una tarifa y una cantidad mayor a 0 para este servicio",
         },
+        { status: 400 }
+      );
+    }
+
+    if (esSoloCarpa && (!tipoCarpa || valorCarpa(tipoCarpa) <= 0)) {
+      return NextResponse.json(
+        { error: "Para solo carpa debes seleccionar un tipo de carpa válido" },
         { status: 400 }
       );
     }
@@ -212,14 +232,16 @@ export async function POST(req: Request) {
 
     const [tarifa, cliente, vehiculo, centroOperacion, seccion] =
       await Promise.all([
-        prisma.tarifa.findUnique({ where: { id: tarifaId } }),
+        esSoloCarpa
+          ? Promise.resolve(null)
+          : prisma.tarifa.findUnique({ where: { id: tarifaId } }),
         prisma.cliente.findUnique({ where: { id: clienteId } }),
         prisma.vehiculo.findUnique({ where: { id: vehiculoId } }),
         prisma.centroOperacion.findUnique({ where: { id: centroOperacionId } }),
         prisma.seccion.findUnique({ where: { id: seccionId } }),
       ]);
 
-    if (!tarifa) {
+    if (!esSoloCarpa && !tarifa) {
       return NextResponse.json(
         { error: "Tarifa no encontrada" },
         { status: 404 }
@@ -261,36 +283,34 @@ export async function POST(req: Request) {
     const siguienteNumero = (ultimoServicio?.id || 0) + 1;
     const numeroSoporte = `SP-${String(siguienteNumero).padStart(6, "0")}`;
 
-    const valorServicio = redondearPesos(Number(tarifa.valorUnitario) * cantidad);
+    const descripcion = esSoloCarpa
+      ? `SERVICIO DE CARPA - ${tipoCarpa}`
+      : tarifa?.descripcion || "";
+    const valorUnitario = esSoloCarpa ? 0 : Number(tarifa?.valorUnitario || 0);
+    const unidadMedida = esSoloCarpa ? "Servicio" : tarifa?.unidadMedida;
+    const presentacion = esSoloCarpa ? "Carpa" : tarifa?.presentacion;
+    const categoria = esSoloCarpa ? "Carpa" : tarifa?.categoria;
+
+    const valorServicio = redondearPesos(valorUnitario * cantidad);
     const valorAdicionalCarpa = redondearPesos(valorCarpa(tipoCarpa));
-
-    // IMPORTANTE: la tarifa y la carpa ya tienen IVA incluido.
     const subtotal = redondearPesos(valorServicio + valorAdicionalCarpa);
-
-    // Base antes de IVA.
     const baseAntesIva = redondearPesos(subtotal / (1 + IVA_PORCENTAJE));
-
-    // IVA incluido dentro del subtotal.
     const ivaIncluido = redondearPesos(subtotal - baseAntesIva);
-
-    // Retefuente se calcula sobre la base antes de IVA, no sobre el total con IVA.
     const valorReteIva = reteIva
       ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
       : 0;
-
-    // Total neto después de descontar Retefuente.
     const totalNeto = redondearPesos(subtotal - valorReteIva);
 
     const servicio = await prisma.servicio.create({
       data: {
         numeroSoporte,
-        descripcion: tarifa.descripcion,
-        valorUnitario: tarifa.valorUnitario,
+        descripcion,
+        valorUnitario,
         tipoCarpa: tipoCarpa || null,
         formaPago,
-        unidadMedida: tarifa.unidadMedida,
-        presentacion: tarifa.presentacion,
-        categoria: tarifa.categoria,
+        unidadMedida,
+        presentacion,
+        categoria,
         cantidad,
         subtotal,
         reteIva,
@@ -300,7 +320,7 @@ export async function POST(req: Request) {
         clienteId,
         vehiculoId,
         centroOperacionId,
-        tarifaId,
+        tarifaId: esSoloCarpa ? null : tarifaId,
         seccionId,
       },
       include: {
@@ -316,7 +336,7 @@ export async function POST(req: Request) {
     await registrarAccion(
       "CREAR",
       "Servicios",
-      `Creó soporte ${numeroSoporte} - ${tarifa.descripcion}${
+      `Creó soporte ${numeroSoporte} - ${descripcion}${
         tipoCarpa ? ` + carpa ${tipoCarpa}` : ""
       } - pago: ${formaPago} - Base IVA: $${baseAntesIva.toLocaleString("es-CO")} - IVA incluido: $${ivaIncluido.toLocaleString("es-CO")} - Retefuente: ${
         reteIva ? "sí" : "no"

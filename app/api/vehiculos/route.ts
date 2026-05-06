@@ -37,8 +37,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const placa = limpiarPlaca(body.placa);
-    const tipoVehiculo = limpiarTexto(body.tipoVehiculo);
+    const placa = limpiarPlaca(body.placa).toUpperCase();
+    const tipoVehiculoOriginal = limpiarTexto(body.tipoVehiculo);
+    const tipoVehiculo = tipoVehiculoOriginal.toUpperCase();
     const clienteId = Number(body.clienteId);
 
     if (!placa || !tipoVehiculo || !clienteId) {
@@ -48,7 +49,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!validarTipoVehiculo(tipoVehiculo)) {
+    if (!validarTipoVehiculo(tipoVehiculoOriginal)) {
       return NextResponse.json(
         { error: "Tipo de vehículo inválido" },
         { status: 400 }

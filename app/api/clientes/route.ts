@@ -61,8 +61,8 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const ccNit = limpiarTexto(body.ccNit);
-    const nombre = limpiarTexto(body.nombre);
+    const ccNit = limpiarTexto(body.ccNit).toUpperCase();
+    const nombre = limpiarTexto(body.nombre).toUpperCase();
     const correo = correoSeguro(body.correo);
     const telefono = telefonoSeguro(body.telefono);
     const formaPago = normalizarFormaPago(body.formaPago || "efectivo");
