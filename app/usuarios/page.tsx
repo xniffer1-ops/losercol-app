@@ -709,9 +709,7 @@ export default function UsuariosPage() {
 
                     {permisosEditandoId === u.id && (
                       <div style={styles.permissionsEditor}>
-                        <p style={styles.permissionsNote}>
-                          Caja: puedes permitir ver/cerrar caja. Reabrir caja solo debe quedar para admin o superadmin.
-                        </p>
+                        
                         {renderPermisos(permisosEditando, cambiarPermisoEdicion)}
 
                         <button
