@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
-import { requireAdmin, requireUser } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 import { getUser } from "@/src/lib/auth";
 
@@ -93,7 +93,7 @@ function rangoDiaColombia(fecha: string) {
 }
 
 export async function GET(req: Request) {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("servicios", "ver");
   if (denied) return denied;
 
   try {
@@ -148,7 +148,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("servicios", "crear");
   if (denied) return denied;
 
   try {
@@ -358,7 +358,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("servicios", "eliminar");
   if (denied) return denied;
 
   try {

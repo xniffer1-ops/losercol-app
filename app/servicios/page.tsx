@@ -68,12 +68,38 @@ type Servicio = {
   seccion?: Seccion | null;
 };
 
+type AccionServicios =
+  | "ver"
+  | "crear"
+  | "editar"
+  | "eliminar"
+  | "pdf"
+  | "whatsapp";
+
 type User = {
   id: number;
   nombre: string;
   email: string;
   rol: "superadmin" | "admin" | "auxiliar" | "operador";
+  permisos?: {
+    servicios?: Partial<Record<AccionServicios, boolean>>;
+    reportes?: {
+      exportar?: boolean;
+    };
+  };
 } | null;
+
+function tienePermisoServicios(user: User, accion: AccionServicios) {
+  if (!user) return false;
+  if (user.rol === "superadmin") return true;
+  return Boolean(user.permisos?.servicios?.[accion]);
+}
+
+function puedeExportarExcelServicios(user: User) {
+  if (!user) return false;
+  if (user.rol === "superadmin") return true;
+  return Boolean(user.permisos?.reportes?.exportar || user.permisos?.servicios?.ver);
+}
 
 const initialForm = {
   clienteId: "",
@@ -277,7 +303,13 @@ export default function ServiciosPage() {
     return () => window.removeEventListener("resize", actualizarVista);
   }, []);
 
-  const puedeAdministrar = user?.rol === "admin" || user?.rol === "superadmin";
+  const puedeVer = tienePermisoServicios(user, "ver");
+  const puedeCrear = tienePermisoServicios(user, "crear");
+  const puedeEditar = tienePermisoServicios(user, "editar");
+  const puedeEliminar = tienePermisoServicios(user, "eliminar");
+  const puedePdf = tienePermisoServicios(user, "pdf");
+  const puedeWhatsApp = tienePermisoServicios(user, "whatsapp");
+  const puedeExportarExcel = puedeExportarExcelServicios(user);
 
   const vehiculosFiltrados = useMemo(() => {
     return vehiculos.filter((v) => v.clienteId === Number(form.clienteId));
@@ -363,6 +395,16 @@ export default function ServiciosPage() {
     e.preventDefault();
     setMensaje("");
 
+    if (editandoId && !puedeEditar) {
+      setMensaje("No tienes permiso para editar servicios");
+      return;
+    }
+
+    if (!editandoId && !puedeCrear) {
+      setMensaje("No tienes permiso para crear servicios");
+      return;
+    }
+
     if (
       !form.clienteId ||
       !form.vehiculoId ||
@@ -420,6 +462,11 @@ export default function ServiciosPage() {
   };
 
   const editarServicio = (s: Servicio) => {
+    if (!puedeEditar) {
+      setMensaje("No tienes permiso para editar servicios");
+      return;
+    }
+
     setEditandoId(s.id);
     setForm({
       clienteId: String(s.clienteId),
@@ -439,6 +486,11 @@ export default function ServiciosPage() {
   };
 
   const eliminarServicio = async (id: number) => {
+    if (!puedeEliminar) {
+      setMensaje("No tienes permiso para eliminar servicios");
+      return;
+    }
+
     const ok = window.confirm("¿Seguro que quieres eliminar este servicio?");
     if (!ok) return;
 
@@ -486,6 +538,11 @@ export default function ServiciosPage() {
   };
 
   const exportarExcel = () => {
+    if (!puedeExportarExcel) {
+      alert("No tienes permiso para exportar Excel.");
+      return;
+    }
+
     if (servicios.length === 0) {
       alert("No hay datos para exportar");
       return;
@@ -528,6 +585,11 @@ export default function ServiciosPage() {
   };
 
   const exportarPDF = async (s: Servicio) => {
+    if (!puedePdf) {
+      alert("No tienes permiso para descargar PDF.");
+      return;
+    }
+
     const doc = new jsPDF();
 
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -698,6 +760,11 @@ export default function ServiciosPage() {
   };
 
   const reenviarWhatsApp = async (s: Servicio) => {
+    if (!puedeWhatsApp) {
+      alert("No tienes permiso para enviar por WhatsApp.");
+      return;
+    }
+
     await exportarPDF(s);
 
     const telefono = normalizarTelefonoWhatsApp(s.cliente?.telefono);
@@ -766,9 +833,11 @@ export default function ServiciosPage() {
             Limpiar
           </button>
 
-          <button onClick={exportarExcel} style={styles.excelButton}>
-            Exportar Excel
-          </button>
+          {puedeExportarExcel && (
+            <button onClick={exportarExcel} style={styles.excelButton}>
+              Exportar Excel
+            </button>
+          )}
         </div>
       </section>
 
@@ -877,36 +946,44 @@ export default function ServiciosPage() {
                     </div>
 
                     <div style={styles.actionsMobile}>
-                      <button
-                        onClick={() => void exportarPDF(s)}
-                        style={styles.pdfButtonMobile}
-                      >
-                        PDF
-                      </button>
+                      {puedePdf && (
+                        <button
+                          onClick={() => void exportarPDF(s)}
+                          style={styles.pdfButtonMobile}
+                        >
+                          PDF
+                        </button>
+                      )}
 
-                      <button
-                        onClick={() => void reenviarWhatsApp(s)}
-                        style={styles.whatsappButtonMobile}
-                      >
-                        WhatsApp
-                      </button>
+                      {puedeWhatsApp && (
+                        <button
+                          onClick={() => void reenviarWhatsApp(s)}
+                          style={styles.whatsappButtonMobile}
+                        >
+                          WhatsApp
+                        </button>
+                      )}
 
-                      {puedeAdministrar && (
-                        <>
-                          <button
-                            onClick={() => editarServicio(s)}
-                            style={styles.editButtonMobile}
-                          >
-                            Editar
-                          </button>
+                      {puedeEditar && (
+                        <button
+                          onClick={() => editarServicio(s)}
+                          style={styles.editButtonMobile}
+                        >
+                          Editar
+                        </button>
+                      )}
 
-                          <button
-                            onClick={() => eliminarServicio(s.id)}
-                            style={styles.deleteButtonMobile}
-                          >
-                            Eliminar
-                          </button>
-                        </>
+                      {puedeEliminar && (
+                        <button
+                          onClick={() => eliminarServicio(s.id)}
+                          style={styles.deleteButtonMobile}
+                        >
+                          Eliminar
+                        </button>
+                      )}
+
+                      {!puedePdf && !puedeWhatsApp && !puedeEditar && !puedeEliminar && (
+                        <span style={styles.noActions}>Solo consulta</span>
                       )}
                     </div>
                   </div>
@@ -937,36 +1014,44 @@ export default function ServiciosPage() {
                   <span>${Number(totalMostrar || 0).toLocaleString("es-CO")}</span>
 
                   <div style={styles.actions}>
-                    <button
-                      onClick={() => void exportarPDF(s)}
-                      style={styles.pdfButton}
-                    >
-                      PDF
-                    </button>
+                    {puedePdf && (
+                      <button
+                        onClick={() => void exportarPDF(s)}
+                        style={styles.pdfButton}
+                      >
+                        PDF
+                      </button>
+                    )}
 
-                    <button
-                      onClick={() => void reenviarWhatsApp(s)}
-                      style={styles.whatsappButton}
-                    >
-                      WhatsApp
-                    </button>
+                    {puedeWhatsApp && (
+                      <button
+                        onClick={() => void reenviarWhatsApp(s)}
+                        style={styles.whatsappButton}
+                      >
+                        WhatsApp
+                      </button>
+                    )}
 
-                    {puedeAdministrar && (
-                      <>
-                        <button
-                          onClick={() => editarServicio(s)}
-                          style={styles.editButton}
-                        >
-                          Editar
-                        </button>
+                    {puedeEditar && (
+                      <button
+                        onClick={() => editarServicio(s)}
+                        style={styles.editButton}
+                      >
+                        Editar
+                      </button>
+                    )}
 
-                        <button
-                          onClick={() => eliminarServicio(s.id)}
-                          style={styles.deleteButton}
-                        >
-                          Eliminar
-                        </button>
-                      </>
+                    {puedeEliminar && (
+                      <button
+                        onClick={() => eliminarServicio(s.id)}
+                        style={styles.deleteButton}
+                      >
+                        Eliminar
+                      </button>
+                    )}
+
+                    {!puedePdf && !puedeWhatsApp && !puedeEditar && !puedeEliminar && (
+                      <span style={styles.noActions}>Solo consulta</span>
                     )}
                   </div>
                 </div>
@@ -979,6 +1064,12 @@ export default function ServiciosPage() {
           <h2 style={styles.sectionTitle}>
             {editandoId ? "Editar servicio" : "Adicionar servicio"}
           </h2>
+
+          {!editandoId && !puedeCrear && (
+            <div style={styles.infoBox}>
+              Este usuario puede consultar servicios, pero no tiene permiso para crear nuevos soportes.
+            </div>
+          )}
 
           <form onSubmit={guardarServicio} style={styles.form}>
             <select
@@ -1170,7 +1261,11 @@ export default function ServiciosPage() {
               </div>
             </div>
 
-            <button type="submit" style={styles.saveButton} disabled={saving}>
+            <button
+              type="submit"
+              style={styles.saveButton}
+              disabled={saving || (editandoId ? !puedeEditar : !puedeCrear)}
+            >
               {saving
                 ? "Guardando..."
                 : editandoId
@@ -1548,6 +1643,20 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px 10px",
     cursor: "pointer",
     fontWeight: 900,
+  },
+  noActions: {
+    color: "#64748b",
+    fontWeight: 700,
+    fontSize: "13px",
+  },
+  infoBox: {
+    background: "#eff6ff",
+    border: "1px solid #bfdbfe",
+    color: "#1d4ed8",
+    borderRadius: "8px",
+    padding: "12px",
+    fontWeight: 700,
+    marginBottom: "12px",
   },
   message: {
     margin: 0,

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../src/lib/prisma";
-import { requireAdmin, requireUser } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
 function limpiarTexto(valor: unknown) {
@@ -66,7 +66,7 @@ type Params = {
 
 // 🔍 GET → necesario para imprimir soporte
 export async function GET(req: Request, { params }: Params) {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("servicios", "ver");
   if (denied) return denied;
 
   try {
@@ -107,7 +107,7 @@ export async function GET(req: Request, { params }: Params) {
 
 // ✏️ PUT → EDITAR
 export async function PUT(req: Request, { params }: Params) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("servicios", "editar");
   if (denied) return denied;
 
   try {
