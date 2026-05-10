@@ -277,6 +277,69 @@ export default function ServiciosPage() {
     doc.setTextColor(17, 17, 17);
   };
 
+  const crearMarcaAguaSuperiorBase64 = (
+    logoUrl: string,
+    texto = "LOSERCOL"
+  ): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+
+        // Proporción similar a una hoja A4 para que cubra toda la página.
+        canvas.width = 900;
+        canvas.height = 1273;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("No se pudo crear canvas de marca de agua"));
+          return;
+        }
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        ctx.save();
+        ctx.translate(canvas.width / 2, canvas.height / 2);
+        ctx.rotate((-45 * Math.PI) / 180);
+
+        // Texto principal gris claro encima de la factura.
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = "#9CA3AF";
+        ctx.font = "bold 145px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(texto, 0, 0);
+
+        // Logo gris claro encima, en la misma diagonal.
+        ctx.globalAlpha = 0.16;
+        ctx.filter = "grayscale(1) contrast(0.85)";
+        ctx.drawImage(img, -210, -235, 420, 170);
+
+        // Repeticiones suaves para dificultar falsificación sin tapar datos.
+        ctx.globalAlpha = 0.11;
+        ctx.filter = "grayscale(1) contrast(0.75)";
+        ctx.drawImage(img, -190, -520, 380, 155);
+        ctx.drawImage(img, -190, 365, 380, 155);
+
+        ctx.globalAlpha = 0.10;
+        ctx.filter = "none";
+        ctx.fillStyle = "#9CA3AF";
+        ctx.font = "bold 72px Arial";
+        ctx.fillText(texto, 0, -350);
+        ctx.fillText(texto, 0, 350);
+
+        ctx.restore();
+
+        resolve(canvas.toDataURL("image/png"));
+      };
+
+      img.onerror = () => reject(new Error("No se pudo cargar el logo para marca de agua"));
+      img.src = logoUrl;
+    });
+  };
+
   const cargarUsuario = async () => {
     try {
       const res = await fetch("/api/me", { cache: "no-store" });
@@ -637,8 +700,6 @@ export default function ServiciosPage() {
 
     const doc = new jsPDF();
 
-    agregarMarcaAguaPDF(doc);
-
     const pageHeight = doc.internal.pageSize.getHeight();
     const soporte = numeroSoporte(s);
     const valores = calcularValoresServicio(s);
@@ -792,6 +853,20 @@ export default function ServiciosPage() {
     doc.setFontSize(9);
     const textoAviso = doc.splitTextToSize(aviso, 174);
     doc.text(textoAviso, 18, avisoY + 7);
+
+    try {
+      const marcaAguaBase64 = await crearMarcaAguaSuperiorBase64("/logo-losercol.png");
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeightFinal = doc.internal.pageSize.getHeight();
+
+      // Se agrega al final para que quede por ENCIMA del contenido.
+      doc.addImage(marcaAguaBase64, "PNG", 0, 0, pageWidth, pageHeightFinal);
+    } catch (error) {
+      console.warn("No se pudo cargar la marca de agua superior:", error);
+
+      // Respaldo: si falla el logo, al menos coloca texto encima.
+      agregarMarcaAguaPDF(doc);
+    }
 
     doc.save(`${soporte}_${s.vehiculo?.placa || "servicio"}.pdf`);
   };
