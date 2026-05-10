@@ -340,6 +340,20 @@ export default function ServiciosPage() {
     });
   };
 
+  const crearQRVerificacionBase64 = async (url: string): Promise<string> => {
+    const QRCode = await import("qrcode");
+
+    return QRCode.toDataURL(url, {
+      errorCorrectionLevel: "H",
+      margin: 1,
+      width: 240,
+      color: {
+        dark: "#111111",
+        light: "#ffffff",
+      },
+    });
+  };
+
   const cargarUsuario = async () => {
     try {
       const res = await fetch("/api/me", { cache: "no-store" });
@@ -866,6 +880,40 @@ export default function ServiciosPage() {
 
       // Respaldo: si falla el logo, al menos coloca texto encima.
       agregarMarcaAguaPDF(doc);
+    }
+
+    try {
+      const urlVerificacion = `${window.location.origin}/verificar/${encodeURIComponent(
+        soporte
+      )}`;
+      const qrBase64 = await crearQRVerificacionBase64(urlVerificacion);
+
+      const qrSize = 27;
+      const qrX = 168;
+      const qrY = pageHeight - 68;
+
+      // Fondo blanco para que el QR siempre sea legible aunque tenga marca de agua encima.
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(210, 210, 210);
+      doc.roundedRect(qrX - 3, qrY - 10, qrSize + 6, qrSize + 18, 2, 2, "FD");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7);
+      doc.setTextColor(17, 17, 17);
+      doc.text("Verificar soporte", qrX + qrSize / 2, qrY - 4, {
+        align: "center",
+      });
+
+      // El QR se agrega al final para que quede por encima de la marca de agua y se pueda escanear.
+      doc.addImage(qrBase64, "PNG", qrX, qrY, qrSize, qrSize);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6);
+      doc.text(soporte, qrX + qrSize / 2, qrY + qrSize + 5, {
+        align: "center",
+      });
+    } catch (error) {
+      console.warn("No se pudo crear el QR de verificación:", error);
     }
 
     doc.save(`${soporte}_${s.vehiculo?.placa || "servicio"}.pdf`);
