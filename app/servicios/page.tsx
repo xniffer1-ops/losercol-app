@@ -855,7 +855,7 @@ export default function ServiciosPage() {
     const finalResumenY = (doc as any).lastAutoTable?.finalY || finalTablaY + 52;
 
     const aviso =
-      "Si desea solicitar la facturación electrónica envía un correo al: Auxfacturacion@losercol.com o al celular: 3147897436";
+      "Si desea solicitar la facturación electrónica envía un correo al: auxfacturacion@losercol.com o al celular: 3147897436";
 
     const avisoY = Math.max(finalResumenY + 12, pageHeight - 34);
 
