@@ -127,7 +127,7 @@ export default async function VerificarSoportePage({ params }: Params) {
         <div style={styles.header}>
           <div>
             <div style={styles.logo}>LOSERCOL</div>
-            <p style={styles.subtitle}>Verificación pública de soporte</p>
+            <p style={styles.subtitle}>Verificación de soporte</p>
           </div>
 
           <div style={styles.badgeOk}>VÁLIDO</div>
@@ -184,9 +184,7 @@ export default async function VerificarSoportePage({ params }: Params) {
           validación directa a LOSERCOL antes de aceptarlo.
         </p>
 
-        <Link href="/" style={styles.link}>
-          Ir al sistema
-        </Link>
+        
       </section>
     </main>
   );
