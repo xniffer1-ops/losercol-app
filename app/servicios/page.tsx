@@ -241,15 +241,31 @@ export default function ServiciosPage() {
       docConEstado.saveGraphicsState();
     }
 
+    // Más visible, pero sigue siendo fondo.
     if (docConEstado.GState && docConEstado.setGState) {
-      docConEstado.setGState(new docConEstado.GState({ opacity: 0.12 }));
+      docConEstado.setGState(new docConEstado.GState({ opacity: 0.24 }));
     }
 
+    // Marca principal grande al centro.
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(62);
-    doc.setTextColor(225, 225, 225);
+    doc.setFontSize(78);
+    doc.setTextColor(185, 185, 185);
 
     doc.text(texto, pageWidth / 2, pageHeight / 2, {
+      align: "center",
+      angle: 45,
+    });
+
+    // Dos marcas adicionales suaves para que atraviese mejor toda la hoja.
+    doc.setFontSize(38);
+    doc.setTextColor(205, 205, 205);
+
+    doc.text(texto, pageWidth / 2, pageHeight / 2 - 70, {
+      align: "center",
+      angle: 45,
+    });
+
+    doc.text(texto, pageWidth / 2, pageHeight / 2 + 70, {
       align: "center",
       angle: 45,
     });
