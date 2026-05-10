@@ -232,6 +232,35 @@ export default function ServiciosPage() {
     });
   };
 
+  const agregarMarcaAguaPDF = (doc: jsPDF, texto = "LOSERCOL") => {
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const docConEstado = doc as any;
+
+    if (docConEstado.saveGraphicsState) {
+      docConEstado.saveGraphicsState();
+    }
+
+    if (docConEstado.GState && docConEstado.setGState) {
+      docConEstado.setGState(new docConEstado.GState({ opacity: 0.12 }));
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(62);
+    doc.setTextColor(225, 225, 225);
+
+    doc.text(texto, pageWidth / 2, pageHeight / 2, {
+      align: "center",
+      angle: 45,
+    });
+
+    if (docConEstado.restoreGraphicsState) {
+      docConEstado.restoreGraphicsState();
+    }
+
+    doc.setTextColor(17, 17, 17);
+  };
+
   const cargarUsuario = async () => {
     try {
       const res = await fetch("/api/me", { cache: "no-store" });
@@ -591,6 +620,8 @@ export default function ServiciosPage() {
     }
 
     const doc = new jsPDF();
+
+    agregarMarcaAguaPDF(doc);
 
     const pageHeight = doc.internal.pageSize.getHeight();
     const soporte = numeroSoporte(s);
