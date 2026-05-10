@@ -11,7 +11,13 @@ type TokenPayload = {
   iat?: number;
 };
 
-const rutasPublicas = ["/login", "/api/login", "/api/logout"];
+const rutasPublicas = [
+  "/login",
+  "/api/login",
+  "/api/logout",
+  "/verificar",
+  "/api/verificar",
+];
 
 const paginasPorRol: Record<Rol, string[]> = {
   superadmin: ["*"],
@@ -27,13 +33,7 @@ const paginasPorRol: Record<Rol, string[]> = {
     "/caja",
     "/reportes",
   ],
-  operador: [
-    "/",
-    "/servicio-rapido",
-    "/servicios",
-    "/soportes",
-    "/caja",
-  ],
+  operador: ["/", "/servicio-rapido", "/servicios", "/soportes", "/caja"],
 };
 
 function agregarHeadersSeguridad(response: NextResponse) {
@@ -56,6 +56,12 @@ function coincide(pathname: string, rutas: string[]) {
   );
 }
 
+function esRutaPublica(pathname: string) {
+  return rutasPublicas.some(
+    (ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`)
+  );
+}
+
 function esArchivoPublico(pathname: string) {
   return (
     pathname.endsWith(".png") ||
@@ -70,7 +76,10 @@ function esArchivoPublico(pathname: string) {
 
 function base64UrlAUint8Array(valor: string) {
   const base64 = valor.replace(/-/g, "+").replace(/_/g, "/");
-  const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), "=");
+  const padded = base64.padEnd(
+    base64.length + ((4 - (base64.length % 4)) % 4),
+    "="
+  );
   const binario = atob(padded);
   const bytes = new Uint8Array(binario.length);
 
@@ -151,11 +160,9 @@ function respuestaNoAutorizado(req: NextRequest) {
   return response;
 }
 
-function rolPuedeUsarApi(rol: Rol, pathname: string, method: string) {
+function rolPuedeUsarApi(_rol: Rol, _pathname: string, _method: string) {
   // El middleware solo valida sesión y rutas generales.
   // Los permisos finos se validan dentro de cada API con requirePermiso().
-  // Así un auxiliar con vehiculos.editar puede hacer PUT /api/vehiculos/[id],
-  // pero si no tiene vehiculos.eliminar, DELETE queda bloqueado en la API.
   return true;
 }
 
@@ -164,7 +171,7 @@ export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
   if (
-    rutasPublicas.includes(pathname) ||
+    esRutaPublica(pathname) ||
     esArchivoPublico(pathname) ||
     pathname.startsWith("/_next")
   ) {
