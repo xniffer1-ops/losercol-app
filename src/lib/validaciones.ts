@@ -53,13 +53,16 @@ export function normalizarFormaPago(valor: unknown) {
   if (limpio === "credito") return "credito";
   if (limpio === "efectivo") return "efectivo";
   if (limpio === "transferencia") return "transferencia";
+  if (limpio === "no_aplica" || limpio === "no aplica" || limpio === "n/a") {
+    return "no_aplica";
+  }
 
-  return limpio;
+  return limpio || "no_aplica";
 }
 
 export function validarFormaPago(valor: string) {
   const limpio = normalizarFormaPago(valor);
-  return ["credito", "efectivo", "transferencia"].includes(limpio);
+  return ["credito", "efectivo", "transferencia", "no_aplica"].includes(limpio);
 }
 
 export function validarNumeroPositivo(valor: unknown) {

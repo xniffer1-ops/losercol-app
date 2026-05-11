@@ -38,7 +38,7 @@ const initialForm = {
   nombre: "",
   correo: "",
   telefono: "",
-  formaPago: "efectivo",
+  formaPago: "no_aplica",
 };
 
 function normalizarPagoVisual(valor: string) {
@@ -47,8 +47,9 @@ function normalizarPagoVisual(valor: string) {
   if (pago === "credito" || pago === "crédito") return "Crédito";
   if (pago === "efectivo") return "Efectivo";
   if (pago === "transferencia") return "Transferencia";
+  if (pago === "no_aplica" || pago === "no aplica" || pago === "n/a") return "No aplica";
 
-  return valor || "-";
+  return valor || "No aplica";
 }
 
 function normalizarPagoValor(valor: string) {
@@ -60,8 +61,9 @@ function normalizarPagoValor(valor: string) {
   if (pago === "credito") return "credito";
   if (pago === "efectivo") return "efectivo";
   if (pago === "transferencia") return "transferencia";
+  if (pago === "no_aplica" || pago === "no aplica" || pago === "n/a") return "no_aplica";
 
-  return "";
+  return "no_aplica";
 }
 
 export default function ClientesPage() {
@@ -125,7 +127,7 @@ export default function ClientesPage() {
       nombre: cliente.nombre || "",
       correo: cliente.correo || "",
       telefono: cliente.telefono || "",
-      formaPago: normalizarPagoValor(cliente.formaPago) || "efectivo",
+      formaPago: normalizarPagoValor(cliente.formaPago) || "no_aplica",
     });
     setMensaje("");
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -182,10 +184,9 @@ export default function ClientesPage() {
       !form.ccNit.trim() ||
       !form.nombre.trim() ||
       !form.correo.trim() ||
-      !form.telefono.trim() ||
-      !form.formaPago.trim()
+      !form.telefono.trim()
     ) {
-      setMensaje("Completa todos los campos");
+      setMensaje("Completa CC/NIT, nombre, correo y teléfono");
       return;
     }
 
@@ -343,6 +344,7 @@ export default function ClientesPage() {
               onChange={handleChange}
               style={styles.input}
             >
+              <option value="no_aplica">No aplica / se define en el servicio</option>
               <option value="efectivo">Efectivo</option>
               <option value="transferencia">Transferencia</option>
               <option value="credito">Crédito</option>

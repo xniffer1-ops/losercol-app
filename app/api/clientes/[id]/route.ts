@@ -36,11 +36,11 @@ export async function PUT(req: Request, { params }: Params) {
     const nombre = limpiarTexto(body.nombre);
     const correo = limpiarTexto(body.correo).toLowerCase();
     const telefono = limpiarTexto(body.telefono);
-    const formaPago = normalizarFormaPago(body.formaPago || "efectivo");
+    const formaPago = normalizarFormaPago(body.formaPago || "no_aplica");
 
-    if (!ccNit || !nombre || !correo || !telefono || !formaPago) {
+    if (!ccNit || !nombre || !correo || !telefono) {
       return NextResponse.json(
-        { error: "Todos los campos son obligatorios" },
+        { error: "CC/NIT, nombre, correo y teléfono son obligatorios" },
         { status: 400 }
       );
     }
