@@ -1512,7 +1512,7 @@ export default function ServicioRapidoPage() {
           </div>
 
           <div style={styles.tarifasWrap}>
-            {tarifasFiltradas.slice(0, 12).map((tarifa) => {
+            {tarifasFiltradas.map((tarifa) => {
               const seleccionada = tarifaId === String(tarifa.id);
 
               return (
@@ -2054,6 +2054,9 @@ const styles: Record<string, CSSProperties> = {
     gap: "10px",
     flexWrap: "wrap",
     marginTop: "14px",
+    maxHeight: "360px",
+    overflowY: "auto",
+    paddingRight: "4px",
   },
   tarifaCard: {
     border: "1px solid #e2e8f0",

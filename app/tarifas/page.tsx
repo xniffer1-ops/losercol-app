@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 type Tarifa = {
@@ -23,12 +23,24 @@ const initialForm = {
   categoria: "",
 };
 
+const normalizarCodigo = (valor: string) => valor.trim().toUpperCase();
+
 export default function TarifasPage() {
   const [tarifas, setTarifas] = useState<Tarifa[]>([]);
   const [form, setForm] = useState(initialForm);
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+
+  const [editandoId, setEditandoId] = useState<number | null>(null);
+  const [eliminandoId, setEliminandoId] = useState<number | null>(null);
+
+  const tituloFormulario = editandoId ? "Editar Tarifa" : "Adicionar Tarifa";
+  const textoBotonGuardar = editandoId ? "Actualizar tarifa" : "Guardar tarifa";
+
+  const tarifasOrdenadas = useMemo(() => {
+    return [...tarifas].sort((a, b) => b.id - a.id);
+  }, [tarifas]);
 
   const cargarTarifas = async () => {
     try {
@@ -60,16 +72,43 @@ export default function TarifasPage() {
 
     setForm((prev) => ({
       ...prev,
-      [name]: name === "codigo" ? value.toUpperCase() : value,
+      [name]:
+        name === "codigo" || name === "descripcion"
+          ? value.toUpperCase()
+          : value,
     }));
+  };
+
+  const limpiarFormulario = () => {
+    setForm(initialForm);
+    setEditandoId(null);
+    setMensaje("");
+  };
+
+  const seleccionarEditar = (tarifa: Tarifa) => {
+    setEditandoId(tarifa.id);
+    setMensaje("");
+
+    setForm({
+      codigo: tarifa.codigo || "",
+      descripcion: tarifa.descripcion || "",
+      valorUnitario: String(tarifa.valorUnitario || ""),
+      unidadMedida: tarifa.unidadMedida || "",
+      presentacion: tarifa.presentacion || "",
+      categoria: tarifa.categoria || "",
+    });
+
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const guardarTarifa = async (e: React.FormEvent) => {
     e.preventDefault();
     setMensaje("");
 
+    const codigo = normalizarCodigo(form.codigo);
+
     if (
-      !form.codigo.trim() ||
+      !codigo ||
       !form.descripcion.trim() ||
       !form.valorUnitario ||
       !form.unidadMedida.trim() ||
@@ -80,17 +119,40 @@ export default function TarifasPage() {
       return;
     }
 
+    const valorUnitario = Number(form.valorUnitario);
+
+    if (!Number.isFinite(valorUnitario) || valorUnitario <= 0) {
+      setMensaje("El valor unitario debe ser mayor que cero");
+      return;
+    }
+
+    const duplicada = tarifas.find(
+      (tarifa) =>
+        tarifa.codigo.trim().toUpperCase() === codigo &&
+        tarifa.id !== editandoId
+    );
+
+    if (duplicada) {
+      setMensaje(`Ya existe una tarifa con el ID ${codigo}`);
+      return;
+    }
+
     try {
       setSaving(true);
 
-      const res = await fetch("/api/tarifas", {
-        method: "POST",
+      const url = editandoId ? `/api/tarifas/${editandoId}` : "/api/tarifas";
+      const method = editandoId ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           ...form,
-          valorUnitario: Number(form.valorUnitario),
+          codigo,
+          descripcion: form.descripcion.trim().toUpperCase(),
+          valorUnitario,
         }),
       });
 
@@ -101,13 +163,53 @@ export default function TarifasPage() {
         return;
       }
 
-      setMensaje("Tarifa creada correctamente");
+      setMensaje(
+        editandoId
+          ? "Tarifa actualizada correctamente"
+          : "Tarifa creada correctamente"
+      );
       setForm(initialForm);
+      setEditandoId(null);
       await cargarTarifas();
     } catch {
       setMensaje("Error de conexión al guardar");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const eliminarTarifa = async (tarifa: Tarifa) => {
+    const confirmar = window.confirm(
+      `¿Seguro que deseas eliminar la tarifa ${tarifa.codigo} - ${tarifa.descripcion}?`
+    );
+
+    if (!confirmar) return;
+
+    setMensaje("");
+    setEliminandoId(tarifa.id);
+
+    try {
+      const res = await fetch(`/api/tarifas/${tarifa.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMensaje(data.error || "No fue posible eliminar la tarifa");
+        return;
+      }
+
+      if (editandoId === tarifa.id) {
+        limpiarFormulario();
+      }
+
+      setMensaje("Tarifa eliminada correctamente");
+      await cargarTarifas();
+    } catch {
+      setMensaje("Error de conexión al eliminar");
+    } finally {
+      setEliminandoId(null);
     }
   };
 
@@ -133,28 +235,58 @@ export default function TarifasPage() {
             <span>Unidad Medida</span>
             <span>Presentación</span>
             <span>Categoría</span>
+            <span>Acciones</span>
           </div>
 
           {loading ? (
             <div style={styles.empty}>Cargando tarifas...</div>
-          ) : tarifas.length === 0 ? (
+          ) : tarifasOrdenadas.length === 0 ? (
             <div style={styles.empty}>No hay tarifas registradas</div>
           ) : (
-            tarifas.map((t) => (
-              <div key={t.id} style={styles.tableRow}>
+            tarifasOrdenadas.map((t) => (
+              <div
+                key={t.id}
+                style={
+                  editandoId === t.id
+                    ? { ...styles.tableRow, ...styles.tableRowEditing }
+                    : styles.tableRow
+                }
+              >
                 <span>{t.codigo}</span>
                 <span>{t.descripcion}</span>
                 <span>${t.valorUnitario.toLocaleString("es-CO")}</span>
                 <span>{t.unidadMedida}</span>
                 <span>{t.presentacion}</span>
                 <span>{t.categoria}</span>
+                <span style={styles.actionsCell}>
+                  <button
+                    type="button"
+                    onClick={() => seleccionarEditar(t)}
+                    style={styles.editButton}
+                  >
+                    Editar
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => eliminarTarifa(t)}
+                    disabled={eliminandoId === t.id}
+                    style={
+                      eliminandoId === t.id
+                        ? { ...styles.deleteButton, opacity: 0.6 }
+                        : styles.deleteButton
+                    }
+                  >
+                    {eliminandoId === t.id ? "..." : "Eliminar"}
+                  </button>
+                </span>
               </div>
             ))
           )}
         </section>
 
         <section style={styles.formCard}>
-          <h2 style={styles.formTitle}>Adicionar Tarifa</h2>
+          <h2 style={styles.formTitle}>{tituloFormulario}</h2>
 
           <form onSubmit={guardarTarifa} style={styles.form}>
             <input
@@ -188,11 +320,11 @@ export default function TarifasPage() {
               onChange={handleChange}
               style={styles.input}
             >
-                <option value="">Unidad Medida</option>
-                <option value="Tonelada">Tonelada</option>
-                <option value="Hora Hombre">Hora Hombre</option>
-                <option value="Unidad">Unidad</option>
-                <option value="Vehículo">Vehículo</option>
+              <option value="">Unidad Medida</option>
+              <option value="Tonelada">Tonelada</option>
+              <option value="Hora Hombre">Hora Hombre</option>
+              <option value="Unidad">Unidad</option>
+              <option value="Vehículo">Vehículo</option>
             </select>
 
             <select
@@ -201,17 +333,17 @@ export default function TarifasPage() {
               onChange={handleChange}
               style={styles.input}
             >
-                <option value="">Presentación</option>
-                <option value="Bulto">Bulto</option>
-                <option value="Granel">Granel</option>
-                <option value="Hombre">Hombre</option>
-                <option value="Pacas - Rollos">Pacas - Rollos</option>
-                <option value="Tracto Mula">Tracto Mula</option>
-                <option value="Doble Troque">Doble Troque</option>
-                <option value="Sencillo">Sencillo</option>
-                <option value="Carpa">Carpa</option>
-                <option value="Estiba">Estiba</option>
-                <option value="Vehículo">Vehículo</option>
+              <option value="">Presentación</option>
+              <option value="Bulto">Bulto</option>
+              <option value="Granel">Granel</option>
+              <option value="Hombre">Hombre</option>
+              <option value="Pacas - Rollos">Pacas - Rollos</option>
+              <option value="Tracto Mula">Tracto Mula</option>
+              <option value="Doble Troque">Doble Troque</option>
+              <option value="Sencillo">Sencillo</option>
+              <option value="Carpa">Carpa</option>
+              <option value="Estiba">Estiba</option>
+              <option value="Vehículo">Vehículo</option>
             </select>
 
             <select
@@ -228,8 +360,19 @@ export default function TarifasPage() {
             </select>
 
             <button type="submit" style={styles.saveButton} disabled={saving}>
-              {saving ? "Guardando..." : "Guardar tarifa"}
+              {saving ? "Guardando..." : textoBotonGuardar}
             </button>
+
+            {editandoId && (
+              <button
+                type="button"
+                onClick={limpiarFormulario}
+                style={styles.cancelButton}
+                disabled={saving}
+              >
+                Cancelar edición
+              </button>
+            )}
 
             {mensaje && <p style={styles.message}>{mensaje}</p>}
           </form>
@@ -282,7 +425,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableHeader: {
     display: "grid",
-    gridTemplateColumns: "0.8fr 1.7fr 1fr 1fr 1fr 1fr",
+    gridTemplateColumns: "0.7fr 1.6fr 1fr 1fr 1fr 1fr 1.1fr",
     gap: "10px",
     background: "#f5c400",
     padding: "14px",
@@ -290,18 +433,46 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableRow: {
     display: "grid",
-    gridTemplateColumns: "0.8fr 1.7fr 1fr 1fr 1fr 1fr",
+    gridTemplateColumns: "0.7fr 1.6fr 1fr 1fr 1fr 1fr 1.1fr",
     gap: "10px",
     padding: "12px 14px",
     borderTop: "1px solid #eee",
     alignItems: "center",
     background: "#fff",
   },
+  tableRowEditing: {
+    background: "#fffbe6",
+  },
+  actionsCell: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  editButton: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #cbd5e1",
+    borderRadius: "6px",
+    padding: "7px 10px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  deleteButton: {
+    background: "#c81e1e",
+    color: "#fff",
+    border: "none",
+    borderRadius: "6px",
+    padding: "7px 10px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
   formCard: {
     background: "#fff",
     border: "1px solid #ddd",
     borderRadius: "10px",
     padding: "20px",
+    position: "sticky",
+    top: "18px",
   },
   formTitle: {
     marginTop: 0,
@@ -322,6 +493,15 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#f5c400",
     color: "#111",
     border: "none",
+    borderRadius: "8px",
+    padding: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+  },
+  cancelButton: {
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #ccc",
     borderRadius: "8px",
     padding: "12px",
     fontWeight: 700,

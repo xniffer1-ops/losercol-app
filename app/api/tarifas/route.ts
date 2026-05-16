@@ -9,7 +9,7 @@ export async function GET() {
 
   try {
     const tarifas = await prisma.tarifa.findMany({
-      orderBy: { id: "desc" },
+      orderBy: { codigo: "asc" },
     });
 
     return NextResponse.json(tarifas);
