@@ -293,7 +293,7 @@ export async function GET(req: Request) {
         };
       }
 
-      const unidad = normalizarUnidadMedida(s.tarifa?.unidadMedida);
+      const unidad = unidadResumenServicio(s);
       const cantidad = Number(s.cantidad || 0);
 
       porDiaMap[fecha].total += valorRealServicio(s);
