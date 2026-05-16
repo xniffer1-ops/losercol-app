@@ -13,7 +13,7 @@ export default function LoginPage() {
     setMensaje("");
 
     if (!email.trim() || !password.trim()) {
-      setMensaje("Ingresa correo y contraseña");
+      setMensaje("Datos requeridos");
       return;
     }
 
@@ -47,62 +47,79 @@ export default function LoginPage() {
 
   return (
     <main style={styles.page}>
-      <div style={styles.bgGlowOne} />
-      <div style={styles.bgGlowTwo} />
-
-      <section style={styles.card}>
-        <div style={styles.topBar} />
-
-        <div style={styles.logoWrap}>
-          <img
-            src="/logo-losercol.png"
-            alt="Losercol"
-            style={styles.logo}
-          />
-        </div>
-
-        <div style={styles.header}>
-          <h1 style={styles.title}>Iniciar sesión</h1>
-          <p style={styles.subtitle}>Accede al sistema operativo de Losercol</p>
-        </div>
-
-        <form onSubmit={iniciarSesion} style={styles.form} autoComplete="off">
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Correo electrónico</label>
-            <input
-              type="email"
-              name="losercol_email"
-              placeholder="Ej: soporte@losercol.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              style={styles.input}
-              autoComplete="off"
-            />
+      <section style={styles.shell}>
+        <aside style={styles.brandPanel}>
+          <div style={styles.logoBlock}>
+            <img src="/logo-losercol.png" alt="Losercol" style={styles.logo} />
           </div>
 
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Contraseña</label>
-            <input
-              type="password"
-              name="losercol_password"
-              placeholder="Ingresa tu contraseña"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              style={styles.input}
-              autoComplete="new-password"
-            />
+          <div style={styles.brandText}>
+            <h2 style={styles.brandTitle}>Sistema Operativo</h2>
+            <p style={styles.brandSubtitle}>
+              Control interno de servicios, soportes, caja y reportes.
+            </p>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            style={loading ? { ...styles.button, ...styles.buttonDisabled } : styles.button}
-          >
-            {loading ? "Entrando..." : "Entrar"}
-          </button>
+          <div style={styles.securityNote}>
+            <span style={styles.securityDot} />
+            Acceso restringido
+          </div>
+        </aside>
 
-          {mensaje ? <div style={styles.error}>{mensaje}</div> : null}
-        </form>
+        <section style={styles.loginPanel}>
+          <div style={styles.loginHeader}>
+            <span style={styles.badge}>LOSERCOL</span>
+            <h1 style={styles.title}>Acceso</h1>
+            <p style={styles.subtitle}>Ingresa tus credenciales autorizadas.</p>
+          </div>
+
+          <form onSubmit={iniciarSesion} style={styles.form} autoComplete="off">
+            <div style={styles.field}>
+              <label htmlFor="usuario" style={styles.label}>
+                Usuario
+              </label>
+              <input
+                id="usuario"
+                type="text"
+                name="losercol_user"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                style={styles.input}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            </div>
+
+            <div style={styles.field}>
+              <label htmlFor="clave" style={styles.label}>
+                Clave
+              </label>
+              <input
+                id="clave"
+                type="password"
+                name="losercol_key"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                style={styles.input}
+                autoComplete="new-password"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              style={
+                loading
+                  ? { ...styles.button, ...styles.buttonDisabled }
+                  : styles.button
+              }
+            >
+              {loading ? "Validando..." : "Entrar"}
+            </button>
+
+            {mensaje && <div style={styles.error}>{mensaje}</div>}
+          </form>
+        </section>
       </section>
     </main>
   );
@@ -115,91 +132,138 @@ const styles: Record<string, React.CSSProperties> = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "24px",
-    background: "linear-gradient(135deg, #eef3f8 0%, #e7edf5 45%, #dde6f1 100%)",
-    position: "relative",
-    overflow: "hidden",
-    fontFamily: 'Arial, Helvetica, sans-serif',
+    padding: "26px",
+    background:
+      "linear-gradient(135deg, #eef3f8 0%, #e7edf5 48%, #dfe8f2 100%)",
+    fontFamily: "Arial, Helvetica, sans-serif",
     boxSizing: "border-box",
   },
 
-  bgGlowOne: {
-    position: "absolute",
-    width: "420px",
-    height: "420px",
-    borderRadius: "999px",
-    background: "radial-gradient(circle, rgba(245,196,0,0.22) 0%, rgba(245,196,0,0) 70%)",
-    top: "-80px",
-    left: "-80px",
-    pointerEvents: "none",
-  },
-
-  bgGlowTwo: {
-    position: "absolute",
-    width: "420px",
-    height: "420px",
-    borderRadius: "999px",
-    background: "radial-gradient(circle, rgba(13,148,136,0.16) 0%, rgba(13,148,136,0) 70%)",
-    bottom: "-120px",
-    right: "-90px",
-    pointerEvents: "none",
-  },
-
-  card: {
-    position: "relative",
+  shell: {
     width: "100%",
-    maxWidth: "520px",
-    background: "rgba(255,255,255,0.94)",
-    backdropFilter: "blur(6px)",
-    WebkitBackdropFilter: "blur(6px)",
-    border: "1px solid rgba(255,255,255,0.75)",
-    borderRadius: "28px",
-    padding: "34px 34px 30px",
-    boxShadow: "0 30px 60px rgba(15,23,42,0.16)",
-    boxSizing: "border-box",
+    maxWidth: "900px",
+    minHeight: "520px",
+    display: "grid",
+    gridTemplateColumns: "1.05fr 0.95fr",
+    background: "#ffffff",
+    borderRadius: "30px",
+    overflow: "hidden",
+    border: "1px solid rgba(203, 213, 225, 0.9)",
+    boxShadow: "0 34px 80px rgba(15, 23, 42, 0.18)",
   },
 
-  topBar: {
-    width: "72px",
-    height: "6px",
-    borderRadius: "999px",
-    margin: "0 auto 24px",
-    background: "linear-gradient(90deg, #f5c400 0%, #0f766e 100%)",
-  },
-
-  logoWrap: {
+  brandPanel: {
+    position: "relative",
+    background:
+      "linear-gradient(145deg, #0f172a 0%, #111827 48%, #0b3b44 100%)",
+    padding: "46px",
     display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: "18px",
+    flexDirection: "column",
+    justifyContent: "space-between",
+    color: "#ffffff",
+    overflow: "hidden",
+  },
+
+  logoBlock: {
+    width: "100%",
+    maxWidth: "360px",
+    background: "#ffffff",
+    borderRadius: "22px",
+    padding: "18px 20px",
+    boxShadow: "0 22px 45px rgba(0, 0, 0, 0.22)",
+    boxSizing: "border-box",
   },
 
   logo: {
-    width: "300px",
-    maxWidth: "100%",
+    width: "100%",
     height: "auto",
-    objectFit: "contain",
     display: "block",
-    filter: "drop-shadow(0 8px 18px rgba(15,23,42,0.08))",
+    objectFit: "contain",
   },
 
-  header: {
-    textAlign: "center",
-    marginBottom: "28px",
+  brandText: {
+    marginTop: "40px",
+  },
+
+  brandTitle: {
+    margin: "0 0 12px",
+    fontSize: "34px",
+    fontWeight: 900,
+    lineHeight: 1.05,
+    letterSpacing: "-0.5px",
+  },
+
+  brandSubtitle: {
+    margin: 0,
+    maxWidth: "360px",
+    color: "#cbd5e1",
+    fontSize: "16px",
+    lineHeight: 1.55,
+  },
+
+  securityNote: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "9px",
+    width: "fit-content",
+    color: "#e5e7eb",
+    background: "rgba(255, 255, 255, 0.08)",
+    border: "1px solid rgba(255, 255, 255, 0.14)",
+    padding: "10px 14px",
+    borderRadius: "999px",
+    fontSize: "14px",
+    fontWeight: 700,
+  },
+
+  securityDot: {
+    width: "9px",
+    height: "9px",
+    borderRadius: "999px",
+    background: "#f5c400",
+    boxShadow: "0 0 0 4px rgba(245, 196, 0, 0.18)",
+  },
+
+  loginPanel: {
+    padding: "54px 46px",
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    background:
+      "linear-gradient(180deg, #ffffff 0%, #ffffff 62%, #f8fafc 100%)",
+  },
+
+  loginHeader: {
+    marginBottom: "30px",
+  },
+
+  badge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "7px 11px",
+    borderRadius: "999px",
+    background: "#fff7d6",
+    color: "#7a5600",
+    fontSize: "12px",
+    fontWeight: 900,
+    letterSpacing: "0.7px",
+    marginBottom: "16px",
   },
 
   title: {
     margin: "0 0 8px",
-    fontSize: "32px",
-    fontWeight: 900,
     color: "#0f172a",
-    letterSpacing: "-0.4px",
+    fontSize: "40px",
+    fontWeight: 900,
+    letterSpacing: "-0.9px",
+    lineHeight: 1.05,
   },
 
   subtitle: {
     margin: 0,
     color: "#64748b",
     fontSize: "15px",
+    lineHeight: 1.45,
   },
 
   form: {
@@ -207,43 +271,44 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "16px",
   },
 
-  inputGroup: {
+  field: {
     display: "grid",
     gap: "8px",
   },
 
   label: {
-    fontSize: "13px",
-    fontWeight: 700,
     color: "#334155",
-    paddingLeft: "4px",
+    fontSize: "13px",
+    fontWeight: 900,
+    letterSpacing: "0.2px",
   },
 
   input: {
     width: "100%",
     height: "58px",
-    borderRadius: "16px",
-    border: "1px solid #cbd5e1",
-    background: "#f8fafc",
     padding: "0 16px",
-    fontSize: "16px",
+    borderRadius: "15px",
+    border: "1px solid #cbd5e1",
+    background: "#ffffff",
     color: "#0f172a",
+    fontSize: "17px",
     outline: "none",
     boxSizing: "border-box",
-    transition: "all 0.2s ease",
+    boxShadow: "0 1px 0 rgba(15, 23, 42, 0.03)",
   },
 
   button: {
-    marginTop: "6px",
+    marginTop: "8px",
     height: "60px",
-    borderRadius: "16px",
     border: "none",
-    background: "linear-gradient(135deg, #f8d000 0%, #f3c300 100%)",
-    color: "#0f172a",
-    fontSize: "20px",
+    borderRadius: "15px",
+    background:
+      "linear-gradient(135deg, #f8d000 0%, #f5c400 50%, #eab308 100%)",
+    color: "#111827",
     fontWeight: 900,
+    fontSize: "19px",
     cursor: "pointer",
-    boxShadow: "0 16px 28px rgba(245,196,0,0.28)",
+    boxShadow: "0 16px 28px rgba(245, 196, 0, 0.28)",
   },
 
   buttonDisabled: {
@@ -259,7 +324,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #fee2e2",
     color: "#b91c1c",
     textAlign: "center",
-    fontWeight: 700,
+    fontWeight: 800,
     fontSize: "14px",
   },
 };
