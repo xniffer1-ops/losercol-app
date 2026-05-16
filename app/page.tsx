@@ -144,6 +144,11 @@ export default function Home() {
   const dinero = (valor: number) =>
     `$${Math.round(valor || 0).toLocaleString("es-CO")}`;
 
+  const cantidad = (valor: number) =>
+    Number(valor || 0).toLocaleString("es-CO", {
+      maximumFractionDigits: 2,
+    });
+
   if (!user) {
     return <main style={styles.page}>Cargando...</main>;
   }
@@ -329,8 +334,12 @@ export default function Home() {
       <section style={styles.kpiGrid}>
         <Card title="Total facturado" value={dinero(data.totalRecaudado)} />
         <Card title="Facturado hoy" value={dinero(data.totalRecaudadoHoy)} />
-        <Card title="Toneladas" value={data.toneladas} />
-        <Card title="Toneladas hoy" value={data.toneladasHoy} />
+        <Card title="Toneladas" value={cantidad(data.toneladas)} />
+        <Card title="Toneladas hoy" value={cantidad(data.toneladasHoy)} />
+        <Card title="Horas hombre" value={cantidad(data.horasHombre)} />
+        <Card title="Horas hombre hoy" value={cantidad(data.horasHombreHoy)} />
+        <Card title="Unidades" value={cantidad(data.unidades)} />
+        <Card title="Unidades hoy" value={cantidad(data.unidadesHoy)} />
         <Card title="Vehículos descargados" value={data.vehiculosDescargados} />
         <Card title="Vehículos hoy" value={data.vehiculosDescargadosHoy} />
         <Card title="Placas únicas" value={data.placasUnicas} />
@@ -592,7 +601,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   kpiGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
     gap: "16px",
     marginBottom: "18px",
   },

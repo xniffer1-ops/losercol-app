@@ -34,6 +34,7 @@ type Tarifa = {
   codigo?: string | null;
   descripcion?: string | null;
   valorUnitario?: number | null;
+  unidadMedida?: string | null;
 };
 
 type Servicio = {
@@ -93,6 +94,26 @@ function dinero(valor: number) {
 function numero(valor: unknown) {
   const parsed = Number(valor || 0);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function cantidadTexto(valor: number) {
+  return Number(valor || 0).toLocaleString("es-CO", {
+    maximumFractionDigits: 2,
+  });
+}
+
+function normalizarUnidadMedida(valor?: string | null) {
+  const unidad = String(valor || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (unidad.includes("tonelada")) return "toneladas";
+  if (unidad.includes("hora")) return "horasHombre";
+  if (unidad.includes("unidad")) return "unidades";
+  if (unidad.includes("vehiculo")) return "vehiculos";
+  return "otros";
 }
 
 function valorRealServicio(s: Servicio) {
@@ -176,7 +197,14 @@ export default function ReportesPage() {
 
     let totalFacturado = 0;
     let totalReteIva = 0;
-    let totalCantidad = 0;
+    const cantidadesPorUnidad = {
+      toneladas: 0,
+      horasHombre: 0,
+      unidades: 0,
+      vehiculos: 0,
+      otros: 0,
+    };
+
     let totalFacturaElectronica = 0;
     let totalValorFacturaElectronica = 0;
     let totalConReteIva = 0;
@@ -189,7 +217,9 @@ export default function ReportesPage() {
 
       totalFacturado += totalServicio;
       totalReteIva += numero(s.valorReteIva);
-      totalCantidad += numero(s.cantidad);
+
+      const unidad = normalizarUnidadMedida(s.tarifa?.unidadMedida);
+      cantidadesPorUnidad[unidad] += numero(s.cantidad);
 
       if (s.reteIva) {
         totalConReteIva += 1;
@@ -206,7 +236,7 @@ export default function ReportesPage() {
       totalServicios: servicios.length,
       totalFacturado,
       totalReteIva,
-      totalCantidad,
+      cantidadesPorUnidad,
       totalFacturaElectronica,
       totalValorFacturaElectronica,
       totalConReteIva,
@@ -258,7 +288,11 @@ export default function ReportesPage() {
         Concepto: "Servicios que no requieren factura electrónica",
         Valor: resumen.totalSinFacturaElectronica,
       },
-      { Concepto: "Total cantidad / toneladas", Valor: resumen.totalCantidad },
+      { Concepto: "Toneladas", Valor: resumen.cantidadesPorUnidad.toneladas },
+      { Concepto: "Horas hombre", Valor: resumen.cantidadesPorUnidad.horasHombre },
+      { Concepto: "Unidades", Valor: resumen.cantidadesPorUnidad.unidades },
+      { Concepto: "Vehículos por unidad de cobro", Valor: resumen.cantidadesPorUnidad.vehiculos },
+      { Concepto: "Otras cantidades", Valor: resumen.cantidadesPorUnidad.otros },
       { Concepto: "Total Retención 4%", Valor: resumen.totalReteIva },
       { Concepto: "Efectivo", Valor: resumen.pagos.efectivo },
       { Concepto: "Transferencia", Valor: resumen.pagos.transferencia },
@@ -276,6 +310,7 @@ export default function ReportesPage() {
       Tarifa: s.tarifa?.codigo || "",
       Descripcion: s.descripcion || "",
       Cantidad: numero(s.cantidad),
+      "Unidad de medida": s.tarifa?.unidadMedida || "",
       "Forma de pago": textoPago(s.formaPago),
       "Factura electrónica": textoFacturaElectronica(s),
       "Retención 4%": s.reteIva ? "Sí" : "No",
@@ -412,11 +447,33 @@ export default function ReportesPage() {
         <div style={{ ...styles.kpiCard, ...styles.kpiPurple }}>
           <div style={styles.iconBoxPurple}>T</div>
           <div>
-            <span style={styles.kpiLabel}>Cantidad / toneladas</span>
+            <span style={styles.kpiLabel}>Toneladas</span>
             <strong style={styles.kpiValuePurple}>
-              {Math.round(resumen.totalCantidad).toLocaleString("es-CO")}
+              {cantidadTexto(resumen.cantidadesPorUnidad.toneladas)}
             </strong>
-            <p style={styles.kpiText}>Suma de cantidades registradas</p>
+            <p style={styles.kpiText}>Solo tarifas con unidad Tonelada</p>
+          </div>
+        </div>
+
+        <div style={{ ...styles.kpiCard, ...styles.kpiPurple }}>
+          <div style={styles.iconBoxPurple}>HH</div>
+          <div>
+            <span style={styles.kpiLabel}>Horas hombre</span>
+            <strong style={styles.kpiValuePurple}>
+              {cantidadTexto(resumen.cantidadesPorUnidad.horasHombre)}
+            </strong>
+            <p style={styles.kpiText}>Solo tarifas por Hora Hombre</p>
+          </div>
+        </div>
+
+        <div style={{ ...styles.kpiCard, ...styles.kpiPurple }}>
+          <div style={styles.iconBoxPurple}>U</div>
+          <div>
+            <span style={styles.kpiLabel}>Unidades</span>
+            <strong style={styles.kpiValuePurple}>
+              {cantidadTexto(resumen.cantidadesPorUnidad.unidades)}
+            </strong>
+            <p style={styles.kpiText}>Solo tarifas con unidad Unidad</p>
           </div>
         </div>
 

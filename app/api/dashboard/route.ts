@@ -66,6 +66,41 @@ function valorRealServicio(servicio: {
   return totalNeto > 0 ? totalNeto : subtotal;
 }
 
+function normalizarUnidadMedida(valor?: string | null) {
+  const unidad = String(valor || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (unidad.includes("tonelada")) return "toneladas";
+  if (unidad.includes("hora")) return "horasHombre";
+  if (unidad.includes("unidad")) return "unidades";
+  if (unidad.includes("vehiculo")) return "vehiculos";
+  return "otros";
+}
+
+function sumarCantidadPorUnidad(servicios: Array<{ cantidad?: number | null; tarifa?: { unidadMedida?: string | null } | null }>) {
+  const resumen = {
+    toneladas: 0,
+    horasHombre: 0,
+    unidades: 0,
+    vehiculos: 0,
+    otros: 0,
+  };
+
+  servicios.forEach((servicio) => {
+    const unidad = normalizarUnidadMedida(servicio.tarifa?.unidadMedida);
+    const cantidad = Number(servicio.cantidad || 0);
+
+    if (!Number.isFinite(cantidad)) return;
+
+    resumen[unidad] += cantidad;
+  });
+
+  return resumen;
+}
+
 export async function GET(req: Request) {
   // 🔒 SOLO ADMIN / SUPERADMIN
   const { denied } = await requireRoles(["superadmin", "admin"]);
@@ -127,15 +162,19 @@ export async function GET(req: Request) {
       0
     );
 
-    const toneladas = servicios.reduce(
-      (acc, s) => acc + Number(s.cantidad || 0),
-      0
-    );
+    const cantidadesPorUnidad = sumarCantidadPorUnidad(servicios);
+    const cantidadesPorUnidadHoy = sumarCantidadPorUnidad(serviciosHoy);
 
-    const toneladasHoy = serviciosHoy.reduce(
-      (acc, s) => acc + Number(s.cantidad || 0),
-      0
-    );
+    const toneladas = cantidadesPorUnidad.toneladas;
+    const toneladasHoy = cantidadesPorUnidadHoy.toneladas;
+    const horasHombre = cantidadesPorUnidad.horasHombre;
+    const horasHombreHoy = cantidadesPorUnidadHoy.horasHombre;
+    const unidades = cantidadesPorUnidad.unidades;
+    const unidadesHoy = cantidadesPorUnidadHoy.unidades;
+    const vehiculosPorUnidad = cantidadesPorUnidad.vehiculos;
+    const vehiculosPorUnidadHoy = cantidadesPorUnidadHoy.vehiculos;
+    const otrasCantidades = cantidadesPorUnidad.otros;
+    const otrasCantidadesHoy = cantidadesPorUnidadHoy.otros;
 
     const placasUnicas = new Set(
       servicios.map((s) => s.vehiculo?.placa).filter(Boolean)
@@ -206,13 +245,28 @@ export async function GET(req: Request) {
           fecha,
           total: 0,
           toneladas: 0,
+          horasHombre: 0,
+          unidades: 0,
+          cantidadesVehiculo: 0,
+          otros: 0,
           servicios: 0,
           vehiculos: new Set<number>(),
         };
       }
 
+      const unidad = normalizarUnidadMedida(s.tarifa?.unidadMedida);
+      const cantidad = Number(s.cantidad || 0);
+
       porDiaMap[fecha].total += valorRealServicio(s);
-      porDiaMap[fecha].toneladas += Number(s.cantidad || 0);
+
+      if (Number.isFinite(cantidad)) {
+        if (unidad === "toneladas") porDiaMap[fecha].toneladas += cantidad;
+        if (unidad === "horasHombre") porDiaMap[fecha].horasHombre += cantidad;
+        if (unidad === "unidades") porDiaMap[fecha].unidades += cantidad;
+        if (unidad === "vehiculos") porDiaMap[fecha].cantidadesVehiculo += cantidad;
+        if (unidad === "otros") porDiaMap[fecha].otros += cantidad;
+      }
+
       porDiaMap[fecha].servicios += 1;
 
       if (s.vehiculoId) {
@@ -224,6 +278,10 @@ export async function GET(req: Request) {
       fecha: d.fecha,
       total: d.total,
       toneladas: d.toneladas,
+      horasHombre: d.horasHombre,
+      unidades: d.unidades,
+      cantidadesVehiculo: d.cantidadesVehiculo,
+      otros: d.otros,
       servicios: d.servicios,
       vehiculos: d.vehiculos.size,
     }));
@@ -239,6 +297,16 @@ export async function GET(req: Request) {
       serviciosHoy: serviciosHoy.length,
       toneladas,
       toneladasHoy,
+      horasHombre,
+      horasHombreHoy,
+      unidades,
+      unidadesHoy,
+      vehiculosPorUnidad,
+      vehiculosPorUnidadHoy,
+      otrasCantidades,
+      otrasCantidadesHoy,
+      cantidadesPorUnidad,
+      cantidadesPorUnidadHoy,
       placasUnicas,
       placasUnicasHoy,
       vehiculosDescargados,
