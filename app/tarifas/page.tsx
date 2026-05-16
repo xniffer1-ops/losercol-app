@@ -182,6 +182,65 @@ export default function TarifasPage() {
     }
   };
 
+
+  const cambiarTonelajeRapido = async (tarifa: Tarifa) => {
+    const nuevoValor = tarifa.cuentaTonelajeOperativo === false;
+
+    setMensaje("");
+
+    try {
+      setSaving(true);
+
+      const res = await fetch(`/api/tarifas/${tarifa.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          codigo: tarifa.codigo,
+          descripcion: tarifa.descripcion,
+          valorUnitario: tarifa.valorUnitario,
+          unidadMedida: tarifa.unidadMedida,
+          presentacion: tarifa.presentacion,
+          categoria: tarifa.categoria,
+          cuentaTonelajeOperativo: nuevoValor,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMensaje(data.error || "No fue posible cambiar el tonelaje real");
+        return;
+      }
+
+      setMensaje(
+        `Tarifa ${tarifa.codigo} actualizada: Tonelaje real ${
+          nuevoValor ? "Sí" : "No"
+        }`
+      );
+
+      setTarifas((prev) =>
+        prev.map((item) =>
+          item.id === tarifa.id
+            ? { ...item, cuentaTonelajeOperativo: nuevoValor }
+            : item
+        )
+      );
+
+      if (editandoId === tarifa.id) {
+        setForm((prev) => ({
+          ...prev,
+          cuentaTonelajeOperativo: nuevoValor ? "si" : "no",
+        }));
+      }
+    } catch {
+      setMensaje("Error de conexión al cambiar tonelaje real");
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const eliminarTarifa = async (tarifa: Tarifa) => {
     const confirmar = window.confirm(
       `¿Seguro que deseas eliminar la tarifa ${tarifa.codigo} - ${tarifa.descripcion}?`
@@ -261,7 +320,21 @@ export default function TarifasPage() {
                 <span>{t.descripcion}</span>
                 <span>${t.valorUnitario.toLocaleString("es-CO")}</span>
                 <span>{t.unidadMedida}</span>
-                <span>{t.cuentaTonelajeOperativo === false ? "No" : "Sí"}</span>
+                <span>
+                  <button
+                    type="button"
+                    onClick={() => cambiarTonelajeRapido(t)}
+                    disabled={saving}
+                    title="Cambiar si esta tarifa cuenta o no en toneladas reales"
+                    style={
+                      t.cuentaTonelajeOperativo === false
+                        ? styles.tonelajeNoButton
+                        : styles.tonelajeSiButton
+                    }
+                  >
+                    {t.cuentaTonelajeOperativo === false ? "No" : "Sí"}
+                  </button>
+                </span>
                 <span>{t.presentacion}</span>
                 <span>{t.categoria}</span>
                 <span style={styles.actionsCell}>
@@ -485,6 +558,26 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "7px 10px",
     fontWeight: 700,
     cursor: "pointer",
+  },
+  tonelajeSiButton: {
+    background: "#dcfce7",
+    color: "#166534",
+    border: "1px solid #bbf7d0",
+    borderRadius: "999px",
+    padding: "7px 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+    minWidth: "54px",
+  },
+  tonelajeNoButton: {
+    background: "#fee2e2",
+    color: "#991b1b",
+    border: "1px solid #fecaca",
+    borderRadius: "999px",
+    padding: "7px 14px",
+    fontWeight: 800,
+    cursor: "pointer",
+    minWidth: "54px",
   },
   formCard: {
     background: "#fff",

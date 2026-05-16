@@ -18,6 +18,11 @@ function leerTexto(valor: unknown) {
   return String(valor || "").trim();
 }
 
+function normalizarBoolean(valor: unknown, defecto = true) {
+  if (valor === undefined || valor === null || valor === "") return defecto;
+  return valor === true || valor === "true" || valor === "si" || valor === "sí";
+}
+
 export async function PUT(req: Request, { params }: Params) {
   const { denied } = await requireAdmin();
   if (denied) return denied;
@@ -41,6 +46,10 @@ export async function PUT(req: Request, { params }: Params) {
     const unidadMedida = leerTexto(body.unidadMedida);
     const presentacion = leerTexto(body.presentacion);
     const categoria = leerTexto(body.categoria);
+    const cuentaTonelajeOperativo = normalizarBoolean(
+      body.cuentaTonelajeOperativo,
+      true
+    );
 
     if (
       !codigo ||
@@ -94,13 +103,16 @@ export async function PUT(req: Request, { params }: Params) {
         unidadMedida,
         presentacion,
         categoria,
+        cuentaTonelajeOperativo,
       },
     });
 
     await registrarAccion(
       "EDITAR",
       "Tarifas",
-      `Editó tarifa ${tarifa.codigo} - ${tarifa.descripcion}`
+      `Editó tarifa ${tarifa.codigo} - ${tarifa.descripcion} - Tonelaje real: ${
+        tarifa.cuentaTonelajeOperativo ? "Sí" : "No"
+      }`
     );
 
     return NextResponse.json(tarifa);

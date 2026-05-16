@@ -3,6 +3,11 @@ import { prisma } from "../../../src/lib/prisma";
 import { requireAdmin, requireUser } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
+function normalizarBoolean(valor: unknown, defecto = true) {
+  if (valor === undefined || valor === null || valor === "") return defecto;
+  return valor === true || valor === "true" || valor === "si" || valor === "sí";
+}
+
 export async function GET() {
   const { denied } = await requireUser();
   if (denied) return denied;
@@ -35,6 +40,10 @@ export async function POST(req: Request) {
     const unidadMedida = String(body.unidadMedida || "").trim();
     const presentacion = String(body.presentacion || "").trim();
     const categoria = String(body.categoria || "").trim();
+    const cuentaTonelajeOperativo = normalizarBoolean(
+      body.cuentaTonelajeOperativo,
+      true
+    );
 
     if (
       !codigo ||
@@ -69,13 +78,16 @@ export async function POST(req: Request) {
         unidadMedida,
         presentacion,
         categoria,
+        cuentaTonelajeOperativo,
       },
     });
 
     await registrarAccion(
       "CREAR",
       "Tarifas",
-      `Creó tarifa ${codigo} - ${descripcion}`
+      `Creó tarifa ${codigo} - ${descripcion} - Tonelaje real: ${
+        tarifa.cuentaTonelajeOperativo ? "Sí" : "No"
+      }`
     );
 
     return NextResponse.json(tarifa, { status: 201 });
