@@ -49,6 +49,15 @@ type User = {
   permisos?: PermisosUsuario;
 } | null;
 
+type MenuItem = {
+  href: string;
+  label: string;
+  modulo: ModuloPermiso;
+  icon: string;
+  desc: string;
+  grupo: "operacion" | "administracion" | "control";
+};
+
 function fechaColombiaInput(fecha = new Date()) {
   const partes = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Bogota",
@@ -156,12 +165,12 @@ export default function Home() {
     const lista = Array.isArray(data?.graficaPorDia) ? [...data.graficaPorDia] : [];
 
     return lista.sort((a, b) => {
-      const convertir = (fecha: string) => {
+      const parseFecha = (fecha: string) => {
         const [dia, mes, year] = String(fecha || "").split("/");
         return new Date(Number(year), Number(mes) - 1, Number(dia)).getTime();
       };
 
-      return convertir(a.fecha) - convertir(b.fecha);
+      return parseFecha(a.fecha) - parseFecha(b.fecha);
     });
   }, [data]);
 
@@ -170,78 +179,97 @@ export default function Home() {
   }
 
   const puedeDashboard = tienePermiso(user, "dashboard");
-  const menuItems = [
-    {
-      href: "/clientes",
-      label: "Clientes",
-      modulo: "clientes" as ModuloPermiso,
-      icon: "👥",
-      desc: "Administrar clientes",
-    },
-    {
-      href: "/vehiculos",
-      label: "Vehículos",
-      modulo: "vehiculos" as ModuloPermiso,
-      icon: "🚚",
-      desc: "Registrar y consultar placas",
-    },
-    {
-      href: "/centros",
-      label: "Centros",
-      modulo: "centros" as ModuloPermiso,
-      icon: "🏭",
-      desc: "Centros de operación",
-    },
-    {
-      href: "/usuarios",
-      label: "Usuarios",
-      modulo: "usuarios" as ModuloPermiso,
-      icon: "🔐",
-      desc: "Accesos y permisos",
-    },
-    {
-      href: "/tarifas",
-      label: "Tarifas",
-      modulo: "tarifas" as ModuloPermiso,
-      icon: "🏷️",
-      desc: "Valores de servicios",
-    },
-    {
-      href: "/historial",
-      label: "Historial",
-      modulo: "historial" as ModuloPermiso,
-      icon: "🕘",
-      desc: "Registro de acciones",
-    },
-    {
-      href: "/reportes",
-      label: "Reportes",
-      modulo: "reportes" as ModuloPermiso,
-      icon: "📊",
-      desc: "Informes y exportaciones",
-    },
+
+  const menuItemsBase: MenuItem[] = [
     {
       href: "/servicio-rapido",
       label: "Servicio rápido",
-      modulo: "servicioRapido" as ModuloPermiso,
+      modulo: "servicioRapido",
       icon: "➕",
       desc: "Crear soporte rápido",
+      grupo: "operacion",
     },
     {
       href: "/servicios",
       label: "Servicios",
-      modulo: "servicios" as ModuloPermiso,
+      modulo: "servicios",
       icon: "📋",
       desc: "Consultar soportes",
+      grupo: "operacion",
     },
     {
       href: "/caja",
       label: "Caja",
-      modulo: "caja" as ModuloPermiso,
+      modulo: "caja",
       icon: "💰",
       desc: "Cuadre y cierre diario",
+      grupo: "operacion",
     },
-  ].filter((item) => tienePermiso(user, item.modulo));
+    {
+      href: "/clientes",
+      label: "Clientes",
+      modulo: "clientes",
+      icon: "👥",
+      desc: "Administrar clientes",
+      grupo: "administracion",
+    },
+    {
+      href: "/vehiculos",
+      label: "Vehículos",
+      modulo: "vehiculos",
+      icon: "🚚",
+      desc: "Registrar y consultar placas",
+      grupo: "administracion",
+    },
+    {
+      href: "/centros",
+      label: "Centros",
+      modulo: "centros",
+      icon: "🏭",
+      desc: "Centros de operación",
+      grupo: "administracion",
+    },
+    {
+      href: "/tarifas",
+      label: "Tarifas",
+      modulo: "tarifas",
+      icon: "🏷️",
+      desc: "Valores de servicios",
+      grupo: "administracion",
+    },
+    {
+      href: "/reportes",
+      label: "Reportes",
+      modulo: "reportes",
+      icon: "📊",
+      desc: "Informes y exportaciones",
+      grupo: "control",
+    },
+    {
+      href: "/usuarios",
+      label: "Usuarios",
+      modulo: "usuarios",
+      icon: "🔐",
+      desc: "Accesos y permisos",
+      grupo: "control",
+    },
+    {
+      href: "/historial",
+      label: "Historial",
+      modulo: "historial",
+      icon: "🕘",
+      desc: "Registro de acciones",
+      grupo: "control",
+    },
+  ];
+
+  const menuItems = menuItemsBase.filter((item) =>
+    tienePermiso(user, item.modulo)
+  );
+
+  const menuOperacion = menuItems.filter((item) => item.grupo === "operacion");
+  const menuAdministracion = menuItems.filter((item) => item.grupo === "administracion");
+  const menuControl = menuItems.filter((item) => item.grupo === "control");
 
   if (!puedeDashboard || !data) {
     return (
@@ -283,26 +311,29 @@ export default function Home() {
 
   return (
     <main style={styles.page}>
-      <div style={styles.topBar}>
+      <section style={styles.hero}>
         <div>
-          <p style={styles.userText}>
-            Usuario: <strong>{user.nombre}</strong>
-          </p>
-          <p style={styles.userText}>
-            Rol: <strong>{user.rol}</strong>
-          </p>
+          <div style={styles.brandRow}>
+            <span style={styles.brandMark}>L</span>
+            <div>
+              <h1 style={styles.title}>LOSERCOL</h1>
+              <p style={styles.subtitle}>Dashboard operativo y panel principal</p>
+            </div>
+          </div>
+
+          <div style={styles.userPill}>
+            <span>Usuario: <strong>{user.nombre}</strong></span>
+            <span>Rol: <strong>{user.rol}</strong></span>
+          </div>
         </div>
 
         <button onClick={cerrarSesion} style={styles.logoutButton}>
           Salir
         </button>
-      </div>
-
-      <h1 style={styles.title}>LOSERCOL</h1>
-      <p style={styles.subtitle}>Dashboard operativo y panel principal</p>
+      </section>
 
       <section style={styles.dashboardFiltersCard}>
-        <div>
+        <div style={styles.filterGroup}>
           <label style={styles.filterLabel}>Fecha inicio</label>
           <input
             type="date"
@@ -312,7 +343,7 @@ export default function Home() {
           />
         </div>
 
-        <div>
+        <div style={styles.filterGroup}>
           <label style={styles.filterLabel}>Fecha fin</label>
           <input
             type="date"
@@ -347,93 +378,26 @@ export default function Home() {
 
       {mensaje && <p style={styles.errorText}>{mensaje}</p>}
 
-      <section style={styles.sectionBlock}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <h2 style={styles.sectionTitle}>Resumen financiero</h2>
-            <p style={styles.sectionText}>Valores principales del periodo filtrado.</p>
-          </div>
-        </div>
-
-        <div style={styles.kpiGridFinancial}>
-          <Card title="Total facturado" value={dinero(data.totalRecaudado)} icon="💵" tone="green" />
-          <Card title="Facturado hoy" value={dinero(data.totalRecaudadoHoy)} icon="📆" tone="blue" />
-          <Card title="Valor total carpas" value={dinero(data.valorTotalCarpas)} icon="⛺" tone="orange" />
-        </div>
-      </section>
-
-      <section style={styles.sectionBlock}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <h2 style={styles.sectionTitle}>Operación acumulada</h2>
-            <p style={styles.sectionText}>Cantidades separadas por unidad de medida.</p>
-          </div>
-        </div>
-
-        <div style={styles.kpiGrid}>
-          <Card title="Toneladas" value={cantidad(data.toneladas, "t")} icon="⚖️" tone="yellow" />
-          <Card title="Horas hombre" value={cantidad(data.horasHombre, "h/h")} icon="👷" tone="purple" />
-          <Card title="Unidades" value={cantidad(data.unidades, "und")} icon="📦" tone="gray" />
-          <Card title="Vehículos descargados" value={data.vehiculosDescargados} icon="🚚" tone="blue" />
-          <Card title="Placas únicas" value={data.placasUnicas} icon="🔢" tone="gray" />
-        </div>
-      </section>
-
-      <section style={styles.sectionBlock}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <h2 style={styles.sectionTitle}>Actividad de hoy</h2>
-            <p style={styles.sectionText}>Resumen operativo del día actual en Colombia.</p>
-          </div>
-        </div>
-
-        <div style={styles.kpiGrid}>
-          <Card title="Toneladas hoy" value={cantidad(data.toneladasHoy, "t")} icon="⚖️" tone="yellow" />
-          <Card title="Horas hombre hoy" value={cantidad(data.horasHombreHoy, "h/h")} icon="👷" tone="purple" />
-          <Card title="Unidades hoy" value={cantidad(data.unidadesHoy, "und")} icon="📦" tone="gray" />
-          <Card title="Vehículos hoy" value={data.vehiculosDescargadosHoy} icon="🚛" tone="blue" />
-          <Card title="Placas hoy" value={data.placasUnicasHoy} icon="🔢" tone="gray" />
-        </div>
-      </section>
-
-      <section style={styles.sectionBlock}>
-        <div style={styles.sectionHeader}>
-          <div>
-            <h2 style={styles.sectionTitle}>Carpas</h2>
-            <p style={styles.sectionText}>Control de carpas por tipo de vehículo.</p>
-          </div>
-        </div>
-
-        <div style={styles.carpaGrid}>
-          <Card
-            title="Carpa Tracto Mula"
-            value={data.carpas?.tractoMula?.cantidad || 0}
-            sub={dinero(data.carpas?.tractoMula?.valor || 0)}
-            icon="🚛"
-            tone="orange"
-          />
-          <Card
-            title="Carpa Doble Troque"
-            value={data.carpas?.dobleTroque?.cantidad || 0}
-            sub={dinero(data.carpas?.dobleTroque?.valor || 0)}
-            icon="🚚"
-            tone="orange"
-          />
-          <Card
-            title="Carpa Sencillo"
-            value={data.carpas?.sencillo?.cantidad || 0}
-            sub={dinero(data.carpas?.sencillo?.valor || 0)}
-            icon="🚙"
-            tone="orange"
-          />
-        </div>
+      <section style={styles.summaryGrid}>
+        <Card title="Total facturado" value={dinero(data.totalRecaudado)} icon="💵" tone="green" />
+        <Card title="Facturado hoy" value={dinero(data.totalRecaudadoHoy)} icon="📆" tone="blue" />
+        <Card title="Toneladas" value={cantidad(data.toneladas, "t")} icon="⚖️" tone="yellow" />
+        <Card title="Horas hombre" value={cantidad(data.horasHombre, "h/h")} icon="👷" tone="purple" />
+        <Card title="Unidades" value={cantidad(data.unidades, "und")} icon="📦" tone="gray" />
+        <Card title="Vehículos descargados" value={data.vehiculosDescargados} icon="🚚" tone="blue" />
       </section>
 
       <section style={styles.chartCard}>
         <div style={styles.sectionHeader}>
           <div>
             <h2 style={styles.sectionTitle}>Facturación por día</h2>
-            <p style={styles.sectionText}>Evolución del valor facturado en el rango seleccionado.</p>
+            <p style={styles.sectionText}>Valores diarios del rango seleccionado.</p>
+          </div>
+
+          <div style={styles.chartMiniStats}>
+            <span>Placas únicas: <strong>{data.placasUnicas}</strong></span>
+            <span>Carpas: <strong>{data.carpas?.tractoMula?.cantidad + data.carpas?.dobleTroque?.cantidad + data.carpas?.sencillo?.cantidad || 0}</strong></span>
+            <span>Valor carpas: <strong>{dinero(data.valorTotalCarpas)}</strong></span>
           </div>
         </div>
 
@@ -455,32 +419,52 @@ export default function Home() {
         </ResponsiveContainer>
       </section>
 
-      <section style={styles.menuCard}>
-        <h2 style={styles.sectionTitle}>Menú principal</h2>
-        <p style={styles.sectionText}>Accesos organizados por área de trabajo.</p>
+      <section style={styles.detailGrid}>
+        <div style={styles.detailCard}>
+          <h2 style={styles.sectionTitle}>Hoy</h2>
+          <div style={styles.detailRows}>
+            <DetailItem label="Toneladas hoy" value={cantidad(data.toneladasHoy, "t")} />
+            <DetailItem label="Horas hombre hoy" value={cantidad(data.horasHombreHoy, "h/h")} />
+            <DetailItem label="Unidades hoy" value={cantidad(data.unidadesHoy, "und")} />
+            <DetailItem label="Vehículos hoy" value={data.vehiculosDescargadosHoy} />
+            <DetailItem label="Placas hoy" value={data.placasUnicasHoy} />
+          </div>
+        </div>
 
-        <MenuGroup
-          title="Operación"
-          items={menuItems.filter((item) =>
-            ["Servicio rápido", "Servicios", "Caja"].includes(item.label)
-          )}
-        />
-
-        <MenuGroup
-          title="Administración"
-          items={menuItems.filter((item) =>
-            ["Clientes", "Vehículos", "Centros", "Tarifas"].includes(item.label)
-          )}
-        />
-
-        <MenuGroup
-          title="Control"
-          items={menuItems.filter((item) =>
-            ["Usuarios", "Historial", "Reportes"].includes(item.label)
-          )}
-        />
+        <div style={styles.detailCard}>
+          <h2 style={styles.sectionTitle}>Carpas</h2>
+          <div style={styles.detailRows}>
+            <DetailItem
+              label="Tracto Mula"
+              value={`${data.carpas?.tractoMula?.cantidad || 0} / ${dinero(
+                data.carpas?.tractoMula?.valor || 0
+              )}`}
+            />
+            <DetailItem
+              label="Doble Troque"
+              value={`${data.carpas?.dobleTroque?.cantidad || 0} / ${dinero(
+                data.carpas?.dobleTroque?.valor || 0
+              )}`}
+            />
+            <DetailItem
+              label="Sencillo"
+              value={`${data.carpas?.sencillo?.cantidad || 0} / ${dinero(
+                data.carpas?.sencillo?.valor || 0
+              )}`}
+            />
+            <DetailItem label="Valor total carpas" value={dinero(data.valorTotalCarpas)} />
+          </div>
+        </div>
       </section>
 
+      <section style={styles.menuCard}>
+        <h2 style={styles.sectionTitle}>Menú principal</h2>
+        <p style={styles.sectionText}>Accesos principales organizados por área.</p>
+
+        <MenuGroup title="Operación" items={menuOperacion} />
+        <MenuGroup title="Administración" items={menuAdministracion} />
+        <MenuGroup title="Control" items={menuControl} />
+      </section>
     </main>
   );
 }
@@ -539,13 +523,16 @@ function Card({
   );
 }
 
-function MenuGroup({
-  title,
-  items,
-}: {
-  title: string;
-  items: Array<{ href: string; label: string; icon: string; desc: string }>;
-}) {
+function DetailItem({ label, value }: { label: string; value: string | number }) {
+  return (
+    <div style={styles.detailRow}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function MenuGroup({ title, items }: { title: string; items: MenuItem[] }) {
   if (items.length === 0) return null;
 
   return (
@@ -730,17 +717,45 @@ const styles: Record<string, React.CSSProperties> = {
     lineHeight: 1.4,
   },
 
-  topBar: {
+  hero: {
+    background: "#111827",
+    color: "#fff",
+    borderRadius: "20px",
+    padding: "22px",
     display: "flex",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: "18px",
+    alignItems: "center",
+    marginBottom: "16px",
+    boxShadow: "0 12px 30px rgba(17, 24, 39, 0.16)",
+    gap: "18px",
+    flexWrap: "wrap",
   },
 
-  userText: {
-    margin: "0 0 5px 0",
-    color: "#374151",
-    fontSize: "15px",
+  brandRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "14px",
+  },
+
+  brandMark: {
+    width: "50px",
+    height: "50px",
+    borderRadius: "16px",
+    display: "grid",
+    placeItems: "center",
+    background: "#f5c400",
+    color: "#111827",
+    fontWeight: 900,
+    fontSize: "28px",
+  },
+
+  userPill: {
+    display: "flex",
+    gap: "10px",
+    flexWrap: "wrap",
+    marginTop: "10px",
+    color: "#e5e7eb",
+    fontSize: "14px",
   },
 
   logoutButton: {
@@ -748,105 +763,127 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#fff",
     border: "none",
     borderRadius: "12px",
-    padding: "13px 22px",
+    padding: "12px 22px",
     fontWeight: 800,
     cursor: "pointer",
-    fontSize: "16px",
+    fontSize: "15px",
   },
 
   title: {
-    textAlign: "center",
-    fontSize: "44px",
-    margin: "10px 0 4px",
-    color: "#111",
+    fontSize: "40px",
+    margin: "0 0 2px",
+    color: "#fff",
     letterSpacing: "1px",
+    lineHeight: 1,
   },
 
   subtitle: {
-    textAlign: "center",
-    color: "#555",
-    marginBottom: "26px",
-    fontSize: "18px",
+    color: "#d1d5db",
+    margin: 0,
+    fontSize: "15px",
   },
 
-  kpiGridFinancial: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-    gap: "14px",
-  },
-
-  kpiGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
-    gap: "14px",
-  },
-
-  carpaGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: "14px",
-  },
-
-  sectionBlock: {
+  dashboardFiltersCard: {
     background: "#fff",
     border: "1px solid #e5e7eb",
-    borderRadius: "18px",
-    padding: "18px",
-    marginBottom: "18px",
-    boxShadow: "0 5px 18px rgba(0,0,0,0.06)",
-  },
-
-  sectionHeader: {
+    borderRadius: "16px",
+    padding: "16px",
+    marginBottom: "16px",
     display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
     gap: "12px",
-    marginBottom: "14px",
+    alignItems: "end",
+    flexWrap: "wrap",
+    boxShadow: "0 4px 14px rgba(0,0,0,0.06)",
   },
 
-  sectionText: {
-    margin: 0,
-    color: "#6b7280",
+  filterGroup: {
+    display: "grid",
+    gap: "6px",
+  },
+
+  filterLabel: {
+    display: "block",
+    color: "#374151",
+    fontWeight: 700,
+    fontSize: "13px",
+  },
+
+  filterInput: {
+    height: "42px",
+    borderRadius: "10px",
+    border: "1px solid #d1d5db",
+    padding: "0 12px",
+    color: "#111",
+    background: "#fff",
     fontSize: "14px",
+  },
+
+  filterButton: {
+    height: "42px",
+    background: "#f5c400",
+    color: "#111",
+    border: "none",
+    borderRadius: "10px",
+    padding: "0 18px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  filterSecondaryButton: {
+    height: "42px",
+    background: "#fff",
+    color: "#111",
+    border: "1px solid #d1d5db",
+    borderRadius: "10px",
+    padding: "0 18px",
+    fontWeight: 900,
+    cursor: "pointer",
+  },
+
+  summaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(215px, 1fr))",
+    gap: "14px",
+    marginBottom: "16px",
   },
 
   card: {
     background: "#fff",
     border: "1px solid #e5e7eb",
-    borderRadius: "16px",
-    padding: "18px",
-    boxShadow: "0 3px 12px rgba(0,0,0,0.06)",
-    minHeight: "104px",
+    borderRadius: "15px",
+    padding: "16px",
+    boxShadow: "0 3px 10px rgba(0,0,0,0.055)",
+    minHeight: "96px",
   },
 
   cardTop: {
     display: "flex",
     alignItems: "center",
-    gap: "10px",
-    marginBottom: "10px",
+    gap: "9px",
+    marginBottom: "9px",
   },
 
   cardIcon: {
-    width: "34px",
-    height: "34px",
+    width: "32px",
+    height: "32px",
     borderRadius: "10px",
     display: "grid",
     placeItems: "center",
     background: "rgba(17, 24, 39, 0.06)",
-    fontSize: "18px",
+    fontSize: "17px",
   },
 
   cardTitle: {
     display: "block",
     color: "#4b5563",
-    fontSize: "14px",
+    fontSize: "13px",
     fontWeight: 800,
   },
 
   cardValue: {
     display: "block",
     color: "#111827",
-    fontSize: "27px",
+    fontSize: "25px",
     fontWeight: 900,
     lineHeight: 1.15,
     overflowWrap: "anywhere",
@@ -861,107 +898,71 @@ const styles: Record<string, React.CSSProperties> = {
 
   chartCard: {
     background: "#fff",
-    border: "1px solid #ddd",
-    borderRadius: "14px",
-    padding: "22px",
-    marginBottom: "24px",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
+    border: "1px solid #e5e7eb",
+    borderRadius: "18px",
+    padding: "20px",
+    marginBottom: "16px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  },
+
+  sectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "12px",
+    marginBottom: "14px",
+    flexWrap: "wrap",
   },
 
   sectionTitle: {
-    margin: "0 0 16px 0",
-    color: "#111",
-    fontSize: "24px",
-  },
-
-  menuCard: {
-    background: "#fff",
-    border: "1px solid #ddd",
-    borderRadius: "14px",
-    padding: "22px",
-  },
-
-  menuGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
-    gap: "14px",
-  },
-
-  link: {
-    textDecoration: "none",
-  },
-
-  menuButton: {
-    width: "100%",
-    minHeight: "110px",
-    background: "#fff",
-    border: "1px solid #d1d5db",
-    borderRadius: "16px",
+    margin: "0 0 4px 0",
     color: "#111827",
-    cursor: "pointer",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-    display: "grid",
-    alignContent: "center",
-    justifyItems: "center",
-    gap: "6px",
-    padding: "16px",
+    fontSize: "22px",
   },
 
-  menuIcon: {
-    fontSize: "30px",
+  sectionText: {
+    margin: 0,
+    color: "#6b7280",
+    fontSize: "14px",
   },
 
-  dashboardFiltersCard: {
-    background: "#fff",
-    border: "1px solid #ddd",
-    borderRadius: "14px",
-    padding: "18px",
-    marginBottom: "18px",
+  chartMiniStats: {
     display: "flex",
-    gap: "12px",
-    alignItems: "end",
+    gap: "8px",
     flexWrap: "wrap",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
-  },
-
-  filterLabel: {
-    display: "block",
-    marginBottom: "6px",
     color: "#374151",
-    fontWeight: 700,
-    fontSize: "14px",
+    fontSize: "13px",
   },
 
-  filterInput: {
-    height: "44px",
-    borderRadius: "10px",
-    border: "1px solid #ccc",
-    padding: "0 12px",
-    color: "#111",
+  detailGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(330px, 1fr))",
+    gap: "16px",
+    marginBottom: "16px",
+  },
+
+  detailCard: {
     background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "18px",
+    padding: "18px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.055)",
+  },
+
+  detailRows: {
+    display: "grid",
+    gap: "10px",
+    marginTop: "12px",
+  },
+
+  detailRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    borderBottom: "1px solid #f1f5f9",
+    paddingBottom: "9px",
+    color: "#4b5563",
     fontSize: "14px",
-  },
-
-  filterButton: {
-    height: "44px",
-    background: "#f5c400",
-    color: "#111",
-    border: "none",
-    borderRadius: "10px",
-    padding: "0 18px",
-    fontWeight: 900,
-    cursor: "pointer",
-  },
-
-  filterSecondaryButton: {
-    height: "44px",
-    background: "#fff",
-    color: "#111",
-    border: "1px solid #ccc",
-    borderRadius: "10px",
-    padding: "0 18px",
-    fontWeight: 900,
-    cursor: "pointer",
   },
 
   tooltip: {
@@ -980,24 +981,62 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "4px",
   },
 
+  menuCard: {
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "18px",
+    padding: "20px",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.055)",
+  },
+
   menuGroup: {
-    marginTop: "18px",
+    marginTop: "16px",
   },
 
   menuGroupTitle: {
     margin: "0 0 10px",
-    fontSize: "18px",
+    fontSize: "17px",
     color: "#374151",
   },
 
+  menuGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))",
+    gap: "12px",
+  },
+
+  link: {
+    textDecoration: "none",
+  },
+
+  menuButton: {
+    width: "100%",
+    minHeight: "96px",
+    background: "#fff",
+    border: "1px solid #d1d5db",
+    borderRadius: "15px",
+    color: "#111827",
+    cursor: "pointer",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.04)",
+    display: "grid",
+    alignContent: "center",
+    justifyItems: "center",
+    gap: "5px",
+    padding: "14px",
+  },
+
+  menuIcon: {
+    fontSize: "27px",
+  },
+
   menuLabel: {
-    fontSize: "20px",
+    fontSize: "18px",
     fontWeight: 900,
   },
 
   menuDesc: {
     color: "#6b7280",
-    fontSize: "13px",
+    fontSize: "12px",
   },
 
   errorText: {
