@@ -66,7 +66,15 @@ function valorRealServicio(servicio: {
   return totalNeto > 0 ? totalNeto : subtotal;
 }
 
-function normalizarUnidadMedida(valor?: string | null) {
+type UnidadResumen =
+  | "toneladas"
+  | "toneladasAdicionales"
+  | "horasHombre"
+  | "unidades"
+  | "vehiculos"
+  | "otros";
+
+function normalizarUnidadMedida(valor?: string | null): Exclude<UnidadResumen, "toneladasAdicionales"> {
   const unidad = String(valor || "")
     .trim()
     .toLowerCase()
@@ -77,12 +85,40 @@ function normalizarUnidadMedida(valor?: string | null) {
   if (unidad.includes("hora")) return "horasHombre";
   if (unidad.includes("unidad")) return "unidades";
   if (unidad.includes("vehiculo")) return "vehiculos";
+
   return "otros";
 }
 
-function sumarCantidadPorUnidad(servicios: Array<{ cantidad?: number | null; tarifa?: { unidadMedida?: string | null } | null }>) {
-  const resumen = {
+function unidadResumenServicio(servicio: {
+  tarifa?: {
+    unidadMedida?: string | null;
+    cuentaTonelajeOperativo?: boolean | null;
+  } | null;
+}): UnidadResumen {
+  const unidad = normalizarUnidadMedida(servicio.tarifa?.unidadMedida);
+
+  if (
+    unidad === "toneladas" &&
+    servicio.tarifa?.cuentaTonelajeOperativo === false
+  ) {
+    return "toneladasAdicionales";
+  }
+
+  return unidad;
+}
+
+function sumarCantidadPorUnidad(
+  servicios: Array<{
+    cantidad?: number | null;
+    tarifa?: {
+      unidadMedida?: string | null;
+      cuentaTonelajeOperativo?: boolean | null;
+    } | null;
+  }>
+) {
+  const resumen: Record<UnidadResumen, number> = {
     toneladas: 0,
+    toneladasAdicionales: 0,
     horasHombre: 0,
     unidades: 0,
     vehiculos: 0,
@@ -90,7 +126,7 @@ function sumarCantidadPorUnidad(servicios: Array<{ cantidad?: number | null; tar
   };
 
   servicios.forEach((servicio) => {
-    const unidad = normalizarUnidadMedida(servicio.tarifa?.unidadMedida);
+    const unidad = unidadResumenServicio(servicio);
     const cantidad = Number(servicio.cantidad || 0);
 
     if (!Number.isFinite(cantidad)) return;
@@ -167,6 +203,8 @@ export async function GET(req: Request) {
 
     const toneladas = cantidadesPorUnidad.toneladas;
     const toneladasHoy = cantidadesPorUnidadHoy.toneladas;
+    const toneladasAdicionales = cantidadesPorUnidad.toneladasAdicionales;
+    const toneladasAdicionalesHoy = cantidadesPorUnidadHoy.toneladasAdicionales;
     const horasHombre = cantidadesPorUnidad.horasHombre;
     const horasHombreHoy = cantidadesPorUnidadHoy.horasHombre;
     const unidades = cantidadesPorUnidad.unidades;
@@ -245,6 +283,7 @@ export async function GET(req: Request) {
           fecha,
           total: 0,
           toneladas: 0,
+          toneladasAdicionales: 0,
           horasHombre: 0,
           unidades: 0,
           cantidadesVehiculo: 0,
@@ -261,6 +300,9 @@ export async function GET(req: Request) {
 
       if (Number.isFinite(cantidad)) {
         if (unidad === "toneladas") porDiaMap[fecha].toneladas += cantidad;
+        if (unidad === "toneladasAdicionales") {
+          porDiaMap[fecha].toneladasAdicionales += cantidad;
+        }
         if (unidad === "horasHombre") porDiaMap[fecha].horasHombre += cantidad;
         if (unidad === "unidades") porDiaMap[fecha].unidades += cantidad;
         if (unidad === "vehiculos") porDiaMap[fecha].cantidadesVehiculo += cantidad;
@@ -278,6 +320,7 @@ export async function GET(req: Request) {
       fecha: d.fecha,
       total: d.total,
       toneladas: d.toneladas,
+      toneladasAdicionales: d.toneladasAdicionales,
       horasHombre: d.horasHombre,
       unidades: d.unidades,
       cantidadesVehiculo: d.cantidadesVehiculo,
@@ -297,6 +340,8 @@ export async function GET(req: Request) {
       serviciosHoy: serviciosHoy.length,
       toneladas,
       toneladasHoy,
+      toneladasAdicionales,
+      toneladasAdicionalesHoy,
       horasHombre,
       horasHombreHoy,
       unidades,

@@ -11,6 +11,7 @@ type Tarifa = {
   unidadMedida: string;
   presentacion: string;
   categoria: string;
+  cuentaTonelajeOperativo?: boolean;
   createdAt?: string;
 };
 
@@ -21,6 +22,7 @@ const initialForm = {
   unidadMedida: "",
   presentacion: "",
   categoria: "",
+  cuentaTonelajeOperativo: "si",
 };
 
 const normalizarCodigo = (valor: string) => valor.trim().toUpperCase();
@@ -96,6 +98,7 @@ export default function TarifasPage() {
       unidadMedida: tarifa.unidadMedida || "",
       presentacion: tarifa.presentacion || "",
       categoria: tarifa.categoria || "",
+      cuentaTonelajeOperativo: tarifa.cuentaTonelajeOperativo === false ? "no" : "si",
     });
 
     window.scrollTo({ top: 0, behavior: "smooth" });
@@ -153,6 +156,7 @@ export default function TarifasPage() {
           codigo,
           descripcion: form.descripcion.trim().toUpperCase(),
           valorUnitario,
+          cuentaTonelajeOperativo: form.cuentaTonelajeOperativo !== "no",
         }),
       });
 
@@ -233,6 +237,7 @@ export default function TarifasPage() {
             <span>Descripción</span>
             <span>Valor Unitario</span>
             <span>Unidad Medida</span>
+            <span>Tonelaje real</span>
             <span>Presentación</span>
             <span>Categoría</span>
             <span>Acciones</span>
@@ -256,6 +261,7 @@ export default function TarifasPage() {
                 <span>{t.descripcion}</span>
                 <span>${t.valorUnitario.toLocaleString("es-CO")}</span>
                 <span>{t.unidadMedida}</span>
+                <span>{t.cuentaTonelajeOperativo === false ? "No" : "Sí"}</span>
                 <span>{t.presentacion}</span>
                 <span>{t.categoria}</span>
                 <span style={styles.actionsCell}>
@@ -326,6 +332,20 @@ export default function TarifasPage() {
               <option value="Unidad">Unidad</option>
               <option value="Vehículo">Vehículo</option>
             </select>
+
+            <select
+              name="cuentaTonelajeOperativo"
+              value={form.cuentaTonelajeOperativo}
+              onChange={handleChange}
+              style={styles.input}
+            >
+              <option value="si">Cuenta en toneladas reales: Sí</option>
+              <option value="no">Cuenta en toneladas reales: No</option>
+            </select>
+
+            <small style={styles.helpText}>
+              Usa “No” para cobros adicionales por tonelada que no deben duplicar el tonelaje real del dashboard.
+            </small>
 
             <select
               name="presentacion"
@@ -425,7 +445,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableHeader: {
     display: "grid",
-    gridTemplateColumns: "0.7fr 1.6fr 1fr 1fr 1fr 1fr 1.1fr",
+    gridTemplateColumns: "0.7fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1.1fr",
     gap: "10px",
     background: "#f5c400",
     padding: "14px",
@@ -433,7 +453,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableRow: {
     display: "grid",
-    gridTemplateColumns: "0.7fr 1.6fr 1fr 1fr 1fr 1fr 1.1fr",
+    gridTemplateColumns: "0.7fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1.1fr",
     gap: "10px",
     padding: "12px 14px",
     borderTop: "1px solid #eee",
@@ -481,6 +501,12 @@ const styles: Record<string, React.CSSProperties> = {
   form: {
     display: "grid",
     gap: "12px",
+  },
+  helpText: {
+    marginTop: "-6px",
+    color: "#555",
+    fontSize: "12px",
+    lineHeight: 1.4,
   },
   input: {
     padding: "12px",

@@ -104,6 +104,7 @@ model Tarifa {
   unidadMedida  String
   presentacion  String
   categoria     String
+  cuentaTonelajeOperativo Boolean @default(true)
   servicios     Servicio[]
   createdAt     DateTime   @default(now())
 }

@@ -35,6 +35,7 @@ type Tarifa = {
   descripcion?: string | null;
   valorUnitario?: number | null;
   unidadMedida?: string | null;
+  cuentaTonelajeOperativo?: boolean | null;
 };
 
 type Servicio = {
@@ -114,6 +115,24 @@ function normalizarUnidadMedida(valor?: string | null) {
   if (unidad.includes("unidad")) return "unidades";
   if (unidad.includes("vehiculo")) return "vehiculos";
   return "otros";
+}
+
+function cuentaTonelajeOperativo(tarifa?: Tarifa | null) {
+  const unidad = normalizarUnidadMedida(tarifa?.unidadMedida);
+
+  if (unidad !== "toneladas") return true;
+
+  return tarifa?.cuentaTonelajeOperativo !== false;
+}
+
+function unidadResumenServicio(s: Servicio) {
+  const unidad = normalizarUnidadMedida(s.tarifa?.unidadMedida);
+
+  if (unidad === "toneladas" && !cuentaTonelajeOperativo(s.tarifa)) {
+    return "toneladasAdicionales";
+  }
+
+  return unidad;
 }
 
 function valorRealServicio(s: Servicio) {
@@ -199,6 +218,7 @@ export default function ReportesPage() {
     let totalReteIva = 0;
     const cantidadesPorUnidad = {
       toneladas: 0,
+      toneladasAdicionales: 0,
       horasHombre: 0,
       unidades: 0,
       vehiculos: 0,
@@ -218,7 +238,7 @@ export default function ReportesPage() {
       totalFacturado += totalServicio;
       totalReteIva += numero(s.valorReteIva);
 
-      const unidad = normalizarUnidadMedida(s.tarifa?.unidadMedida);
+      const unidad = unidadResumenServicio(s);
       cantidadesPorUnidad[unidad] += numero(s.cantidad);
 
       if (s.reteIva) {
@@ -288,7 +308,14 @@ export default function ReportesPage() {
         Concepto: "Servicios que no requieren factura electrónica",
         Valor: resumen.totalSinFacturaElectronica,
       },
-      { Concepto: "Toneladas", Valor: resumen.cantidadesPorUnidad.toneladas },
+      {
+        Concepto: "Toneladas operativas",
+        Valor: resumen.cantidadesPorUnidad.toneladas,
+      },
+      {
+        Concepto: "Toneladas adicionales no operativas",
+        Valor: resumen.cantidadesPorUnidad.toneladasAdicionales,
+      },
       { Concepto: "Horas hombre", Valor: resumen.cantidadesPorUnidad.horasHombre },
       { Concepto: "Unidades", Valor: resumen.cantidadesPorUnidad.unidades },
       { Concepto: "Vehículos por unidad de cobro", Valor: resumen.cantidadesPorUnidad.vehiculos },
@@ -311,6 +338,7 @@ export default function ReportesPage() {
       Descripcion: s.descripcion || "",
       Cantidad: numero(s.cantidad),
       "Unidad de medida": s.tarifa?.unidadMedida || "",
+      "Cuenta tonelaje operativo": cuentaTonelajeOperativo(s.tarifa) ? "Sí" : "No",
       "Forma de pago": textoPago(s.formaPago),
       "Factura electrónica": textoFacturaElectronica(s),
       "Retención 4%": s.reteIva ? "Sí" : "No",
@@ -447,11 +475,22 @@ export default function ReportesPage() {
         <div style={{ ...styles.kpiCard, ...styles.kpiPurple }}>
           <div style={styles.iconBoxPurple}>T</div>
           <div>
-            <span style={styles.kpiLabel}>Toneladas</span>
+            <span style={styles.kpiLabel}>Toneladas operativas</span>
             <strong style={styles.kpiValuePurple}>
               {cantidadTexto(resumen.cantidadesPorUnidad.toneladas)}
             </strong>
-            <p style={styles.kpiText}>Solo tarifas con unidad Tonelada</p>
+            <p style={styles.kpiText}>Solo las que cuentan como tonelaje real</p>
+          </div>
+        </div>
+
+        <div style={{ ...styles.kpiCard, ...styles.kpiPurple }}>
+          <div style={styles.iconBoxPurple}>TA</div>
+          <div>
+            <span style={styles.kpiLabel}>Toneladas adicionales</span>
+            <strong style={styles.kpiValuePurple}>
+              {cantidadTexto(resumen.cantidadesPorUnidad.toneladasAdicionales)}
+            </strong>
+            <p style={styles.kpiText}>Cobros por tonelada que no duplican operación</p>
           </div>
         </div>
 
