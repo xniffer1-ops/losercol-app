@@ -416,9 +416,7 @@ export default function TarifasPage() {
               <option value="no">Cuenta en toneladas reales: No</option>
             </select>
 
-            <small style={styles.helpText}>
-              Usa “No” para cobros adicionales por tonelada que no deben duplicar el tonelaje real del dashboard.
-            </small>
+            
 
             <select
               name="presentacion"
