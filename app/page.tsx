@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   LineChart,
@@ -144,10 +144,26 @@ export default function Home() {
   const dinero = (valor: number) =>
     `$${Math.round(valor || 0).toLocaleString("es-CO")}`;
 
-  const cantidad = (valor: number) =>
-    Number(valor || 0).toLocaleString("es-CO", {
+  const cantidad = (valor: number, sufijo = "") => {
+    const formateado = Number(valor || 0).toLocaleString("es-CO", {
       maximumFractionDigits: 2,
     });
+
+    return sufijo ? `${formateado} ${sufijo}` : formateado;
+  };
+
+  const graficaOrdenada = useMemo(() => {
+    const lista = Array.isArray(data?.graficaPorDia) ? [...data.graficaPorDia] : [];
+
+    return lista.sort((a, b) => {
+      const convertir = (fecha: string) => {
+        const [dia, mes, year] = String(fecha || "").split("/");
+        return new Date(Number(year), Number(mes) - 1, Number(dia)).getTime();
+      };
+
+      return convertir(a.fecha) - convertir(b.fecha);
+    });
+  }, [data]);
 
   if (!user) {
     return <main style={styles.page}>Cargando...</main>;
@@ -331,55 +347,109 @@ export default function Home() {
 
       {mensaje && <p style={styles.errorText}>{mensaje}</p>}
 
-      <section style={styles.kpiGrid}>
-        <Card title="Total facturado" value={dinero(data.totalRecaudado)} />
-        <Card title="Facturado hoy" value={dinero(data.totalRecaudadoHoy)} />
-        <Card title="Toneladas" value={cantidad(data.toneladas)} />
-        <Card title="Toneladas hoy" value={cantidad(data.toneladasHoy)} />
-        <Card title="Horas hombre" value={cantidad(data.horasHombre)} />
-        <Card title="Horas hombre hoy" value={cantidad(data.horasHombreHoy)} />
-        <Card title="Unidades" value={cantidad(data.unidades)} />
-        <Card title="Unidades hoy" value={cantidad(data.unidadesHoy)} />
-        <Card title="Vehículos descargados" value={data.vehiculosDescargados} />
-        <Card title="Vehículos hoy" value={data.vehiculosDescargadosHoy} />
-        <Card title="Placas únicas" value={data.placasUnicas} />
-        <Card title="Placas hoy" value={data.placasUnicasHoy} />
+      <section style={styles.sectionBlock}>
+        <div style={styles.sectionHeader}>
+          <div>
+            <h2 style={styles.sectionTitle}>Resumen financiero</h2>
+            <p style={styles.sectionText}>Valores principales del periodo filtrado.</p>
+          </div>
+        </div>
+
+        <div style={styles.kpiGridFinancial}>
+          <Card title="Total facturado" value={dinero(data.totalRecaudado)} icon="💵" tone="green" />
+          <Card title="Facturado hoy" value={dinero(data.totalRecaudadoHoy)} icon="📆" tone="blue" />
+          <Card title="Valor total carpas" value={dinero(data.valorTotalCarpas)} icon="⛺" tone="orange" />
+        </div>
       </section>
 
-      <section style={styles.carpaGrid}>
-        <Card
-          title="Carpa Tracto Mula"
-          value={data.carpas?.tractoMula?.cantidad || 0}
-          sub={dinero(data.carpas?.tractoMula?.valor || 0)}
-        />
-        <Card
-          title="Carpa Doble Troque"
-          value={data.carpas?.dobleTroque?.cantidad || 0}
-          sub={dinero(data.carpas?.dobleTroque?.valor || 0)}
-        />
-        <Card
-          title="Carpa Sencillo"
-          value={data.carpas?.sencillo?.cantidad || 0}
-          sub={dinero(data.carpas?.sencillo?.valor || 0)}
-        />
-        <Card title="Valor total carpas" value={dinero(data.valorTotalCarpas)} />
+      <section style={styles.sectionBlock}>
+        <div style={styles.sectionHeader}>
+          <div>
+            <h2 style={styles.sectionTitle}>Operación acumulada</h2>
+            <p style={styles.sectionText}>Cantidades separadas por unidad de medida.</p>
+          </div>
+        </div>
+
+        <div style={styles.kpiGrid}>
+          <Card title="Toneladas" value={cantidad(data.toneladas, "t")} icon="⚖️" tone="yellow" />
+          <Card title="Horas hombre" value={cantidad(data.horasHombre, "h/h")} icon="👷" tone="purple" />
+          <Card title="Unidades" value={cantidad(data.unidades, "und")} icon="📦" tone="gray" />
+          <Card title="Vehículos descargados" value={data.vehiculosDescargados} icon="🚚" tone="blue" />
+          <Card title="Placas únicas" value={data.placasUnicas} icon="🔢" tone="gray" />
+        </div>
+      </section>
+
+      <section style={styles.sectionBlock}>
+        <div style={styles.sectionHeader}>
+          <div>
+            <h2 style={styles.sectionTitle}>Actividad de hoy</h2>
+            <p style={styles.sectionText}>Resumen operativo del día actual en Colombia.</p>
+          </div>
+        </div>
+
+        <div style={styles.kpiGrid}>
+          <Card title="Toneladas hoy" value={cantidad(data.toneladasHoy, "t")} icon="⚖️" tone="yellow" />
+          <Card title="Horas hombre hoy" value={cantidad(data.horasHombreHoy, "h/h")} icon="👷" tone="purple" />
+          <Card title="Unidades hoy" value={cantidad(data.unidadesHoy, "und")} icon="📦" tone="gray" />
+          <Card title="Vehículos hoy" value={data.vehiculosDescargadosHoy} icon="🚛" tone="blue" />
+          <Card title="Placas hoy" value={data.placasUnicasHoy} icon="🔢" tone="gray" />
+        </div>
+      </section>
+
+      <section style={styles.sectionBlock}>
+        <div style={styles.sectionHeader}>
+          <div>
+            <h2 style={styles.sectionTitle}>Carpas</h2>
+            <p style={styles.sectionText}>Control de carpas por tipo de vehículo.</p>
+          </div>
+        </div>
+
+        <div style={styles.carpaGrid}>
+          <Card
+            title="Carpa Tracto Mula"
+            value={data.carpas?.tractoMula?.cantidad || 0}
+            sub={dinero(data.carpas?.tractoMula?.valor || 0)}
+            icon="🚛"
+            tone="orange"
+          />
+          <Card
+            title="Carpa Doble Troque"
+            value={data.carpas?.dobleTroque?.cantidad || 0}
+            sub={dinero(data.carpas?.dobleTroque?.valor || 0)}
+            icon="🚚"
+            tone="orange"
+          />
+          <Card
+            title="Carpa Sencillo"
+            value={data.carpas?.sencillo?.cantidad || 0}
+            sub={dinero(data.carpas?.sencillo?.valor || 0)}
+            icon="🚙"
+            tone="orange"
+          />
+        </div>
       </section>
 
       <section style={styles.chartCard}>
-        <h2 style={styles.sectionTitle}>Facturación por día</h2>
+        <div style={styles.sectionHeader}>
+          <div>
+            <h2 style={styles.sectionTitle}>Facturación por día</h2>
+            <p style={styles.sectionText}>Evolución del valor facturado en el rango seleccionado.</p>
+          </div>
+        </div>
 
         <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={data.graficaPorDia || []}>
-            <CartesianGrid strokeDasharray="3 3" />
+          <LineChart data={graficaOrdenada}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis dataKey="fecha" />
-            <YAxis />
-            <Tooltip />
+            <YAxis tickFormatter={(value) => `$${Number(value).toLocaleString("es-CO")}`} />
+            <Tooltip content={<CustomTooltip dinero={dinero} cantidad={cantidad} />} />
             <Line
               type="monotone"
               dataKey="total"
               stroke="#f5c400"
               strokeWidth={4}
-              dot={{ r: 5 }}
+              dot={{ r: 5, fill: "#fff", stroke: "#f5c400", strokeWidth: 3 }}
+              activeDot={{ r: 8 }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -387,19 +457,60 @@ export default function Home() {
 
       <section style={styles.menuCard}>
         <h2 style={styles.sectionTitle}>Menú principal</h2>
+        <p style={styles.sectionText}>Accesos organizados por área de trabajo.</p>
 
-        <div style={styles.menuGrid}>
-          {menuItems.map((item) => (
-            <MenuButton
-              key={item.href}
-              href={item.href}
-              label={item.label}
-              icon={item.icon}
-            />
-          ))}
-        </div>
+        <MenuGroup
+          title="Operación"
+          items={menuItems.filter((item) =>
+            ["Servicio rápido", "Servicios", "Caja"].includes(item.label)
+          )}
+        />
+
+        <MenuGroup
+          title="Administración"
+          items={menuItems.filter((item) =>
+            ["Clientes", "Vehículos", "Centros", "Tarifas"].includes(item.label)
+          )}
+        />
+
+        <MenuGroup
+          title="Control"
+          items={menuItems.filter((item) =>
+            ["Usuarios", "Historial", "Reportes"].includes(item.label)
+          )}
+        />
       </section>
+
     </main>
+  );
+}
+
+function CustomTooltip({
+  active,
+  payload,
+  label,
+  dinero,
+  cantidad,
+}: {
+  active?: boolean;
+  payload?: any[];
+  label?: string;
+  dinero: (valor: number) => string;
+  cantidad: (valor: number, sufijo?: string) => string;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+
+  const item = payload[0]?.payload || {};
+
+  return (
+    <div style={styles.tooltip}>
+      <strong style={styles.tooltipTitle}>{label}</strong>
+      <span>Total: {dinero(Number(item.total || 0))}</span>
+      <span>Servicios: {Number(item.servicios || 0).toLocaleString("es-CO")}</span>
+      <span>Toneladas: {cantidad(Number(item.toneladas || 0), "t")}</span>
+      <span>Horas hombre: {cantidad(Number(item.horasHombre || 0), "h/h")}</span>
+      <span>Unidades: {cantidad(Number(item.unidades || 0), "und")}</span>
+    </div>
   );
 }
 
@@ -407,16 +518,50 @@ function Card({
   title,
   value,
   sub,
+  icon,
+  tone = "default",
 }: {
   title: string;
   value: string | number;
   sub?: string;
+  icon?: string;
+  tone?: "default" | "green" | "blue" | "yellow" | "purple" | "orange" | "gray";
 }) {
   return (
-    <div style={styles.card}>
-      <span style={styles.cardTitle}>{title}</span>
+    <div style={{ ...styles.card, ...(toneStyles[tone] || {}) }}>
+      <div style={styles.cardTop}>
+        {icon && <span style={styles.cardIcon}>{icon}</span>}
+        <span style={styles.cardTitle}>{title}</span>
+      </div>
       <strong style={styles.cardValue}>{value}</strong>
       {sub && <span style={styles.cardSub}>{sub}</span>}
+    </div>
+  );
+}
+
+function MenuGroup({
+  title,
+  items,
+}: {
+  title: string;
+  items: Array<{ href: string; label: string; icon: string; desc: string }>;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <div style={styles.menuGroup}>
+      <h3 style={styles.menuGroupTitle}>{title}</h3>
+      <div style={styles.menuGrid}>
+        {items.map((item) => (
+          <MenuButton
+            key={item.href}
+            href={item.href}
+            label={item.label}
+            icon={item.icon}
+            desc={item.desc}
+          />
+        ))}
+      </div>
     </div>
   );
 }
@@ -425,16 +570,19 @@ function MenuButton({
   href,
   label,
   icon,
+  desc,
 }: {
   href: string;
   label: string;
   icon: string;
+  desc: string;
 }) {
   return (
     <Link href={href} style={styles.link}>
       <button style={styles.menuButton}>
         <span style={styles.menuIcon}>{icon}</span>
-        <span>{label}</span>
+        <span style={styles.menuLabel}>{label}</span>
+        <small style={styles.menuDesc}>{desc}</small>
       </button>
     </Link>
   );
@@ -462,13 +610,35 @@ function QuickButton({
   );
 }
 
+const toneStyles: Record<string, React.CSSProperties> = {
+  default: {},
+  green: {
+    background: "linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)",
+  },
+  blue: {
+    background: "linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)",
+  },
+  yellow: {
+    background: "linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)",
+  },
+  purple: {
+    background: "linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%)",
+  },
+  orange: {
+    background: "linear-gradient(135deg, #ffffff 0%, #fff7ed 100%)",
+  },
+  gray: {
+    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+  },
+};
+
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#f2f2f2",
-    padding: "30px",
+    background: "#f2f4f7",
+    padding: "22px",
     fontFamily: "Arial, sans-serif",
-    color: "#111",
+    color: "#111827",
   },
 
   operatorPage: {
@@ -599,48 +769,94 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "18px",
   },
 
+  kpiGridFinancial: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+    gap: "14px",
+  },
+
   kpiGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-    gap: "16px",
-    marginBottom: "18px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
+    gap: "14px",
   },
 
   carpaGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: "16px",
-    marginBottom: "22px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: "14px",
+  },
+
+  sectionBlock: {
+    background: "#fff",
+    border: "1px solid #e5e7eb",
+    borderRadius: "18px",
+    padding: "18px",
+    marginBottom: "18px",
+    boxShadow: "0 5px 18px rgba(0,0,0,0.06)",
+  },
+
+  sectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    gap: "12px",
+    marginBottom: "14px",
+  },
+
+  sectionText: {
+    margin: 0,
+    color: "#6b7280",
+    fontSize: "14px",
   },
 
   card: {
     background: "#fff",
-    border: "1px solid #ddd",
-    borderRadius: "14px",
-    padding: "20px",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
+    border: "1px solid #e5e7eb",
+    borderRadius: "16px",
+    padding: "18px",
+    boxShadow: "0 3px 12px rgba(0,0,0,0.06)",
+    minHeight: "104px",
+  },
+
+  cardTop: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    marginBottom: "10px",
+  },
+
+  cardIcon: {
+    width: "34px",
+    height: "34px",
+    borderRadius: "10px",
+    display: "grid",
+    placeItems: "center",
+    background: "rgba(17, 24, 39, 0.06)",
+    fontSize: "18px",
   },
 
   cardTitle: {
     display: "block",
-    color: "#555",
+    color: "#4b5563",
     fontSize: "14px",
-    marginBottom: "10px",
-    fontWeight: 700,
+    fontWeight: 800,
   },
 
   cardValue: {
     display: "block",
-    color: "#111",
-    fontSize: "28px",
-    fontWeight: 800,
+    color: "#111827",
+    fontSize: "27px",
+    fontWeight: 900,
+    lineHeight: 1.15,
+    overflowWrap: "anywhere",
   },
 
   cardSub: {
     display: "block",
     marginTop: "8px",
     color: "#0b5cab",
-    fontWeight: 700,
+    fontWeight: 800,
   },
 
   chartCard: {
@@ -667,8 +883,8 @@ const styles: Record<string, React.CSSProperties> = {
 
   menuGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, 1fr)",
-    gap: "18px",
+    gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))",
+    gap: "14px",
   },
 
   link: {
@@ -677,19 +893,18 @@ const styles: Record<string, React.CSSProperties> = {
 
   menuButton: {
     width: "100%",
-    height: "105px",
+    minHeight: "110px",
     background: "#fff",
-    border: "1px solid #ccc",
-    borderRadius: "14px",
-    fontSize: "20px",
-    fontWeight: 800,
-    color: "#111",
+    border: "1px solid #d1d5db",
+    borderRadius: "16px",
+    color: "#111827",
     cursor: "pointer",
     boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: "12px",
+    display: "grid",
+    alignContent: "center",
+    justifyItems: "center",
+    gap: "6px",
+    padding: "16px",
   },
 
   menuIcon: {
@@ -747,6 +962,42 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "0 18px",
     fontWeight: 900,
     cursor: "pointer",
+  },
+
+  tooltip: {
+    background: "#111827",
+    color: "#fff",
+    borderRadius: "12px",
+    padding: "12px",
+    display: "grid",
+    gap: "5px",
+    boxShadow: "0 10px 25px rgba(0,0,0,0.22)",
+    border: "1px solid rgba(255,255,255,0.12)",
+  },
+
+  tooltipTitle: {
+    color: "#f5c400",
+    marginBottom: "4px",
+  },
+
+  menuGroup: {
+    marginTop: "18px",
+  },
+
+  menuGroupTitle: {
+    margin: "0 0 10px",
+    fontSize: "18px",
+    color: "#374151",
+  },
+
+  menuLabel: {
+    fontSize: "20px",
+    fontWeight: 900,
+  },
+
+  menuDesc: {
+    color: "#6b7280",
+    fontSize: "13px",
   },
 
   errorText: {
