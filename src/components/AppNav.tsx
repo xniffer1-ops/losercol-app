@@ -325,19 +325,19 @@ export default function AppNav() {
         />
       )}
 
-      <button
-        type="button"
-        onClick={() => setMenuAbierto((valor) => !valor)}
-        style={styles.botonLateral}
-        aria-haspopup="menu"
-        aria-expanded={menuAbierto}
-        aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
-        title={itemActivo ? `Página actual: ${itemActivo.label}` : "Abrir menú"}
-      >
-        <span style={styles.iconoBoton} aria-hidden="true">
-          {menuAbierto ? "×" : "☰"}
-        </span>
-      </button>
+      {!menuAbierto && (
+        <button
+          type="button"
+          onClick={() => setMenuAbierto(true)}
+          style={styles.botonLateral}
+          aria-haspopup="menu"
+          aria-expanded={menuAbierto}
+          aria-label="Abrir menú"
+          title={itemActivo ? `Página actual: ${itemActivo.label}` : "Abrir menú"}
+        >
+          <span style={styles.iconoBoton} aria-hidden="true">☰</span>
+        </button>
+      )}
 
       {menuAbierto && (
         <aside style={styles.panel} role="menu" aria-label="Lista de páginas">

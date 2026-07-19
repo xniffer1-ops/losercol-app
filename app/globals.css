@@ -421,3 +421,218 @@ body.losercol-con-nav main {
     grid-template-columns: 1fr;
   }
 }
+
+/* Tema unificado LOSERCOL */
+:root {
+  --losercol-bg: #eef3f8;
+  --losercol-surface: #ffffff;
+  --losercol-soft: #f8fafc;
+  --losercol-text: #0f172a;
+  --losercol-muted: #64748b;
+  --losercol-line: #dbe3ed;
+  --losercol-yellow: #f5c400;
+  --losercol-teal: #0f766e;
+  --losercol-navy: #0f172a;
+  --losercol-danger: #b91c1c;
+}
+
+body.losercol-con-nav {
+  background: radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 32%), var(--losercol-bg) !important;
+}
+
+body.losercol-con-nav main {
+  min-height: 100vh !important;
+  background: transparent !important;
+  color: var(--losercol-text) !important;
+  padding: clamp(18px, 2.5vw, 30px) !important;
+  font-family: var(--font-geist-sans, Arial, Helvetica, sans-serif) !important;
+}
+
+body.losercol-con-nav h1 {
+  color: var(--losercol-text) !important;
+  letter-spacing: -0.04em;
+}
+
+body.losercol-con-nav h2,
+body.losercol-con-nav h3 {
+  color: var(--losercol-text) !important;
+}
+
+body.losercol-con-nav p {
+  color: #334155;
+}
+
+body.losercol-con-nav a {
+  color: #0b5cab;
+  font-weight: 800;
+}
+
+body.losercol-con-nav input,
+body.losercol-con-nav select,
+body.losercol-con-nav textarea {
+  border: 1px solid var(--losercol-line) !important;
+  border-radius: 14px !important;
+  background: #ffffff !important;
+  min-height: 44px;
+  padding: 10px 12px !important;
+  color: var(--losercol-text) !important;
+  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04) !important;
+}
+
+body.losercol-con-nav button {
+  border-radius: 12px;
+  font-weight: 900;
+}
+
+body.losercol-con-nav table,
+body.losercol-con-nav [class*="table"],
+body.losercol-con-nav [class*="Table"],
+body.losercol-con-nav .losercol-table-card {
+  border-radius: 18px !important;
+  border-color: var(--losercol-line) !important;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06) !important;
+}
+
+body.losercol-con-nav [style*="background-color: rgb(245, 196, 0)"],
+body.losercol-con-nav [style*="backgroundColor: #f5c400"] {
+  background-color: var(--losercol-yellow) !important;
+}
+
+body.losercol-con-nav .losercol-page,
+body.losercol-con-nav .historial-page,
+body.losercol-con-nav .secciones-page {
+  background: transparent !important;
+}
+
+.losercol-chip {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff7cc;
+  color: #7c5c00;
+  font-size: 12px;
+  font-weight: 950;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 10px;
+}
+
+.losercol-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.losercol-kpi-card {
+  background: var(--losercol-surface);
+  border: 1px solid var(--losercol-line);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.06);
+}
+
+.losercol-kpi-card span {
+  display: block;
+  color: var(--losercol-muted);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.losercol-kpi-card strong {
+  display: block;
+  color: var(--losercol-text);
+  font-size: 30px;
+  line-height: 1;
+}
+
+.losercol-pill {
+  min-height: 42px;
+  border: 1px solid var(--losercol-line);
+  background: #ffffff;
+  color: #334155;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.losercol-pill.activo {
+  border-color: var(--losercol-navy);
+  background: var(--losercol-navy);
+  color: #ffffff;
+}
+
+.losercol-error {
+  color: var(--losercol-danger) !important;
+  font-weight: 900;
+}
+
+.historial-filtros {
+  padding: 16px;
+  margin-bottom: 18px;
+}
+
+.historial-filtro-botones {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.historial-grid {
+  grid-template-columns: 1.1fr 1.1fr 0.7fr 0.8fr 0.9fr 2.8fr;
+}
+
+.historial-table-card {
+  overflow: hidden;
+}
+
+.historial-table-card .losercol-grid-row {
+  font-size: 14px;
+  background: #ffffff;
+}
+
+/* Oculta accesos manuales antiguos de volver cuando ya existe menú lateral */
+body.losercol-con-nav a[href="/"],
+body.losercol-con-nav a[href="/factura-multiple"],
+body.losercol-con-nav a[href="/facturas-multiples"] {
+  text-decoration: none;
+}
+
+@media (min-width: 761px) {
+  body.losercol-con-nav main {
+    padding-left: 30px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  body.losercol-con-nav main {
+    padding-left: max(16px, env(safe-area-inset-left)) !important;
+    padding-right: max(16px, env(safe-area-inset-right)) !important;
+    padding-top: 18px !important;
+  }
+
+  body.losercol-con-nav h1,
+  .losercol-title {
+    font-size: 28px !important;
+    line-height: 1.08 !important;
+    padding-left: 38px !important;
+  }
+
+  body.losercol-con-nav h1 + p,
+  .losercol-subtitle {
+    padding-left: 38px !important;
+    font-size: 14px !important;
+  }
+
+  .losercol-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .historial-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
