@@ -267,10 +267,6 @@ export default function Home() {
     tienePermiso(user, item.modulo)
   );
 
-  const menuOperacion = menuItems.filter((item) => item.grupo === "operacion");
-  const menuAdministracion = menuItems.filter((item) => item.grupo === "administracion");
-  const menuControl = menuItems.filter((item) => item.grupo === "control");
-
   if (!puedeDashboard || !data) {
     return (
       <main style={styles.operatorPage}>
@@ -379,8 +375,9 @@ export default function Home() {
       {mensaje && <p style={styles.errorText}>{mensaje}</p>}
 
       <section style={styles.summaryGrid}>
-        <Card title="Total facturado" value={dinero(data.totalRecaudado)} icon="💵" tone="green" />
-        <Card title="Facturado hoy" value={dinero(data.totalRecaudadoHoy)} icon="📆" tone="blue" />
+        <Card title="Valor total" value={dinero(data.totalRecaudado)} icon="💵" tone="green" />
+        <Card title="Soportes" value={data.totalServicios} icon="🧾" tone="blue" />
+        <Card title="Valor hoy" value={dinero(data.totalRecaudadoHoy)} icon="📆" tone="blue" />
         <Card title="Toneladas" value={cantidad(data.toneladas, "t")} icon="⚖️" tone="yellow" />
         <Card title="Horas hombre" value={cantidad(data.horasHombre, "h/h")} icon="👷" tone="purple" />
         <Card title="Unidades" value={cantidad(data.unidades, "und")} icon="📦" tone="gray" />
@@ -401,22 +398,26 @@ export default function Home() {
           </div>
         </div>
 
-        <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={graficaOrdenada}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="fecha" />
-            <YAxis tickFormatter={(value) => `$${Number(value).toLocaleString("es-CO")}`} />
-            <Tooltip content={<CustomTooltip dinero={dinero} cantidad={cantidad} />} />
-            <Line
-              type="monotone"
-              dataKey="total"
-              stroke="#f5c400"
-              strokeWidth={4}
-              dot={{ r: 5, fill: "#fff", stroke: "#f5c400", strokeWidth: 3 }}
-              activeDot={{ r: 8 }}
-            />
-          </LineChart>
-        </ResponsiveContainer>
+        {graficaOrdenada.length > 0 ? (
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart data={graficaOrdenada}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="fecha" />
+              <YAxis tickFormatter={(value) => `$${Number(value).toLocaleString("es-CO")}`} />
+              <Tooltip content={<CustomTooltip dinero={dinero} cantidad={cantidad} />} />
+              <Line
+                type="monotone"
+                dataKey="total"
+                stroke="#f5c400"
+                strokeWidth={4}
+                dot={{ r: 5, fill: "#fff", stroke: "#f5c400", strokeWidth: 3 }}
+                activeDot={{ r: 8 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div style={styles.chartEmpty}>No hay soportes en el rango seleccionado.</div>
+        )}
       </section>
 
       <section style={styles.detailGrid}>
@@ -457,13 +458,39 @@ export default function Home() {
         </div>
       </section>
 
-      <section style={styles.menuCard}>
-        <h2 style={styles.sectionTitle}>Menú principal</h2>
-        <p style={styles.sectionText}>Accesos principales organizados por área.</p>
+      <section style={styles.insightGrid}>
+        <div style={styles.insightCard}>
+          <span style={styles.insightBadge}>Resumen</span>
+          <h2 style={styles.sectionTitle}>Resumen del período</h2>
+          <div style={styles.detailRows}>
+            <DetailItem label="Soportes registrados" value={data.totalServicios} />
+            <DetailItem label="Clientes registrados" value={data.totalClientes} />
+            <DetailItem label="Vehículos registrados" value={data.totalVehiculos} />
+            <DetailItem label="Placas únicas" value={data.placasUnicas} />
+          </div>
+        </div>
 
-        <MenuGroup title="Operación" items={menuOperacion} />
-        <MenuGroup title="Administración" items={menuAdministracion} />
-        <MenuGroup title="Control" items={menuControl} />
+        <div style={styles.insightCard}>
+          <span style={styles.insightBadge}>Hoy</span>
+          <h2 style={styles.sectionTitle}>Actividad de hoy</h2>
+          <div style={styles.detailRows}>
+            <DetailItem label="Soportes hoy" value={data.serviciosHoy} />
+            <DetailItem label="Valor hoy" value={dinero(data.totalRecaudadoHoy)} />
+            <DetailItem label="Toneladas hoy" value={cantidad(data.toneladasHoy, "t")} />
+            <DetailItem label="Vehículos hoy" value={data.vehiculosDescargadosHoy} />
+          </div>
+        </div>
+
+        <div style={styles.insightCard}>
+          <span style={styles.insightBadge}>Control</span>
+          <h2 style={styles.sectionTitle}>Control operativo</h2>
+          <div style={styles.detailRows}>
+            <DetailItem label="Toneladas adicionales" value={cantidad(data.toneladasAdicionales, "t")} />
+            <DetailItem label="Cantidades por vehículo" value={cantidad(data.vehiculosPorUnidad, "veh")} />
+            <DetailItem label="Otras cantidades" value={cantidad(data.otrasCantidades)} />
+            <DetailItem label="Total carpas" value={data.totalCarpas} />
+          </div>
+        </div>
       </section>
     </main>
   );
@@ -600,29 +627,35 @@ function QuickButton({
 const toneStyles: Record<string, React.CSSProperties> = {
   default: {},
   green: {
-    background: "linear-gradient(135deg, #ffffff 0%, #ecfdf5 100%)",
+    backgroundColor: "#ecfdf5",
+    borderColor: "#bbf7d0",
   },
   blue: {
-    background: "linear-gradient(135deg, #ffffff 0%, #eff6ff 100%)",
+    backgroundColor: "#eff6ff",
+    borderColor: "#bfdbfe",
   },
   yellow: {
-    background: "linear-gradient(135deg, #ffffff 0%, #fffbeb 100%)",
+    backgroundColor: "#fffbeb",
+    borderColor: "#fde68a",
   },
   purple: {
-    background: "linear-gradient(135deg, #ffffff 0%, #f5f3ff 100%)",
+    backgroundColor: "#f5f3ff",
+    borderColor: "#ddd6fe",
   },
   orange: {
-    background: "linear-gradient(135deg, #ffffff 0%, #fff7ed 100%)",
+    backgroundColor: "#fff7ed",
+    borderColor: "#fed7aa",
   },
   gray: {
-    background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+    backgroundColor: "#f8fafc",
+    borderColor: "#e2e8f0",
   },
 };
 
 const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
-    background: "#f2f4f7",
+    backgroundColor: "#eef3f8",
     padding: "22px",
     fontFamily: "Arial, sans-serif",
     color: "#111827",
@@ -630,14 +663,14 @@ const styles: Record<string, React.CSSProperties> = {
 
   operatorPage: {
     minHeight: "100vh",
-    background: "#f3f4f6",
+    backgroundColor: "#eef3f8",
     padding: "18px",
     fontFamily: "Arial, sans-serif",
     color: "#111",
   },
 
   operatorTop: {
-    background: "#111827",
+    backgroundColor: "#111827",
     color: "#fff",
     borderRadius: "18px",
     padding: "20px",
@@ -661,7 +694,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   quickCard: {
-    background: "#fff",
+    backgroundColor: "#fff",
     borderRadius: "20px",
     padding: "22px",
     boxShadow: "0 8px 25px rgba(0,0,0,0.08)",
@@ -687,7 +720,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   quickButton: {
     minHeight: "120px",
-    background: "#f9fafb",
+    backgroundColor: "#f9fafb",
     border: "2px solid #e5e7eb",
     borderRadius: "18px",
     padding: "20px",
@@ -718,7 +751,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   hero: {
-    background: "#111827",
+    backgroundColor: "#111827",
     color: "#fff",
     borderRadius: "20px",
     padding: "22px",
@@ -743,7 +776,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "16px",
     display: "grid",
     placeItems: "center",
-    background: "#f5c400",
+    backgroundColor: "#f5c400",
     color: "#111827",
     fontWeight: 900,
     fontSize: "28px",
@@ -759,7 +792,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   logoutButton: {
-    background: "#b91c1c",
+    backgroundColor: "#b91c1c",
     color: "#fff",
     border: "none",
     borderRadius: "12px",
@@ -784,7 +817,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   dashboardFiltersCard: {
-    background: "#fff",
+    backgroundColor: "#fff",
     border: "1px solid #e5e7eb",
     borderRadius: "16px",
     padding: "16px",
@@ -814,13 +847,13 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #d1d5db",
     padding: "0 12px",
     color: "#111",
-    background: "#fff",
+    backgroundColor: "#fff",
     fontSize: "14px",
   },
 
   filterButton: {
     height: "42px",
-    background: "#f5c400",
+    backgroundColor: "#f5c400",
     color: "#111",
     border: "none",
     borderRadius: "10px",
@@ -831,7 +864,7 @@ const styles: Record<string, React.CSSProperties> = {
 
   filterSecondaryButton: {
     height: "42px",
-    background: "#fff",
+    backgroundColor: "#fff",
     color: "#111",
     border: "1px solid #d1d5db",
     borderRadius: "10px",
@@ -848,7 +881,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   card: {
-    background: "#fff",
+    backgroundColor: "#fff",
     border: "1px solid #e5e7eb",
     borderRadius: "15px",
     padding: "16px",
@@ -869,7 +902,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "10px",
     display: "grid",
     placeItems: "center",
-    background: "rgba(17, 24, 39, 0.06)",
+    backgroundColor: "rgba(17, 24, 39, 0.06)",
     fontSize: "17px",
   },
 
@@ -897,12 +930,23 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   chartCard: {
-    background: "#fff",
+    backgroundColor: "#fff",
     border: "1px solid #e5e7eb",
     borderRadius: "18px",
     padding: "20px",
     marginBottom: "16px",
     boxShadow: "0 4px 16px rgba(0,0,0,0.06)",
+  },
+
+  chartEmpty: {
+    minHeight: "220px",
+    display: "grid",
+    placeItems: "center",
+    border: "1px dashed #cbd5e1",
+    borderRadius: "16px",
+    color: "#64748b",
+    fontWeight: 800,
+    backgroundColor: "#f8fafc",
   },
 
   sectionHeader: {
@@ -942,7 +986,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   detailCard: {
-    background: "#fff",
+    backgroundColor: "#fff",
     border: "1px solid #e5e7eb",
     borderRadius: "18px",
     padding: "18px",
@@ -966,7 +1010,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
 
   tooltip: {
-    background: "#111827",
+    backgroundColor: "#111827",
     color: "#fff",
     borderRadius: "12px",
     padding: "12px",
@@ -981,8 +1025,37 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "4px",
   },
 
+  insightGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+    gap: "16px",
+    marginBottom: "16px",
+  },
+
+  insightCard: {
+    backgroundColor: "#ffffff",
+    border: "1px solid #e2e8f0",
+    borderRadius: "18px",
+    padding: "18px",
+    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.06)",
+  },
+
+  insightBadge: {
+    display: "inline-flex",
+    width: "fit-content",
+    marginBottom: "10px",
+    padding: "6px 10px",
+    borderRadius: "999px",
+    backgroundColor: "#fff7cc",
+    color: "#7c5c00",
+    fontSize: "12px",
+    fontWeight: 900,
+    textTransform: "uppercase",
+    letterSpacing: "0.04em",
+  },
+
   menuCard: {
-    background: "#fff",
+    backgroundColor: "#fff",
     border: "1px solid #e5e7eb",
     borderRadius: "18px",
     padding: "20px",
@@ -1012,7 +1085,7 @@ const styles: Record<string, React.CSSProperties> = {
   menuButton: {
     width: "100%",
     minHeight: "96px",
-    background: "#fff",
+    backgroundColor: "#fff",
     border: "1px solid #d1d5db",
     borderRadius: "15px",
     color: "#111827",
