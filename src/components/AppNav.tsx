@@ -137,22 +137,6 @@ const NAV_ITEMS: NavItem[] = [
     modulo: "tarifas",
   },
   {
-    href: "/factura-multiple",
-    label: "Consolidado",
-    descripcion: "Agrupar soportes en un PDF",
-    icon: "▤",
-    grupo: "Control y reportes",
-    soloRoles: ["superadmin", "admin"],
-  },
-  {
-    href: "/facturas-multiples",
-    label: "Historial de consolidados",
-    descripcion: "Consultar consolidados generados",
-    icon: "▥",
-    grupo: "Control y reportes",
-    soloRoles: ["superadmin", "admin"],
-  },
-  {
     href: "/reportes",
     label: "Reportes",
     descripcion: "Informes y exportaciones",
