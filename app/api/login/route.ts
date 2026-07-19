@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import { rateLimit } from "@/src/lib/rateLimit";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const SESSION_SECONDS = 60 * 60 * 8; // 8 horas
 const ROLES_PERMITIDOS = ["superadmin", "admin", "auxiliar", "operador"] as const;
@@ -34,6 +38,19 @@ export async function POST(req: Request) {
     const rawBody = body as Record<string, unknown>;
     const email = String(rawBody.email || "").trim().toLowerCase();
     const password = typeof rawBody.password === "string" ? rawBody.password : "";
+
+    const ip =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      "local";
+    const limitado = rateLimit(`login:${ip}:${email || "sin-email"}`, 10, 5 * 60 * 1000);
+
+    if (!limitado.ok) {
+      return crearRespuestaSinCache(
+        { error: "Demasiados intentos. Espera unos minutos e intenta nuevamente." },
+        { status: 429 }
+      );
+    }
 
     if (!email || !password) {
       return crearRespuestaSinCache(
@@ -81,7 +98,10 @@ export async function POST(req: Request) {
     if (!secret || secret.length < 32) {
       console.error("JWT_SECRET no existe o es demasiado corto.");
       return crearRespuestaSinCache(
-        { error: "Configuración de seguridad incompleta" },
+        {
+          error:
+            "JWT_SECRET no está configurado correctamente en Vercel. Debe tener mínimo 32 caracteres.",
+        },
         { status: 500 }
       );
     }
@@ -122,7 +142,10 @@ export async function POST(req: Request) {
     console.error("Error login:", error);
 
     return crearRespuestaSinCache(
-      { error: "Error al iniciar sesión" },
+      {
+        error:
+          "Error al iniciar sesión. Revisa DATABASE_URL, JWT_SECRET y que exista el usuario en la base de datos.",
+      },
       { status: 500 }
     );
   }

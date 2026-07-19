@@ -6,7 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate deploy",
+    "generar:secret": "node scripts/generar-secret.mjs",
+    "db:repair-login": "node scripts/reparar-login.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",
