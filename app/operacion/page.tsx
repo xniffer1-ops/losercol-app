@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 
 type User = {
   id: number;
   nombre: string;
   email: string;
-  rol: "admin" | "operador";
+  rol: "admin" | "superadmin" | "auxiliar" | "operador";
 } | null;
 
 type Servicio = {
@@ -48,11 +47,12 @@ export default function OperacionPage() {
   const [mensaje, setMensaje] = useState("");
 
   useEffect(() => {
-    cargarTodo();
+    void cargarTodo();
   }, []);
 
   const cargarTodo = async () => {
     try {
+      setLoading(true);
       const [soportesRes, userRes] = await Promise.all([
         fetch("/api/soportes", { cache: "no-store" }),
         fetch("/api/me", { cache: "no-store" }),
@@ -61,10 +61,16 @@ export default function OperacionPage() {
       const soportesData = await soportesRes.json();
       const userData = await userRes.json();
 
-      setSoportes(Array.isArray(soportesData) ? soportesData : []);
+      if (!soportesRes.ok) {
+        setMensaje(soportesData.error || "No se pudo cargar la operación.");
+        setSoportes([]);
+      } else {
+        setSoportes(Array.isArray(soportesData) ? soportesData : []);
+      }
+
       setUser(userData);
     } catch {
-      setMensaje("Error cargando operación");
+      setMensaje("Error cargando operación.");
     } finally {
       setLoading(false);
     }
@@ -98,7 +104,7 @@ export default function OperacionPage() {
       pendientes: soportes.filter((s) => s.estado === "pendiente").length,
       proceso: soportes.filter((s) => s.estado === "proceso").length,
       terminados: soportes.filter((s) => s.estado === "terminado").length,
-      facturados: soportes.filter((s) => s.estado === "facturado").length,
+      cerrados: soportes.filter((s) => s.estado === "facturado").length,
     };
   }, [soportes]);
 
@@ -118,39 +124,44 @@ export default function OperacionPage() {
     return new Date(valor).toLocaleString("es-CO");
   };
 
+  const esAdmin = user?.rol === "admin" || user?.rol === "superadmin";
+
   return (
-    <main style={styles.page}>
-      <div style={styles.topBar}>
+    <main className="losercol-page">
+      <header className="losercol-page-header">
         <div>
-          <h1 style={styles.title}>Operación en vivo</h1>
-          <p style={styles.subtitle}>
-            Control diario de vehículos, descargas y soportes.
+          <h1 className="losercol-title">Estado de operación</h1>
+          <p className="losercol-subtitle">
+            Vista opcional para controlar soportes por estados: pendiente, en proceso, terminado y cerrado.
           </p>
 
           {user && (
             <p style={styles.userText}>
-              Usuario: <strong>{user.nombre}</strong> | Rol:{" "}
-              <strong>{user.rol}</strong>
+              Usuario: <strong>{user.nombre}</strong> | Rol: <strong>{user.rol}</strong>
             </p>
           )}
         </div>
+      </header>
 
-        <Link href="/" style={styles.backLink}>
-          ← Volver al menú
-        </Link>
-      </div>
+      <section style={styles.infoCard}>
+        <strong>¿Para qué sirve?</strong>
+        <span>
+          Esta pantalla sirve cuando necesitas hacer seguimiento de una operación antes de cerrarla.
+          Si solo estás creando soportes rápidos, puedes trabajar normalmente desde Servicio rápido o Servicios.
+        </span>
+      </section>
 
       <section style={styles.kpiGrid}>
         <Kpi title="Pendientes" value={resumen.pendientes} color="#f59e0b" />
         <Kpi title="En proceso" value={resumen.proceso} color="#2563eb" />
         <Kpi title="Terminados" value={resumen.terminados} color="#16a34a" />
-        <Kpi title="Facturados" value={resumen.facturados} color="#6b7280" />
+        <Kpi title="Cerrados" value={resumen.cerrados} color="#6b7280" />
       </section>
 
       {mensaje && <p style={styles.message}>{mensaje}</p>}
 
-      <section style={styles.tableCard}>
-        <div style={styles.header}>
+      <section className="losercol-table-card">
+        <div className="losercol-grid-header" style={styles.headerGrid} data-los-grid-header>
           <span>Soporte</span>
           <span>Placa</span>
           <span>Cliente</span>
@@ -163,38 +174,36 @@ export default function OperacionPage() {
         </div>
 
         {loading ? (
-          <div style={styles.empty}>Cargando operación...</div>
+          <div className="losercol-empty">Cargando operación...</div>
         ) : soportes.length === 0 ? (
-          <div style={styles.empty}>No hay soportes creados</div>
+          <div className="losercol-empty">
+            No hay soportes con seguimiento por estados. Puedes seguir usando Servicio rápido y Servicios sin problema.
+          </div>
         ) : (
           soportes.map((s) => (
-            <div key={s.id} style={styles.row}>
-              <strong>{s.numero}</strong>
-
-              <span>{s.vehiculo?.placa || "-"}</span>
-
-              <span>{s.cliente?.nombre || "-"}</span>
-
-              <span>
+            <div key={s.id} className="losercol-grid-row" style={styles.rowGrid} data-los-grid-row>
+              <strong data-label="Soporte">{s.numero}</strong>
+              <span data-label="Placa">{s.vehiculo?.placa || "-"}</span>
+              <span data-label="Cliente">{s.cliente?.nombre || "-"}</span>
+              <span data-label="Centro / Sección">
                 {s.centroOperacion?.nombre || "-"} / {s.seccion?.nombre || "-"}
               </span>
-
-              <strong>{totalCantidad(s).toLocaleString("es-CO")}</strong>
-
-              <strong>{dinero(totalSoporte(s))}</strong>
-
-              <span style={{ ...styles.estado, ...estadoStyle(s.estado) }}>
-                {textoEstado(s.estado)}
+              <span data-label="Cantidad">{totalCantidad(s)}</span>
+              <strong data-label="Total">{dinero(totalSoporte(s))}</strong>
+              <span data-label="Estado">
+                <span style={{ ...styles.badge, ...estadoStyle(s.estado) }}>
+                  {textoEstado(s.estado)}
+                </span>
               </span>
-
-              <div style={styles.smallText}>
-                <div>Inicio: {fecha(s.horaInicio)}</div>
-                <div>Final: {fecha(s.horaFinal)}</div>
-              </div>
-
-              <div style={styles.actions}>
+              <span data-label="Horas" style={styles.timeText}>
+                Inicio: {fecha(s.horaInicio)}
+                <br />
+                Fin: {fecha(s.horaFinal)}
+              </span>
+              <div data-label="Acciones" style={styles.actions}>
                 {s.estado === "pendiente" && (
                   <button
+                    type="button"
                     style={styles.startButton}
                     onClick={() => cambiarEstado(s.id, "proceso")}
                   >
@@ -204,6 +213,7 @@ export default function OperacionPage() {
 
                 {s.estado === "proceso" && (
                   <button
+                    type="button"
                     style={styles.finishButton}
                     onClick={() => cambiarEstado(s.id, "terminado")}
                   >
@@ -211,18 +221,17 @@ export default function OperacionPage() {
                   </button>
                 )}
 
-                {user?.rol === "admin" && s.estado === "terminado" && (
+                {esAdmin && s.estado === "terminado" && (
                   <button
-                    style={styles.billButton}
+                    type="button"
+                    style={styles.closeButton}
                     onClick={() => cambiarEstado(s.id, "facturado")}
                   >
-                    Facturado
+                    Cerrar
                   </button>
                 )}
 
-                {s.estado === "facturado" && (
-                  <span style={styles.doneText}>Cerrado</span>
-                )}
+                {s.estado === "facturado" && <span style={styles.doneText}>Cerrado</span>}
               </div>
             </div>
           ))
@@ -242,7 +251,7 @@ function Kpi({
   color: string;
 }) {
   return (
-    <div style={styles.kpiCard}>
+    <div className="losercol-card" style={styles.kpiCard}>
       <span style={styles.kpiLabel}>{title}</span>
       <strong style={{ ...styles.kpiValue, color }}>{value}</strong>
     </div>
@@ -253,7 +262,7 @@ function textoEstado(estado: string) {
   if (estado === "pendiente") return "Pendiente";
   if (estado === "proceso") return "En proceso";
   if (estado === "terminado") return "Terminado";
-  if (estado === "facturado") return "Facturado";
+  if (estado === "facturado") return "Cerrado";
   return estado;
 }
 
@@ -274,149 +283,106 @@ function estadoStyle(estado: string): React.CSSProperties {
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    background: "#f2f2f2",
-    padding: "30px",
-    fontFamily: "Arial, sans-serif",
-    color: "#111",
-  },
-  topBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: "22px",
-  },
-  title: {
-    margin: 0,
-    fontSize: "38px",
-    color: "#111",
-  },
-  subtitle: {
-    marginTop: "8px",
-    color: "#555",
-    fontSize: "17px",
-  },
   userText: {
-    color: "#374151",
-    fontSize: "14px",
-    fontWeight: 500,
+    marginTop: 10,
+    color: "#334155",
+    fontSize: 14,
   },
-  backLink: {
-    background: "#fff",
-    border: "1px solid #ccc",
-    borderRadius: "10px",
-    padding: "12px 16px",
-    color: "#0b5cab",
-    textDecoration: "none",
-    fontWeight: 800,
+  infoCard: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 5,
+    marginBottom: 18,
+    padding: 15,
+    borderRadius: 16,
+    border: "1px solid #bfdbfe",
+    background: "#eff6ff",
+    color: "#0f172a",
+    lineHeight: 1.45,
   },
   kpiGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: "16px",
-    marginBottom: "22px",
+    gridTemplateColumns: "repeat(4, minmax(160px, 1fr))",
+    gap: 14,
+    marginBottom: 20,
   },
   kpiCard: {
-    background: "#fff",
-    border: "1px solid #ddd",
-    borderRadius: "14px",
-    padding: "20px",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
+    padding: 18,
+    minHeight: 98,
+    display: "flex",
+    flexDirection: "column",
+    justifyContent: "center",
+    gap: 8,
   },
   kpiLabel: {
-    display: "block",
-    color: "#555",
-    fontSize: "14px",
-    marginBottom: "8px",
-    fontWeight: 700,
+    color: "#334155",
+    fontSize: 14,
+    fontWeight: 800,
   },
   kpiValue: {
-    display: "block",
-    fontSize: "32px",
+    fontSize: 32,
+    lineHeight: 1,
     fontWeight: 900,
   },
-  tableCard: {
-    background: "#fff",
-    border: "1px solid #ddd",
-    borderRadius: "14px",
-    overflow: "hidden",
-    boxShadow: "0 3px 10px rgba(0,0,0,0.06)",
-  },
-  header: {
-    display: "grid",
-    gridTemplateColumns: "1fr 0.8fr 1.4fr 1.5fr 0.8fr 1fr 1fr 1.7fr 1.2fr",
-    gap: "10px",
-    background: "#f5c400",
-    padding: "14px",
-    fontWeight: 900,
-    color: "#111",
-  },
-  row: {
-    display: "grid",
-    gridTemplateColumns: "1fr 0.8fr 1.4fr 1.5fr 0.8fr 1fr 1fr 1.7fr 1.2fr",
-    gap: "10px",
-    padding: "14px",
-    borderTop: "1px solid #eee",
-    alignItems: "center",
-    color: "#111",
-  },
-  estado: {
-    borderRadius: "999px",
-    padding: "6px 10px",
-    fontSize: "13px",
+  message: {
+    color: "#b91c1c",
     fontWeight: 800,
-    textAlign: "center",
   },
-  smallText: {
-    fontSize: "12px",
-    color: "#555",
-    lineHeight: 1.5,
+  headerGrid: {
+    gridTemplateColumns: "1fr 0.8fr 1.3fr 1.4fr 0.8fr 0.9fr 0.9fr 1.5fr 1fr",
+  },
+  rowGrid: {
+    gridTemplateColumns: "1fr 0.8fr 1.3fr 1.4fr 0.8fr 0.9fr 0.9fr 1.5fr 1fr",
+  },
+  badge: {
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+    padding: "6px 10px",
+    fontSize: 12,
+    fontWeight: 900,
+    whiteSpace: "nowrap",
+  },
+  timeText: {
+    color: "#475569",
+    fontSize: 12,
+    lineHeight: 1.4,
   },
   actions: {
     display: "flex",
-    gap: "6px",
+    gap: 8,
     flexWrap: "wrap",
   },
   startButton: {
     background: "#2563eb",
     color: "#fff",
     border: "none",
-    borderRadius: "8px",
+    borderRadius: 10,
     padding: "8px 10px",
-    fontWeight: 800,
+    fontWeight: 900,
     cursor: "pointer",
   },
   finishButton: {
     background: "#16a34a",
     color: "#fff",
     border: "none",
-    borderRadius: "8px",
+    borderRadius: 10,
     padding: "8px 10px",
-    fontWeight: 800,
+    fontWeight: 900,
     cursor: "pointer",
   },
-  billButton: {
-    background: "#111827",
+  closeButton: {
+    background: "#0f172a",
     color: "#fff",
     border: "none",
-    borderRadius: "8px",
+    borderRadius: 10,
     padding: "8px 10px",
-    fontWeight: 800,
+    fontWeight: 900,
     cursor: "pointer",
   },
   doneText: {
-    color: "#555",
-    fontWeight: 800,
-    fontSize: "13px",
-  },
-  message: {
-    color: "#b91c1c",
-    fontWeight: 800,
-    marginBottom: "16px",
-  },
-  empty: {
-    padding: "20px",
-    color: "#111",
+    color: "#64748b",
+    fontWeight: 900,
   },
 };

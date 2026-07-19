@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 type Centro = {
   id: number;
@@ -86,9 +85,6 @@ export default function CentrosPage() {
     <main style={styles.page}>
       <div style={styles.topBar}>
         <h1 style={styles.title}>Centros de operación</h1>
-        <Link href="/" style={styles.backLink}>
-          ← Volver al menú
-        </Link>
       </div>
 
       <div style={styles.layout}>

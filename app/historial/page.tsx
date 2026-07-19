@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 
 type Historial = {
   id: number;
@@ -13,7 +12,7 @@ type Historial = {
   createdAt: string;
 };
 
-type FiltroTipo = "todos" | "servicios" | "factura";
+type FiltroTipo = "todos" | "servicios";
 
 function mostrarRolHistorial(rol: string) {
   return String(rol || "").toLowerCase() === "superadmin" ? "admin" : rol;
@@ -96,13 +95,10 @@ export default function HistorialPage() {
           <span style={styles.badge}>Admin</span>
           <h1 style={styles.title}>Historial de acciones</h1>
           <p style={styles.subtitle}>
-            Revisa cambios del sistema y filtra servicios que requieren factura electrónica.
+            Revisa cambios del sistema y controla las acciones realizadas en la aplicación.
           </p>
         </div>
 
-        <Link href="/" style={styles.backLink}>
-          ← Volver al menú
-        </Link>
       </div>
 
       <section style={styles.statsGrid}>

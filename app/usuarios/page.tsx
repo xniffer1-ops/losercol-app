@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 
 type RolUsuario = "superadmin" | "admin" | "auxiliar" | "operador";
 
@@ -563,10 +562,6 @@ export default function UsuariosPage() {
             Crear usuarios y controlar exactamente qué pueden ver o hacer
           </p>
         </div>
-
-        <Link href="/" style={styles.backLink}>
-          ← Volver al menú
-        </Link>
       </div>
 
       <div style={styles.layout}>

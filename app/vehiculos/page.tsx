@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 
 type Cliente = {
   id: number;
@@ -257,9 +256,6 @@ export default function VehiculosPage() {
     <main style={styles.page}>
       <div style={styles.topBar}>
         <h1 style={styles.title}>Vehículos</h1>
-        <Link href="/" style={styles.backLink}>
-          ← Volver al menú
-        </Link>
       </div>
 
       <div style={styles.layout}>

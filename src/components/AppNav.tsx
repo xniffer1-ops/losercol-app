@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -47,12 +48,14 @@ type Usuario = {
   permisos?: PermisosUsuario;
 } | null;
 
+type GrupoNav = "Operación" | "Administración" | "Control y reportes";
+
 type NavItem = {
   href: string;
   label: string;
   descripcion: string;
   icon: string;
-  grupo: "Operación" | "Administración" | "Facturación y control";
+  grupo: GrupoNav;
   modulo?: ModuloPermiso;
   soloRoles?: RolUsuario[];
 };
@@ -92,14 +95,6 @@ const NAV_ITEMS: NavItem[] = [
     icon: "$",
     grupo: "Operación",
     modulo: "caja",
-  },
-  {
-    href: "/operacion",
-    label: "Operación",
-    descripcion: "Seguimiento por estados",
-    icon: "◉",
-    grupo: "Operación",
-    soloRoles: ["superadmin", "admin"],
   },
   {
     href: "/clientes",
@@ -143,18 +138,18 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     href: "/factura-multiple",
-    label: "Factura múltiple",
-    descripcion: "Agrupar soportes para facturar",
+    label: "Consolidado",
+    descripcion: "Agrupar soportes en un PDF",
     icon: "▤",
-    grupo: "Facturación y control",
+    grupo: "Control y reportes",
     soloRoles: ["superadmin", "admin"],
   },
   {
     href: "/facturas-multiples",
-    label: "Historial facturas",
-    descripcion: "Consultar facturas múltiples",
+    label: "Historial de consolidados",
+    descripcion: "Consultar consolidados generados",
     icon: "▥",
-    grupo: "Facturación y control",
+    grupo: "Control y reportes",
     soloRoles: ["superadmin", "admin"],
   },
   {
@@ -162,7 +157,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Reportes",
     descripcion: "Informes y exportaciones",
     icon: "▧",
-    grupo: "Facturación y control",
+    grupo: "Control y reportes",
     modulo: "reportes",
   },
   {
@@ -170,7 +165,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Usuarios",
     descripcion: "Accesos, roles y permisos",
     icon: "⚿",
-    grupo: "Facturación y control",
+    grupo: "Control y reportes",
     modulo: "usuarios",
   },
   {
@@ -178,7 +173,7 @@ const NAV_ITEMS: NavItem[] = [
     label: "Historial",
     descripcion: "Acciones realizadas en la app",
     icon: "↺",
-    grupo: "Facturación y control",
+    grupo: "Control y reportes",
     modulo: "historial",
   },
 ];
@@ -210,8 +205,7 @@ function nombreCorto(nombre?: string) {
   const limpio = (nombre || "Usuario").trim();
   if (!limpio) return "Usuario";
 
-  const partes = limpio.split(/\s+/).slice(0, 2);
-  return partes.join(" ");
+  return limpio.split(/\s+/).slice(0, 2).join(" ");
 }
 
 export default function AppNav() {
@@ -219,18 +213,9 @@ export default function AppNav() {
   const [usuario, setUsuario] = useState<Usuario>(null);
   const [cargado, setCargado] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
-  const [esCelular, setEsCelular] = useState(false);
   const contenedorRef = useRef<HTMLDivElement | null>(null);
 
   const rutaSinNav = esRutaSinNav(pathname);
-
-  useEffect(() => {
-    const revisarPantalla = () => setEsCelular(window.innerWidth <= 760);
-    revisarPantalla();
-
-    window.addEventListener("resize", revisarPantalla);
-    return () => window.removeEventListener("resize", revisarPantalla);
-  }, []);
 
   useEffect(() => {
     setMenuAbierto(false);
@@ -322,7 +307,7 @@ export default function AppNav() {
   );
 
   const grupos = useMemo(() => {
-    return itemsVisibles.reduce<Record<NavItem["grupo"], NavItem[]>>(
+    return itemsVisibles.reduce<Record<GrupoNav, NavItem[]>>(
       (acc, item) => {
         acc[item.grupo].push(item);
         return acc;
@@ -330,7 +315,7 @@ export default function AppNav() {
       {
         Operación: [],
         Administración: [],
-        "Facturación y control": [],
+        "Control y reportes": [],
       }
     );
   }, [itemsVisibles]);
@@ -344,14 +329,6 @@ export default function AppNav() {
   if (rutaSinNav || !cargado || !usuario) {
     return null;
   }
-
-  const botonStyle = esCelular
-    ? { ...styles.botonBase, ...styles.botonCelular }
-    : { ...styles.botonBase, ...styles.botonEscritorio };
-
-  const panelStyle = esCelular
-    ? { ...styles.panelBase, ...styles.panelCelular }
-    : { ...styles.panelBase, ...styles.panelEscritorio };
 
   return (
     <div style={styles.raiz} ref={contenedorRef} aria-label="Menú principal LOSERCOL">
@@ -367,7 +344,7 @@ export default function AppNav() {
       <button
         type="button"
         onClick={() => setMenuAbierto((valor) => !valor)}
-        style={botonStyle}
+        style={styles.botonLateral}
         aria-haspopup="menu"
         aria-expanded={menuAbierto}
         aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
@@ -376,11 +353,10 @@ export default function AppNav() {
         <span style={styles.iconoBoton} aria-hidden="true">
           {menuAbierto ? "×" : "☰"}
         </span>
-        {!esCelular && <span style={styles.textoBoton}>Menú</span>}
       </button>
 
       {menuAbierto && (
-        <aside style={panelStyle} role="menu" aria-label="Lista de páginas">
+        <aside style={styles.panel} role="menu" aria-label="Lista de páginas">
           <div style={styles.panelHeader}>
             <Link href="/" style={styles.marca} aria-label="Ir al inicio">
               <img src="/logo-losercol.png" alt="LOSERCOL" style={styles.logo} />
@@ -412,7 +388,7 @@ export default function AppNav() {
           </div>
 
           <div style={styles.listaContenedor}>
-            {(Object.keys(grupos) as NavItem["grupo"][]).map((grupo) => {
+            {(Object.keys(grupos) as GrupoNav[]).map((grupo) => {
               const items = grupos[grupo];
               if (items.length === 0) return null;
 
@@ -487,42 +463,31 @@ const styles: Record<string, CSSProperties> = {
     cursor: "default",
     pointerEvents: "auto",
   },
-  botonBase: {
+  botonLateral: {
     position: "fixed",
     zIndex: 92,
+    top: "50%",
+    left: 0,
+    transform: "translateY(-50%)",
+    width: 44,
+    height: 56,
+    padding: 0,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: "rgba(255, 255, 255, 0.82)",
-    background: "linear-gradient(135deg, #0f172a 0%, #0f766e 100%)",
-    color: "#ffffff",
-    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.24)",
-    cursor: "pointer",
-    pointerEvents: "auto",
-    touchAction: "manipulation",
-  },
-  botonEscritorio: {
-    top: 18,
-    left: 18,
-    minWidth: 110,
-    height: 50,
-    padding: "0 16px",
-    borderRadius: 16,
-  },
-  botonCelular: {
-    top: "46%",
-    left: 0,
-    width: 46,
-    height: 54,
-    padding: 0,
     borderTopLeftRadius: 0,
     borderBottomLeftRadius: 0,
     borderTopRightRadius: 16,
     borderBottomRightRadius: 16,
-    opacity: 0.9,
+    background: "linear-gradient(135deg, #0f172a 0%, #0f766e 100%)",
+    color: "#ffffff",
+    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.22)",
+    cursor: "pointer",
+    pointerEvents: "auto",
+    touchAction: "manipulation",
   },
   iconoBoton: {
     fontSize: 24,
@@ -530,41 +495,27 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1,
     transform: "translateY(-1px)",
   },
-  textoBoton: {
-    fontSize: 14,
-    fontWeight: 900,
-    letterSpacing: 0.2,
-  },
-  panelBase: {
+  panel: {
     position: "fixed",
     zIndex: 91,
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: "min(88vw, 390px)",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: "rgba(226, 232, 240, 0.95)",
-    backgroundColor: "rgba(255, 255, 255, 0.98)",
-    boxShadow: "0 26px 80px rgba(15, 23, 42, 0.25)",
-    backdropFilter: "blur(16px)",
-    pointerEvents: "auto",
-  },
-  panelEscritorio: {
-    top: 82,
-    left: 18,
-    bottom: 18,
-    width: "min(410px, calc(100vw - 36px))",
-    borderRadius: 24,
-  },
-  panelCelular: {
-    top: 0,
-    left: 0,
-    bottom: 0,
-    width: "min(88vw, 370px)",
     borderTopLeftRadius: 0,
     borderBottomLeftRadius: 0,
     borderTopRightRadius: 24,
     borderBottomRightRadius: 24,
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
+    boxShadow: "0 26px 80px rgba(15, 23, 42, 0.25)",
+    backdropFilter: "blur(16px)",
+    pointerEvents: "auto",
   },
   panelHeader: {
     display: "flex",
@@ -586,7 +537,7 @@ const styles: Record<string, CSSProperties> = {
     textDecoration: "none",
   },
   logo: {
-    width: 90,
+    width: 88,
     height: 38,
     objectFit: "contain",
     display: "block",
@@ -720,7 +671,7 @@ const styles: Record<string, CSSProperties> = {
   },
   linkMenuActivo: {
     borderColor: "#14b8a6",
-    background: "linear-gradient(135deg, #ecfeff 0%, #f0fdfa 100%)",
+    backgroundColor: "#ecfeff",
     boxShadow: "0 12px 24px rgba(20, 184, 166, 0.15)",
   },
   linkIcono: {

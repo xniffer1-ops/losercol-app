@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 
 type Tarifa = {
   id: number;
@@ -283,10 +282,6 @@ export default function TarifasPage() {
           <h1 style={styles.title}>Tarifas</h1>
           <p style={styles.subtitle}>Gestión de valores de servicios</p>
         </div>
-
-        <Link href="/" style={styles.backLink}>
-          ← Volver al menú
-        </Link>
       </div>
 
       <div style={styles.layout}>

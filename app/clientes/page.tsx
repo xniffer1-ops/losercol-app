@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 type Cliente = {
   id: number;
@@ -232,9 +231,6 @@ export default function ClientesPage() {
     <main style={styles.page}>
       <div style={styles.topBar}>
         <h1 style={styles.title}>Clientes</h1>
-        <Link href="/" style={styles.backLink}>
-          ← Volver al menú
-        </Link>
       </div>
 
       <div style={styles.layout}>

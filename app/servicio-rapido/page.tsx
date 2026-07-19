@@ -10,7 +10,6 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import Link from "next/link";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -1234,12 +1233,6 @@ export default function ServicioRapidoPage() {
   return (
     <main style={styles.page}>
       <section style={styles.card}>
-        <div style={styles.compactTop}>
-          <Link href="/" style={styles.backMiniButton}>
-            ← Volver al menú
-          </Link>
-        </div>
-
         <form
           onSubmit={(event: FormEvent<HTMLFormElement>) => {
             event.preventDefault();

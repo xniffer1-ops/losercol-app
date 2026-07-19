@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 
 type ServicioCaja = {
   id: number;
@@ -199,9 +198,6 @@ export default function CajaPage() {
           </p>
         </div>
 
-        <Link href="/" style={styles.backLink}>
-          ← Volver al menú
-        </Link>
       </div>
 
       <section style={isMobile ? styles.filterCardMobile : styles.filterCard}>

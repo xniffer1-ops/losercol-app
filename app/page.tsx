@@ -390,8 +390,8 @@ export default function Home() {
       <section style={styles.chartCard}>
         <div style={styles.sectionHeader}>
           <div>
-            <h2 style={styles.sectionTitle}>Facturación por día</h2>
-            <p style={styles.sectionText}>Valores diarios del rango seleccionado.</p>
+            <h2 style={styles.sectionTitle}>Valor de soportes por día</h2>
+            <p style={styles.sectionText}>Valores diarios de los soportes del rango seleccionado.</p>
           </div>
 
           <div style={styles.chartMiniStats}>
