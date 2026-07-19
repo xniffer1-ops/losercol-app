@@ -740,7 +740,6 @@ export default function ServiciosPage() {
     doc.text("Fecha:", 14, 58);
     doc.text("Cliente:", 14, 66);
     doc.text("Documento:", 14, 74);
-    doc.text("Factura electrónica:", 14, 82);
 
     doc.text("Vehículo:", 110, 66);
     doc.text("Centro:", 110, 74);
@@ -750,7 +749,6 @@ export default function ServiciosPage() {
     doc.text(new Date(s.createdAt).toLocaleDateString("es-CO"), 35, 58);
     doc.text(s.cliente?.nombre || "-", 35, 66);
     doc.text(s.cliente?.ccNit || "-", 40, 74);
-    doc.text(textoFacturaElectronica(s), 60, 82);
 
     doc.text(s.vehiculo?.placa || "-", 132, 66);
     doc.text(s.centroOperacion?.nombre || "-", 126, 74);

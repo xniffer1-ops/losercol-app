@@ -519,7 +519,6 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
   doc.text("Fecha:", 14, 58);
   doc.text("Cliente:", 14, 66);
   doc.text("Documento:", 14, 74);
-  doc.text("Factura electrónica:", 14, 82);
 
   doc.text("Vehículo:", 110, 66);
   doc.text("Centro:", 110, 74);
@@ -529,7 +528,6 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
   doc.text(soporte.fecha.toLocaleDateString("es-CO"), 35, 58);
   doc.text(soporte.cliente || "-", 35, 66);
   doc.text(soporte.documento || "-", 40, 74);
-  doc.text(soporte.facturaElectronica ? "Sí requiere" : "No requiere", 60, 82);
 
   doc.text(soporte.placa || "-", 132, 66);
   doc.text(soporte.centro || "-", 126, 74);
