@@ -65,15 +65,8 @@ export default function HistorialPage() {
         rol.includes(texto) ||
         accion.includes(texto);
 
-      const esServicio = modulo.includes("servicio");
-      const esFacturaElectronica = detalle.includes("factura electrónica");
-
       if (filtro === "servicios") {
-        return coincideBusqueda && esServicio;
-      }
-
-      if (filtro === "factura") {
-        return coincideBusqueda && esFacturaElectronica;
+        return coincideBusqueda && modulo.includes("servicio");
       }
 
       return coincideBusqueda;
@@ -82,10 +75,6 @@ export default function HistorialPage() {
 
   const totalServicios = historial.filter((h) =>
     String(h.modulo || "").toLowerCase().includes("servicio")
-  ).length;
-
-  const totalFacturaElectronica = historial.filter((h) =>
-    String(h.detalle || "").toLowerCase().includes("factura electrónica")
   ).length;
 
   return (
@@ -98,7 +87,6 @@ export default function HistorialPage() {
             Revisa cambios del sistema y controla las acciones realizadas en la aplicación.
           </p>
         </div>
-
       </div>
 
       <section style={styles.statsGrid}>
@@ -110,11 +98,6 @@ export default function HistorialPage() {
         <div style={styles.statCard}>
           <span style={styles.statLabel}>Acciones de servicios</span>
           <strong style={styles.statValue}>{totalServicios}</strong>
-        </div>
-
-        <div style={styles.statCardDark}>
-          <span style={styles.statLabelDark}>Factura electrónica</span>
-          <strong style={styles.statValueDark}>{totalFacturaElectronica}</strong>
         </div>
       </section>
 
@@ -135,14 +118,6 @@ export default function HistorialPage() {
           >
             Servicios
           </button>
-
-          <button
-            type="button"
-            onClick={() => setFiltro("factura")}
-            style={filtro === "factura" ? styles.filterButtonActive : styles.filterButton}
-          >
-            Factura electrónica
-          </button>
         </div>
 
         <input
@@ -160,7 +135,6 @@ export default function HistorialPage() {
           <span>Rol</span>
           <span>Acción</span>
           <span>Módulo</span>
-          <span>Factura electrónica</span>
           <span>Detalle</span>
         </div>
 
@@ -171,44 +145,16 @@ export default function HistorialPage() {
         ) : historialFiltrado.length === 0 ? (
           <div style={styles.empty}>No hay registros con este filtro</div>
         ) : (
-          historialFiltrado.map((h) => {
-            const detalle = String(h.detalle || "");
-            const requiereFactura = detalle.toLowerCase().includes(
-              "factura electrónica: sí"
-            );
-
-            const hablaDeFactura = detalle
-              .toLowerCase()
-              .includes("factura electrónica");
-
-            return (
-              <div key={h.id} style={styles.row}>
-                <span>{new Date(h.createdAt).toLocaleString("es-CO")}</span>
-                <span>{h.usuario}</span>
-                <span>{mostrarRolHistorial(h.rol)}</span>
-                <strong>{h.accion}</strong>
-                <span>{h.modulo}</span>
-
-                <span>
-                  {hablaDeFactura ? (
-                    <span
-                      style={
-                        requiereFactura
-                          ? styles.facturaSi
-                          : styles.facturaNo
-                      }
-                    >
-                      {requiereFactura ? "Sí requiere" : "No requiere"}
-                    </span>
-                  ) : (
-                    <span style={styles.noAplica}>No aplica</span>
-                  )}
-                </span>
-
-                <span>{h.detalle}</span>
-              </div>
-            );
-          })
+          historialFiltrado.map((h) => (
+            <div key={h.id} style={styles.row}>
+              <span>{new Date(h.createdAt).toLocaleString("es-CO")}</span>
+              <span>{h.usuario}</span>
+              <span>{mostrarRolHistorial(h.rol)}</span>
+              <strong>{h.accion}</strong>
+              <span>{h.modulo}</span>
+              <span>{h.detalle}</span>
+            </div>
+          ))
         )}
       </section>
     </main>
@@ -235,7 +181,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "inline-flex",
     padding: "6px 10px",
     borderRadius: "999px",
-    background: "#fff7cc",
+    backgroundColor: "#fff7cc",
     color: "#7c5c00",
     fontSize: "12px",
     fontWeight: 900,
@@ -244,23 +190,13 @@ const styles: Record<string, React.CSSProperties> = {
   },
   title: {
     margin: 0,
-    fontSize: "38px",
+    fontSize: "clamp(28px, 5vw, 38px)",
     color: "#0f172a",
   },
   subtitle: {
     marginTop: "8px",
     color: "#475569",
     fontSize: "17px",
-  },
-  backLink: {
-    background: "#fff",
-    border: "1px solid #d7dce4",
-    borderRadius: "12px",
-    padding: "12px 16px",
-    color: "#0b5cab",
-    textDecoration: "none",
-    fontWeight: 900,
-    boxShadow: "0 8px 18px rgba(15, 23, 42, 0.08)",
   },
   statsGrid: {
     display: "grid",
@@ -269,18 +205,11 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "18px",
   },
   statCard: {
-    background: "#ffffff",
+    backgroundColor: "#ffffff",
     border: "1px solid #e5e7eb",
     borderRadius: "16px",
     padding: "18px",
     boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
-  },
-  statCardDark: {
-    background: "#0f172a",
-    border: "1px solid #0f172a",
-    borderRadius: "16px",
-    padding: "18px",
-    boxShadow: "0 10px 24px rgba(15, 23, 42, 0.14)",
   },
   statLabel: {
     display: "block",
@@ -288,22 +217,12 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "14px",
     marginBottom: "6px",
   },
-  statLabelDark: {
-    display: "block",
-    color: "#cbd5e1",
-    fontSize: "14px",
-    marginBottom: "6px",
-  },
   statValue: {
     color: "#0f172a",
     fontSize: "30px",
   },
-  statValueDark: {
-    color: "#ffffff",
-    fontSize: "30px",
-  },
   filtersCard: {
-    background: "#ffffff",
+    backgroundColor: "#ffffff",
     border: "1px solid #e5e7eb",
     borderRadius: "16px",
     padding: "16px",
@@ -318,7 +237,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   filterButton: {
     border: "1px solid #cbd5e1",
-    background: "#ffffff",
+    backgroundColor: "#ffffff",
     color: "#334155",
     borderRadius: "999px",
     padding: "10px 16px",
@@ -327,7 +246,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   filterButtonActive: {
     border: "1px solid #0f172a",
-    background: "#0f172a",
+    backgroundColor: "#0f172a",
     color: "#ffffff",
     borderRadius: "999px",
     padding: "10px 16px",
@@ -345,59 +264,33 @@ const styles: Record<string, React.CSSProperties> = {
     boxSizing: "border-box",
   },
   table: {
-    background: "#fff",
+    backgroundColor: "#fff",
     border: "1px solid #ddd",
     borderRadius: "16px",
-    overflow: "auto",
+    overflowX: "auto",
+    overflowY: "hidden",
     boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
   },
   header: {
-    minWidth: "1200px",
+    minWidth: "980px",
     display: "grid",
-    gridTemplateColumns: "1.35fr 1.2fr 0.7fr 0.8fr 0.9fr 1.1fr 2.7fr",
+    gridTemplateColumns: "1.35fr 1.2fr 0.7fr 0.9fr 0.9fr 3fr",
     gap: "10px",
-    background: "#f5c400",
+    backgroundColor: "#f5c400",
     padding: "14px",
     fontWeight: 900,
     color: "#111",
   },
   row: {
-    minWidth: "1200px",
+    minWidth: "980px",
     display: "grid",
-    gridTemplateColumns: "1.35fr 1.2fr 0.7fr 0.8fr 0.9fr 1.1fr 2.7fr",
+    gridTemplateColumns: "1.35fr 1.2fr 0.7fr 0.9fr 0.9fr 3fr",
     gap: "10px",
     padding: "14px",
     borderTop: "1px solid #eee",
     alignItems: "center",
     color: "#111",
     fontSize: "14px",
-  },
-  facturaSi: {
-    display: "inline-flex",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    background: "#dcfce7",
-    color: "#166534",
-    fontWeight: 900,
-    fontSize: "13px",
-  },
-  facturaNo: {
-    display: "inline-flex",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    background: "#f1f5f9",
-    color: "#475569",
-    fontWeight: 900,
-    fontSize: "13px",
-  },
-  noAplica: {
-    display: "inline-flex",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    background: "#f8fafc",
-    color: "#94a3b8",
-    fontWeight: 800,
-    fontSize: "13px",
   },
   empty: {
     padding: "20px",
