@@ -57,6 +57,7 @@ type NavItem = {
   soloRoles?: RolUsuario[];
 };
 
+const BODY_NAV_CLASS = "losercol-con-nav";
 const RUTAS_SIN_NAV = ["/login", "/verificar"];
 
 const NAV_ITEMS: NavItem[] = [
@@ -218,13 +219,36 @@ export default function AppNav() {
   const [usuario, setUsuario] = useState<Usuario>(null);
   const [cargado, setCargado] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
+  const [esCelular, setEsCelular] = useState(false);
   const contenedorRef = useRef<HTMLDivElement | null>(null);
 
   const rutaSinNav = esRutaSinNav(pathname);
 
   useEffect(() => {
+    const revisarPantalla = () => setEsCelular(window.innerWidth <= 760);
+    revisarPantalla();
+
+    window.addEventListener("resize", revisarPantalla);
+    return () => window.removeEventListener("resize", revisarPantalla);
+  }, []);
+
+  useEffect(() => {
     setMenuAbierto(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (rutaSinNav || !usuario) {
+      document.body.classList.remove(BODY_NAV_CLASS);
+      return;
+    }
+
+    document.body.classList.add(BODY_NAV_CLASS);
+    return () => document.body.classList.remove(BODY_NAV_CLASS);
+  }, [rutaSinNav, usuario]);
+
+  useEffect(() => {
+    return () => document.body.classList.remove(BODY_NAV_CLASS);
+  }, []);
 
   useEffect(() => {
     if (!menuAbierto) return;
@@ -321,6 +345,14 @@ export default function AppNav() {
     return null;
   }
 
+  const botonStyle = esCelular
+    ? { ...styles.botonBase, ...styles.botonCelular }
+    : { ...styles.botonBase, ...styles.botonEscritorio };
+
+  const panelStyle = esCelular
+    ? { ...styles.panelBase, ...styles.panelCelular }
+    : { ...styles.panelBase, ...styles.panelEscritorio };
+
   return (
     <div style={styles.raiz} ref={contenedorRef} aria-label="Menú principal LOSERCOL">
       {menuAbierto && (
@@ -335,7 +367,7 @@ export default function AppNav() {
       <button
         type="button"
         onClick={() => setMenuAbierto((valor) => !valor)}
-        style={styles.botonFlotante}
+        style={botonStyle}
         aria-haspopup="menu"
         aria-expanded={menuAbierto}
         aria-label={menuAbierto ? "Cerrar menú" : "Abrir menú"}
@@ -344,10 +376,11 @@ export default function AppNav() {
         <span style={styles.iconoBoton} aria-hidden="true">
           {menuAbierto ? "×" : "☰"}
         </span>
+        {!esCelular && <span style={styles.textoBoton}>Menú</span>}
       </button>
 
       {menuAbierto && (
-        <aside style={styles.panel} role="menu" aria-label="Lista de páginas">
+        <aside style={panelStyle} role="menu" aria-label="Lista de páginas">
           <div style={styles.panelHeader}>
             <Link href="/" style={styles.marca} aria-label="Ir al inicio">
               <img src="/logo-losercol.png" alt="LOSERCOL" style={styles.logo} />
@@ -438,8 +471,7 @@ export default function AppNav() {
 const styles: Record<string, CSSProperties> = {
   raiz: {
     position: "fixed",
-    top: 14,
-    right: 14,
+    inset: 0,
     zIndex: 80,
     fontFamily:
       "var(--font-geist-sans, system-ui, -apple-system, Segoe UI, sans-serif)",
@@ -449,61 +481,97 @@ const styles: Record<string, CSSProperties> = {
     position: "fixed",
     inset: 0,
     zIndex: 70,
-    background: "rgba(15, 23, 42, 0.28)",
+    backgroundColor: "rgba(15, 23, 42, 0.32)",
     borderWidth: 0,
     padding: 0,
     cursor: "default",
     pointerEvents: "auto",
   },
-  botonFlotante: {
-    position: "relative",
+  botonBase: {
+    position: "fixed",
     zIndex: 92,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    width: 54,
-    height: 54,
-    borderRadius: 16,
+    gap: 8,
     borderWidth: 1,
     borderStyle: "solid",
-    borderColor: "rgba(255, 255, 255, 0.85)",
+    borderColor: "rgba(255, 255, 255, 0.82)",
     background: "linear-gradient(135deg, #0f172a 0%, #0f766e 100%)",
     color: "#ffffff",
-    boxShadow: "0 16px 34px rgba(15, 23, 42, 0.28)",
+    boxShadow: "0 14px 30px rgba(15, 23, 42, 0.24)",
     cursor: "pointer",
     pointerEvents: "auto",
+    touchAction: "manipulation",
+  },
+  botonEscritorio: {
+    top: 18,
+    left: 18,
+    minWidth: 110,
+    height: 50,
+    padding: "0 16px",
+    borderRadius: 16,
+  },
+  botonCelular: {
+    top: "46%",
+    left: 0,
+    width: 46,
+    height: 54,
+    padding: 0,
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderTopRightRadius: 16,
+    borderBottomRightRadius: 16,
+    opacity: 0.9,
   },
   iconoBoton: {
-    fontSize: 26,
+    fontSize: 24,
     fontWeight: 900,
     lineHeight: 1,
     transform: "translateY(-1px)",
   },
-  panel: {
+  textoBoton: {
+    fontSize: 14,
+    fontWeight: 900,
+    letterSpacing: 0.2,
+  },
+  panelBase: {
     position: "fixed",
-    top: 78,
-    right: 14,
-    bottom: 14,
     zIndex: 91,
-    width: "min(410px, calc(100vw - 28px))",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
-    borderRadius: 24,
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: "rgba(226, 232, 240, 0.95)",
-    background: "rgba(255, 255, 255, 0.98)",
+    backgroundColor: "rgba(255, 255, 255, 0.98)",
     boxShadow: "0 26px 80px rgba(15, 23, 42, 0.25)",
     backdropFilter: "blur(16px)",
     pointerEvents: "auto",
+  },
+  panelEscritorio: {
+    top: 82,
+    left: 18,
+    bottom: 18,
+    width: "min(410px, calc(100vw - 36px))",
+    borderRadius: 24,
+  },
+  panelCelular: {
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: "min(88vw, 370px)",
+    borderTopLeftRadius: 0,
+    borderBottomLeftRadius: 0,
+    borderTopRightRadius: 24,
+    borderBottomRightRadius: 24,
   },
   panelHeader: {
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
-    padding: "14px 14px 12px",
+    padding: "max(14px, env(safe-area-inset-top)) 14px 12px",
     borderBottomWidth: 1,
     borderBottomStyle: "solid",
     borderBottomColor: "#e2e8f0",
@@ -518,8 +586,8 @@ const styles: Record<string, CSSProperties> = {
     textDecoration: "none",
   },
   logo: {
-    width: 94,
-    height: 40,
+    width: 90,
+    height: 38,
     objectFit: "contain",
     display: "block",
     flexShrink: 0,
@@ -544,18 +612,19 @@ const styles: Record<string, CSSProperties> = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+    width: 38,
+    height: 38,
+    borderRadius: 13,
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: "#e2e8f0",
-    background: "#ffffff",
+    backgroundColor: "#ffffff",
     color: "#0f172a",
     fontSize: 24,
     fontWeight: 900,
     cursor: "pointer",
     flexShrink: 0,
+    touchAction: "manipulation",
   },
   usuarioCard: {
     margin: "12px 14px 0",
@@ -593,7 +662,7 @@ const styles: Record<string, CSSProperties> = {
     margin: "10px 14px 0",
     padding: "10px 12px",
     borderRadius: 16,
-    background: "#0f172a",
+    backgroundColor: "#0f172a",
     color: "#ffffff",
     display: "flex",
     alignItems: "center",
@@ -616,7 +685,7 @@ const styles: Record<string, CSSProperties> = {
   listaContenedor: {
     flex: "1 1 auto",
     overflowY: "auto",
-    padding: "14px",
+    padding: "14px 14px calc(14px + env(safe-area-inset-bottom))",
   },
   grupo: {
     marginBottom: 18,
@@ -646,7 +715,7 @@ const styles: Record<string, CSSProperties> = {
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: "#e2e8f0",
-    background: "#ffffff",
+    backgroundColor: "#ffffff",
     boxShadow: "0 8px 18px rgba(15, 23, 42, 0.04)",
   },
   linkMenuActivo: {
@@ -661,14 +730,14 @@ const styles: Record<string, CSSProperties> = {
     width: 38,
     height: 38,
     borderRadius: 14,
-    background: "#f1f5f9",
+    backgroundColor: "#f1f5f9",
     color: "#0f172a",
     fontSize: 17,
     fontWeight: 900,
     flexShrink: 0,
   },
   linkIconoActivo: {
-    background: "#0f766e",
+    backgroundColor: "#0f766e",
     color: "#ffffff",
   },
   linkTextoWrap: {
@@ -695,9 +764,10 @@ const styles: Record<string, CSSProperties> = {
     borderWidth: 1,
     borderStyle: "solid",
     borderColor: "#fecaca",
-    background: "#fff1f2",
+    backgroundColor: "#fff1f2",
     color: "#b91c1c",
     fontWeight: 950,
     cursor: "pointer",
+    touchAction: "manipulation",
   },
 };

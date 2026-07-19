@@ -9,3 +9,89 @@ html, body {
   font-family: Arial, Helvetica, sans-serif;
   background: #f3f4f6; /* gris suave */
 }
+/* Mejoras globales para celular en pantallas internas de LOSERCOL.
+   Se activan solo cuando hay sesión y el menú principal está disponible. */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  max-width: 100%;
+}
+
+img,
+svg,
+canvas,
+video {
+  max-width: 100%;
+  height: auto;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+}
+
+body.losercol-con-nav {
+  -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;
+}
+
+@media (max-width: 760px) {
+  body.losercol-con-nav main {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    padding-left: max(14px, env(safe-area-inset-left)) !important;
+    padding-right: max(14px, env(safe-area-inset-right)) !important;
+    padding-bottom: calc(28px + env(safe-area-inset-bottom)) !important;
+  }
+
+  body.losercol-con-nav main > *,
+  body.losercol-con-nav main section,
+  body.losercol-con-nav main article,
+  body.losercol-con-nav main form,
+  body.losercol-con-nav main div {
+    max-width: 100% !important;
+  }
+
+  body.losercol-con-nav main [style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  body.losercol-con-nav main [style*="min-width"] {
+    min-width: 0 !important;
+  }
+
+  body.losercol-con-nav main [style*="width"] {
+    max-width: 100% !important;
+  }
+
+  body.losercol-con-nav main input,
+  body.losercol-con-nav main select,
+  body.losercol-con-nav main textarea {
+    width: 100% !important;
+    min-height: 44px;
+    font-size: 16px !important;
+  }
+
+  body.losercol-con-nav main button,
+  body.losercol-con-nav main a {
+    touch-action: manipulation;
+  }
+
+  body.losercol-con-nav main table {
+    width: 100%;
+  }
+
+  body.losercol-con-nav .recharts-responsive-container,
+  body.losercol-con-nav .recharts-wrapper {
+    max-width: 100% !important;
+  }
+}
