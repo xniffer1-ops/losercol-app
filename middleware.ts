@@ -15,6 +15,7 @@ const rutasPublicas = [
   "/login",
   "/api/login",
   "/api/logout",
+  "/api/setup-admin", // recuperación segura con ADMIN_SETUP_TOKEN
   "/verificar",
   "/api/verificar",
 ];
