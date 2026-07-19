@@ -61,6 +61,20 @@ function formatoPesos(valor: number) {
   return `$${Number(valor || 0).toLocaleString("es-CO")}`;
 }
 
+function textoMayuscula(valor: unknown, respaldo = "-") {
+  const texto = String(valor || "").trim();
+  return texto ? texto.toLocaleUpperCase("es-CO") : respaldo;
+}
+
+function textoTarifa(servicio: {
+  valorUnitario: number;
+  tarifa?: { codigo?: string | null } | null;
+}) {
+  const codigo = textoMayuscula(servicio.tarifa?.codigo || "N/A");
+  const valor = formatoPesos(Number(servicio.valorUnitario || 0));
+  return `${codigo} · ${valor}`;
+}
+
 function formatoFecha(fecha: Date) {
   return new Intl.DateTimeFormat("es-CO", {
     timeZone: "America/Bogota",
@@ -142,20 +156,16 @@ export default async function VerificarSoportePage({ params }: Params) {
 
         <div style={styles.grid}>
           <Item label="Fecha" value={formatoFecha(servicio.createdAt)} />
-          <Item label="Cliente" value={servicio.cliente?.nombre || "-"} />
-          <Item label="Documento / NIT" value={servicio.cliente?.ccNit || "-"} />
-          <Item label="Vehículo / referencia" value={servicio.vehiculo?.placa || "-"} />
-          <Item label="Centro" value={servicio.centroOperacion?.nombre || "-"} />
-          <Item label="Sección" value={servicio.seccion?.nombre || "-"} />
-          <Item label="Descripción" value={servicio.descripcion || "-"} />
-          <Item label="Tarifa" value={servicio.tarifa?.codigo || "N/A"} />
-          <Item label="Carpa" value={servicio.tipoCarpa || "Sin carpa"} />
+          <Item label="Cliente" value={textoMayuscula(servicio.cliente?.nombre)} />
+          <Item label="Documento / NIT" value={textoMayuscula(servicio.cliente?.ccNit)} />
+          <Item label="Vehículo / referencia" value={textoMayuscula(servicio.vehiculo?.placa)} />
+          <Item label="Centro" value={textoMayuscula(servicio.centroOperacion?.nombre)} />
+          <Item label="Sección" value={textoMayuscula(servicio.seccion?.nombre)} />
+          <Item label="Descripción" value={textoMayuscula(servicio.descripcion)} />
+          <Item label="Tarifa / valor unitario" value={textoTarifa(servicio)} />
+          <Item label="Carpa" value={textoMayuscula(servicio.tipoCarpa || "Sin carpa")} />
           <Item label="Cantidad" value={Number(servicio.cantidad || 0).toLocaleString("es-CO")} />
-          <Item label="Forma de pago" value={servicio.formaPago || "-"} />
-          <Item
-            label="Factura electrónica"
-            value={servicio.facturaElectronica ? "Sí requiere" : "No requiere"}
-          />
+          <Item label="Forma de pago" value={textoMayuscula(servicio.formaPago)} />
         </div>
 
         <div style={styles.totalBox}>
@@ -299,6 +309,8 @@ const styles: Record<string, React.CSSProperties> = {
   itemValue: {
     fontSize: "15px",
     color: "#0f172a",
+    lineHeight: 1.25,
+    wordBreak: "break-word",
   },
   totalBox: {
     display: "grid",
