@@ -43,12 +43,20 @@ type Tarifa = {
   descripcion: string;
   valorUnitario: number;
   unidadMedida?: string;
+  presentacion?: string;
+  categoria?: string;
   centroOperacionId?: number | null;
   tipoUso?: "terceros" | "interno" | "ambos" | string | null;
   centroOperacion?: {
     id: number;
     nombre: string;
   } | null;
+};
+
+type OpcionCarpa = {
+  etiqueta: string;
+  valor: number;
+  tarifa: Tarifa;
 };
 
 type MensajeTipo = "ok" | "error" | "info";
@@ -225,6 +233,8 @@ const mapTarifa = (item: AnyRecord): Tarifa | null => {
     item.valorUnitario ?? item.valor_unitario ?? item.valor
   );
   const unidadMedida = toStringSafe(item.unidadMedida ?? item.unidad_medida ?? item.unidad).trim();
+  const presentacion = toStringSafe(item.presentacion).trim();
+  const categoria = toStringSafe(item.categoria).trim();
   const centroOperacionId = toNumberSafe(item.centroOperacionId ?? item.centro_operacion_id);
   const tipoUso = toStringSafe(item.tipoUso ?? item.tipo_uso).trim().toLowerCase();
   const centroOperacion = isRecord(item.centroOperacion)
@@ -242,6 +252,8 @@ const mapTarifa = (item: AnyRecord): Tarifa | null => {
     descripcion,
     valorUnitario,
     unidadMedida,
+    presentacion,
+    categoria,
     centroOperacionId: centroOperacionId || null,
     tipoUso: tipoUso || "terceros",
     centroOperacion,
@@ -258,7 +270,14 @@ const mapClienteFromResponse = (value: unknown): Cliente | null => {
   return record ? mapCliente(record) : null;
 };
 
-const valorCarpa = (tipoCarpa: string) => {
+const normalizarTextoComparacion = (valor: string) =>
+  valor
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const valorCarpaLegacy = (tipoCarpa: string) => {
   if (tipoCarpa === "Tracto Mula") return 46500;
   if (tipoCarpa === "Media Tracto Mula") return 23250;
 
@@ -269,6 +288,40 @@ const valorCarpa = (tipoCarpa: string) => {
   if (tipoCarpa === "Media Sencillo") return 8475;
 
   return 0;
+};
+
+const nombreCarpaDesdeTarifa = (tarifa: Tarifa) => {
+  const texto = normalizarTextoComparacion(
+    `${tarifa.descripcion} ${tarifa.presentacion || ""} ${tarifa.codigo}`
+  );
+
+  const esMedia = texto.includes("media");
+
+  if (texto.includes("tracto")) {
+    return esMedia ? "Media Tracto Mula" : "Tracto Mula";
+  }
+
+  if (texto.includes("doble")) {
+    return esMedia ? "Media Doble Troque" : "Doble Troque";
+  }
+
+  if (texto.includes("sencillo")) {
+    return esMedia ? "Media Sencillo" : "Sencillo";
+  }
+
+  return tarifa.descripcion || tarifa.presentacion || tarifa.codigo;
+};
+
+const valorCarpaDesdeOpciones = (tipoCarpa: string, opciones: OpcionCarpa[]) => {
+  const texto = normalizarTextoComparacion(tipoCarpa);
+
+  const encontrada = opciones.find(
+    (opcion) => normalizarTextoComparacion(opcion.etiqueta) === texto
+  );
+
+  if (encontrada) return encontrada.valor;
+
+  return valorCarpaLegacy(tipoCarpa);
 };
 
 const tipoVehiculoDesdeCarpa = (tipoCarpa: string) => {
@@ -289,13 +342,18 @@ const tipoVehiculoDesdeCarpa = (tipoCarpa: string) => {
 
 const esTarifaDeCarpa = (tarifa: Tarifa) => {
   const codigo = tarifa.codigo.toUpperCase().trim();
-  const descripcion = tarifa.descripcion.toLowerCase();
+  const texto = normalizarTextoComparacion(
+    `${tarifa.codigo} ${tarifa.descripcion} ${tarifa.presentacion || ""} ${tarifa.categoria || ""}`
+  );
 
   return (
     codigo === "LS009" ||
     codigo === "LS010" ||
     codigo === "LS011" ||
-    descripcion.includes("carpe y descarpe")
+    codigo.startsWith("CARPA_") ||
+    texto.includes("carpa") ||
+    texto.includes("carpe y descarpe") ||
+    texto.includes("descarpe")
   );
 };
 
@@ -906,6 +964,27 @@ export default function ServicioRapidoPage() {
       });
   }, [tarifas, centroOperacionId, esMovimientoInterno, esSoloCarpa]);
 
+  const opcionesCarpaDisponibles = useMemo<OpcionCarpa[]>(() => {
+    const centroId = Number(centroOperacionId);
+
+    if (!centroId) return [];
+
+    return tarifas
+      .filter(esTarifaDeCarpa)
+      .filter((tarifa) => tarifa.centroOperacionId === centroId)
+      .map((tarifa) => ({
+        etiqueta: nombreCarpaDesdeTarifa(tarifa),
+        valor: Number(tarifa.valorUnitario || 0),
+        tarifa,
+      }))
+      .filter((opcion) => opcion.valor > 0)
+      .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es"));
+  }, [tarifas, centroOperacionId]);
+
+  useEffect(() => {
+    setTipoCarpa("");
+  }, [centroOperacionId]);
+
   useEffect(() => {
     setTarifaId("");
     setBusquedaTarifa("");
@@ -969,7 +1048,9 @@ export default function ServicioRapidoPage() {
 
   const redondearPesos = (valor: number) => Math.round(valor);
 
-  const valorAdicionalCarpa = redondearPesos(valorCarpa(tipoCarpa));
+  const valorAdicionalCarpa = redondearPesos(
+    valorCarpaDesdeOpciones(tipoCarpa, opcionesCarpaDisponibles)
+  );
 
   // La tarifa y la carpa YA tienen IVA incluido.
   const subtotalBruto = redondearPesos(valorServicio + valorAdicionalCarpa);
@@ -1643,13 +1724,25 @@ export default function ServicioRapidoPage() {
                 style={styles.select}
               >
                 <option value="">Sin carpa / no aplica</option>
-                <option value="Tracto Mula">Carpa de tractomula - $46.500</option>
-                <option value="Media Tracto Mula">Media carpa tractomula - $23.250</option>
-                <option value="Sencillo">Carpa de sencillo - $16.950</option>
-                <option value="Media Sencillo">Media carpa sencillo - $8.475</option>
-                <option value="Doble Troque">Carpa de doble troque - $23.150</option>
-                <option value="Media Doble Troque">Media carpa doble troque - $11.575</option>
+                {!centroOperacionId && (
+                  <option value="" disabled>
+                    Selecciona centro para ver carpas
+                  </option>
+                )}
+                {centroOperacionId && opcionesCarpaDisponibles.length === 0 && (
+                  <option value="" disabled>
+                    No hay carpas configuradas para este centro
+                  </option>
+                )}
+                {opcionesCarpaDisponibles.map((opcion) => (
+                  <option key={opcion.tarifa.id} value={opcion.etiqueta}>
+                    {opcion.etiqueta} - {formatoDinero(opcion.valor)}
+                  </option>
+                ))}
               </select>
+              <small style={styles.helper}>
+                Las carpas también dependen del centro seleccionado. Para ALEN PRO u otro centro, créalas en Tarifas con categoría Carpa.
+              </small>
             </div>
 
             <div style={styles.field}>

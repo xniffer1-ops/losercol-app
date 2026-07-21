@@ -518,6 +518,7 @@ export default function TarifasPage() {
               <option value="Cargue">Cargue</option>
               <option value="Servicio">Servicio</option>
               <option value="Movimientos">Movimientos</option>
+              <option value="Carpa">Carpa</option>
             </select>
 
             <button type="submit" style={styles.saveButton} disabled={saving}>

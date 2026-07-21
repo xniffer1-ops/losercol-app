@@ -30,7 +30,15 @@ function validarFormaPago(formaPago: string) {
   );
 }
 
-function valorCarpa(tipoCarpa: string) {
+function normalizarTextoComparacion(valor: string) {
+  return valor
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function valorCarpaLegacy(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
   if (tipoCarpa === "Media Tracto Mula") return 23250;
   if (tipoCarpa === "Doble Troque") return 23150;
@@ -40,16 +48,61 @@ function valorCarpa(tipoCarpa: string) {
   return 0;
 }
 
-function validarTipoCarpa(tipoCarpa: string) {
-  return (
-    tipoCarpa === "" ||
-    tipoCarpa === "Tracto Mula" ||
-    tipoCarpa === "Media Tracto Mula" ||
-    tipoCarpa === "Doble Troque" ||
-    tipoCarpa === "Media Doble Troque" ||
-    tipoCarpa === "Sencillo" ||
-    tipoCarpa === "Media Sencillo"
+type TarifaCarpa = {
+  codigo: string;
+  descripcion: string;
+  valorUnitario: number;
+  presentacion?: string | null;
+  categoria?: string | null;
+};
+
+function esTarifaDeCarpa(tarifa: TarifaCarpa) {
+  const codigo = tarifa.codigo.toUpperCase().trim();
+  const texto = normalizarTextoComparacion(
+    `${tarifa.codigo} ${tarifa.descripcion} ${tarifa.presentacion || ""} ${tarifa.categoria || ""}`
   );
+
+  return (
+    codigo === "LS009" ||
+    codigo === "LS010" ||
+    codigo === "LS011" ||
+    codigo.startsWith("CARPA_") ||
+    texto.includes("carpa") ||
+    texto.includes("carpe y descarpe") ||
+    texto.includes("descarpe")
+  );
+}
+
+function nombreCarpaDesdeTarifa(tarifa: TarifaCarpa) {
+  const texto = normalizarTextoComparacion(
+    `${tarifa.descripcion} ${tarifa.presentacion || ""} ${tarifa.codigo}`
+  );
+
+  const esMedia = texto.includes("media");
+
+  if (texto.includes("tracto")) return esMedia ? "Media Tracto Mula" : "Tracto Mula";
+  if (texto.includes("doble")) return esMedia ? "Media Doble Troque" : "Doble Troque";
+  if (texto.includes("sencillo")) return esMedia ? "Media Sencillo" : "Sencillo";
+
+  return tarifa.descripcion || tarifa.presentacion || tarifa.codigo;
+}
+
+function valorCarpaPorCentro(tipoCarpa: string, tarifasCarpa: TarifaCarpa[], centroNombre?: string) {
+  if (!tipoCarpa) return 0;
+
+  const texto = normalizarTextoComparacion(tipoCarpa);
+  const encontrada = tarifasCarpa.find(
+    (tarifa) => normalizarTextoComparacion(nombreCarpaDesdeTarifa(tarifa)) === texto
+  );
+
+  if (encontrada) return Number(encontrada.valorUnitario || 0);
+
+  // Compatibilidad con soportes antiguos de CIPA si aún no se han creado las tarifas de carpa.
+  if (normalizarTextoComparacion(centroNombre || "") === "cipa") {
+    return valorCarpaLegacy(tipoCarpa);
+  }
+
+  return 0;
 }
 
 function normalizarBoolean(valor: unknown) {
@@ -287,13 +340,6 @@ export async function POST(req: Request) {
       );
     }
 
-    if (esSoloCarpa && (!tipoCarpa || valorCarpa(tipoCarpa) <= 0)) {
-      return NextResponse.json(
-        { error: "Para solo carpa debes seleccionar un tipo de carpa válido" },
-        { status: 400 }
-      );
-    }
-
     if (!validarFormaPago(formaPago)) {
       return NextResponse.json(
         { error: "Forma de pago inválida" },
@@ -301,14 +347,7 @@ export async function POST(req: Request) {
       );
     }
 
-    if (!validarTipoCarpa(tipoCarpa)) {
-      return NextResponse.json(
-        { error: "Tipo de carpa inválido" },
-        { status: 400 }
-      );
-    }
-
-    const [tarifa, cliente, vehiculo, centroOperacion, seccion] =
+    const [tarifa, cliente, vehiculo, centroOperacion, seccion, tarifasDelCentro] =
       await Promise.all([
         esSoloCarpa
           ? Promise.resolve(null)
@@ -317,6 +356,7 @@ export async function POST(req: Request) {
         prisma.vehiculo.findUnique({ where: { id: vehiculoId } }),
         prisma.centroOperacion.findUnique({ where: { id: centroOperacionId } }),
         prisma.seccion.findUnique({ where: { id: seccionId } }),
+        prisma.tarifa.findMany({ where: { centroOperacionId } }),
       ]);
 
     if (!esSoloCarpa && !tarifa) {
@@ -381,6 +421,28 @@ export async function POST(req: Request) {
       );
     }
 
+    const tarifasCarpaCentro = tarifasDelCentro.filter(esTarifaDeCarpa);
+    const valorAdicionalCarpaCalculado = redondearPesos(
+      valorCarpaPorCentro(tipoCarpa, tarifasCarpaCentro, centroOperacion.nombre)
+    );
+
+    if (tipoCarpa && valorAdicionalCarpaCalculado <= 0) {
+      return NextResponse.json(
+        {
+          error:
+            "La carpa seleccionada no pertenece al centro de operación elegido o no tiene valor configurado.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (esSoloCarpa && (!tipoCarpa || valorAdicionalCarpaCalculado <= 0)) {
+      return NextResponse.json(
+        { error: "Para solo carpa debes seleccionar una carpa válida del centro elegido" },
+        { status: 400 }
+      );
+    }
+
     const ultimoServicio = await prisma.servicio.findFirst({
       orderBy: { id: "desc" },
     });
@@ -397,7 +459,7 @@ export async function POST(req: Request) {
     const categoria = esSoloCarpa ? "Carpa" : tarifa?.categoria;
 
     const valorServicio = redondearPesos(valorUnitario * cantidad);
-    const valorAdicionalCarpa = redondearPesos(valorCarpa(tipoCarpa));
+    const valorAdicionalCarpa = valorAdicionalCarpaCalculado;
     const subtotal = redondearPesos(valorServicio + valorAdicionalCarpa);
     const baseAntesIva = redondearPesos(subtotal / (1 + IVA_PORCENTAJE));
     const ivaIncluido = redondearPesos(subtotal - baseAntesIva);

@@ -35,6 +35,12 @@ type Tarifa = {
   tipoUso?: "terceros" | "interno" | "ambos" | string | null;
 };
 
+type OpcionCarpa = {
+  etiqueta: string;
+  valor: number;
+  tarifa: Tarifa;
+};
+
 type Seccion = {
   id: number;
   nombre: string;
@@ -158,7 +164,14 @@ export default function ServiciosPage() {
   const numeroSoporte = (s: Servicio) =>
     s.numeroSoporte || `SP-${String(s.id).padStart(6, "0")}`;
 
-  const valorCarpa = (tipo: string) => {
+  const normalizarTextoComparacion = (valor: string) =>
+    valor
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+
+  const valorCarpaLegacy = (tipo: string) => {
     if (tipo === "Tracto Mula") return 46500;
     if (tipo === "Media Tracto Mula") return 23250;
     if (tipo === "Doble Troque") return 23150;
@@ -166,6 +179,47 @@ export default function ServiciosPage() {
     if (tipo === "Sencillo") return 16950;
     if (tipo === "Media Sencillo") return 8475;
     return 0;
+  };
+
+  const esTarifaDeCarpa = (tarifa: Tarifa) => {
+    const codigo = tarifa.codigo.toUpperCase().trim();
+    const texto = normalizarTextoComparacion(
+      `${tarifa.codigo} ${tarifa.descripcion} ${tarifa.presentacion || ""} ${tarifa.categoria || ""}`
+    );
+
+    return (
+      codigo === "LS009" ||
+      codigo === "LS010" ||
+      codigo === "LS011" ||
+      codigo.startsWith("CARPA_") ||
+      texto.includes("carpa") ||
+      texto.includes("carpe y descarpe") ||
+      texto.includes("descarpe")
+    );
+  };
+
+  const nombreCarpaDesdeTarifa = (tarifa: Tarifa) => {
+    const texto = normalizarTextoComparacion(
+      `${tarifa.descripcion} ${tarifa.presentacion || ""} ${tarifa.codigo}`
+    );
+
+    const esMedia = texto.includes("media");
+
+    if (texto.includes("tracto")) return esMedia ? "Media Tracto Mula" : "Tracto Mula";
+    if (texto.includes("doble")) return esMedia ? "Media Doble Troque" : "Doble Troque";
+    if (texto.includes("sencillo")) return esMedia ? "Media Sencillo" : "Sencillo";
+
+    return tarifa.descripcion || tarifa.presentacion || tarifa.codigo;
+  };
+
+  const valorCarpaDesdeOpciones = (tipo: string, opciones: OpcionCarpa[]) => {
+    const texto = normalizarTextoComparacion(tipo);
+    const encontrada = opciones.find(
+      (opcion) => normalizarTextoComparacion(opcion.etiqueta) === texto
+    );
+
+    if (encontrada) return encontrada.valor;
+    return valorCarpaLegacy(tipo);
   };
 
   const textoFacturaElectronica = (s: Servicio) =>
@@ -180,7 +234,17 @@ export default function ServiciosPage() {
     const valorUnitario = Number(s.valorUnitario || 0);
     const cantidad = Number(s.cantidad || 0);
     const valorServicio = redondearPesos(valorUnitario * cantidad);
-    const valorAdicionalCarpa = redondearPesos(valorCarpa(s.tipoCarpa || ""));
+    const opcionesCarpaServicio = tarifas
+      .filter(esTarifaDeCarpa)
+      .filter((tarifa) => tarifa.centroOperacionId === s.centroOperacionId)
+      .map((tarifa) => ({
+        etiqueta: nombreCarpaDesdeTarifa(tarifa),
+        valor: Number(tarifa.valorUnitario || 0),
+        tarifa,
+      }));
+    const valorAdicionalCarpa = redondearPesos(
+      valorCarpaDesdeOpciones(s.tipoCarpa || "", opcionesCarpaServicio)
+    );
 
     // La tarifa y la carpa YA tienen IVA incluido.
     const totalConIva = redondearPesos(valorServicio + valorAdicionalCarpa);
@@ -458,13 +522,33 @@ export default function ServiciosPage() {
 
     return tarifas
       .filter((tarifa) => tarifa.centroOperacionId === centroId)
+      .filter((tarifa) => !esTarifaDeCarpa(tarifa))
       .filter((tarifa) => {
         const tipo = normalizarTipoUsoTarifa(tarifa);
         return tipo === "ambos" || tipo === tipoUsoFormulario;
       });
   }, [tarifas, form.centroOperacionId, tipoUsoFormulario]);
 
-  const valorAdicionalCarpa = valorCarpa(form.tipoCarpa);
+  const opcionesCarpaFormulario = useMemo<OpcionCarpa[]>(() => {
+    const centroId = Number(form.centroOperacionId);
+    if (!centroId) return [];
+
+    return tarifas
+      .filter(esTarifaDeCarpa)
+      .filter((tarifa) => tarifa.centroOperacionId === centroId)
+      .map((tarifa) => ({
+        etiqueta: nombreCarpaDesdeTarifa(tarifa),
+        valor: Number(tarifa.valorUnitario || 0),
+        tarifa,
+      }))
+      .filter((opcion) => opcion.valor > 0)
+      .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es"));
+  }, [tarifas, form.centroOperacionId]);
+
+  const valorAdicionalCarpa = valorCarpaDesdeOpciones(
+    form.tipoCarpa,
+    opcionesCarpaFormulario
+  );
 
   const valorServicioPreview = redondearPesos(
     Number(form.valorUnitario || 0) * Number(form.cantidad || 0)
@@ -524,6 +608,7 @@ export default function ServiciosPage() {
         ...prev,
         [name]: value,
         tarifaId: "",
+        tipoCarpa: name === "centroOperacionId" ? "" : prev.tipoCarpa,
         descripcion: "",
         valorUnitario: "",
       }));
@@ -1396,12 +1481,21 @@ export default function ServiciosPage() {
               style={styles.input}
             >
               <option value="">Sin carpa adicional</option>
-              <option value="Tracto Mula">Carpa Tracto Mula - $46.500</option>
-              <option value="Media Tracto Mula">Media carpa tractomula - $23.250</option>
-              <option value="Doble Troque">Carpa Doble Troque - $23.150</option>
-              <option value="Media Doble Troque">Media carpa doble troque - $11.575</option>
-              <option value="Sencillo">Carpa Sencillo - $16.950</option>
-              <option value="Media Sencillo">Media carpa sencillo - $8.475</option>
+              {!form.centroOperacionId && (
+                <option value="" disabled>
+                  Primero selecciona centro
+                </option>
+              )}
+              {form.centroOperacionId && opcionesCarpaFormulario.length === 0 && (
+                <option value="" disabled>
+                  No hay carpas configuradas para este centro
+                </option>
+              )}
+              {opcionesCarpaFormulario.map((opcion) => (
+                <option key={opcion.tarifa.id} value={opcion.etiqueta}>
+                  {opcion.etiqueta} - ${opcion.valor.toLocaleString("es-CO")}
+                </option>
+              ))}
             </select>
 
             <select
