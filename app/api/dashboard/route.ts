@@ -149,18 +149,32 @@ export async function GET(req: Request) {
     // Si el admin quiere revisar más, usa fechaInicio / fechaFin.
     const fechaInicio = searchParams.get("fechaInicio") || primerDiaMesInput();
     const fechaFin = searchParams.get("fechaFin") || fechaInputHoy();
+    const centroOperacionId = Number(searchParams.get("centroOperacionId") || 0);
+    const tipoUso = String(searchParams.get("tipoUso") || "").trim().toLowerCase();
 
     const { inicio } = rangoDiaColombia(fechaInicio);
     const { fin } = rangoDiaColombia(fechaFin);
 
-    const whereServicios = {
+    const whereServicios: any = {
       createdAt: {
         gte: inicio,
         lte: fin,
       },
     };
 
-    const [totalClientes, totalVehiculos, servicios] = await Promise.all([
+    if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
+      whereServicios.centroOperacionId = centroOperacionId;
+    }
+
+    if (tipoUso === "terceros" || tipoUso === "interno") {
+      whereServicios.tarifa = {
+        is: {
+          OR: [{ tipoUso }, { tipoUso: "ambos" }],
+        },
+      };
+    }
+
+    const [totalClientes, totalVehiculos, servicios, centros] = await Promise.all([
       prisma.cliente.count(),
       prisma.vehiculo.count(),
       prisma.servicio.findMany({
@@ -176,6 +190,7 @@ export async function GET(req: Request) {
           createdAt: "desc",
         },
       }),
+      prisma.centroOperacion.findMany({ orderBy: { nombre: "asc" } }),
     ]);
 
     const hoyColombia = fechaInputHoy();
@@ -332,6 +347,9 @@ export async function GET(req: Request) {
     return NextResponse.json({
       fechaInicio,
       fechaFin,
+      centroOperacionId: Number.isFinite(centroOperacionId) && centroOperacionId > 0 ? centroOperacionId : null,
+      tipoUso: tipoUso || null,
+      centros,
       totalClientes,
       totalVehiculos,
       totalServicios,

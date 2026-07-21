@@ -22,7 +22,13 @@ type Vehiculo = {
 };
 
 type CentroOperacion = {
+  id?: number | null;
   nombre?: string | null;
+};
+
+type Centro = {
+  id: number;
+  nombre: string;
 };
 
 type Seccion = {
@@ -162,13 +168,16 @@ function textoPago(valor?: string | null) {
 
 export default function ReportesPage() {
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [centros, setCentros] = useState<Centro[]>([]);
+  const [centroFiltro, setCentroFiltro] = useState("");
+  const [tipoUsoFiltro, setTipoUsoFiltro] = useState("");
   const [desde, setDesde] = useState(fechaInicioMesInput());
   const [hasta, setHasta] = useState(fechaHoyInput());
   const [loading, setLoading] = useState(true);
   const [mensaje, setMensaje] = useState("");
   const [isMobile, setIsMobile] = useState(false);
 
-  const cargarServicios = useCallback(async (fechaInicio?: string, fechaFin?: string) => {
+  const cargarServicios = useCallback(async (fechaInicio?: string, fechaFin?: string, centro?: string, tipoUso?: string) => {
     setLoading(true);
     setMensaje("");
 
@@ -177,6 +186,8 @@ export default function ReportesPage() {
 
       if (fechaInicio) params.set("fechaInicio", fechaInicio);
       if (fechaFin) params.set("fechaFin", fechaFin);
+      if (centro) params.set("centroOperacionId", centro);
+      if (tipoUso) params.set("tipoUso", tipoUso);
 
       const url = params.toString()
         ? `/api/servicios?${params.toString()}`
@@ -201,6 +212,20 @@ export default function ReportesPage() {
   }, []);
 
   useEffect(() => {
+    const cargarCentros = async () => {
+      try {
+        const res = await fetch("/api/centros", { cache: "no-store" });
+        const data = await res.json();
+        setCentros(Array.isArray(data) ? data : []);
+      } catch {
+        setCentros([]);
+      }
+    };
+
+    void cargarCentros();
+  }, []);
+
+  useEffect(() => {
     const revisarPantalla = () => setIsMobile(window.innerWidth <= 760);
     revisarPantalla();
 
@@ -209,8 +234,8 @@ export default function ReportesPage() {
   }, []);
 
   useEffect(() => {
-    void cargarServicios(desde, hasta);
-  }, [cargarServicios, desde, hasta]);
+    void cargarServicios(desde, hasta, centroFiltro, tipoUsoFiltro);
+  }, [cargarServicios, desde, hasta, centroFiltro, tipoUsoFiltro]);
 
   const resumen = useMemo(() => {
     const pagos: ResumenPago = {
@@ -278,6 +303,8 @@ export default function ReportesPage() {
   const limpiarFiltros = () => {
     setDesde(fechaInicioMesInput());
     setHasta(fechaHoyInput());
+    setCentroFiltro("");
+    setTipoUsoFiltro("");
   };
 
   const exportarExcel = () => {
@@ -380,6 +407,35 @@ export default function ReportesPage() {
               onChange={(e) => setHasta(e.target.value)}
               style={styles.input}
             />
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Centro</label>
+            <select
+              value={centroFiltro}
+              onChange={(e) => setCentroFiltro(e.target.value)}
+              style={styles.input}
+            >
+              <option value="">Todos</option>
+              {centros.map((centro) => (
+                <option key={centro.id} value={centro.id}>
+                  {centro.nombre}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div style={styles.field}>
+            <label style={styles.label}>Tipo</label>
+            <select
+              value={tipoUsoFiltro}
+              onChange={(e) => setTipoUsoFiltro(e.target.value)}
+              style={styles.input}
+            >
+              <option value="">Todos</option>
+              <option value="terceros">Cobro a terceros</option>
+              <option value="interno">Movimiento interno</option>
+            </select>
           </div>
 
           <button

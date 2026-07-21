@@ -95,16 +95,22 @@ export default function Home() {
   const [user, setUser] = useState<User>(null);
   const [fechaInicioDashboard, setFechaInicioDashboard] = useState(primerDiaMesInput());
   const [fechaFinDashboard, setFechaFinDashboard] = useState(fechaHoyInput());
+  const [centroDashboard, setCentroDashboard] = useState("");
+  const [tipoUsoDashboard, setTipoUsoDashboard] = useState("");
   const [mensaje, setMensaje] = useState("");
 
   const cargarDashboard = async (
     inicio = fechaInicioDashboard,
-    fin = fechaFinDashboard
+    fin = fechaFinDashboard,
+    centro = centroDashboard,
+    tipoUso = tipoUsoDashboard
   ) => {
     const params = new URLSearchParams();
 
     if (inicio) params.set("fechaInicio", inicio);
     if (fin) params.set("fechaFin", fin);
+    if (centro) params.set("centroOperacionId", centro);
+    if (tipoUso) params.set("tipoUso", tipoUso);
 
     const query = params.toString() ? `?${params.toString()}` : "";
     const resDash = await fetch(`/api/dashboard${query}`, {
@@ -349,9 +355,38 @@ export default function Home() {
           />
         </div>
 
+        <div style={styles.filterGroup}>
+          <label style={styles.filterLabel}>Centro</label>
+          <select
+            value={centroDashboard}
+            onChange={(e) => setCentroDashboard(e.target.value)}
+            style={styles.filterInput}
+          >
+            <option value="">Todos</option>
+            {Array.isArray(data?.centros) && data.centros.map((centro: any) => (
+              <option key={centro.id} value={centro.id}>
+                {centro.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div style={styles.filterGroup}>
+          <label style={styles.filterLabel}>Tipo</label>
+          <select
+            value={tipoUsoDashboard}
+            onChange={(e) => setTipoUsoDashboard(e.target.value)}
+            style={styles.filterInput}
+          >
+            <option value="">Todos</option>
+            <option value="terceros">Cobro a terceros</option>
+            <option value="interno">Movimiento interno</option>
+          </select>
+        </div>
+
         <button
           onClick={() =>
-            void cargarDashboard(fechaInicioDashboard, fechaFinDashboard)
+            void cargarDashboard(fechaInicioDashboard, fechaFinDashboard, centroDashboard, tipoUsoDashboard)
           }
           style={styles.filterButton}
         >
@@ -364,7 +399,7 @@ export default function Home() {
             const fin = fechaHoyInput();
             setFechaInicioDashboard(inicio);
             setFechaFinDashboard(fin);
-            void cargarDashboard(inicio, fin);
+            void cargarDashboard(inicio, fin, centroDashboard, tipoUsoDashboard);
           }}
           style={styles.filterSecondaryButton}
         >
@@ -388,7 +423,7 @@ export default function Home() {
         <div style={styles.sectionHeader}>
           <div>
             <h2 style={styles.sectionTitle}>Valor de soportes por día</h2>
-            <p style={styles.sectionText}>Valores diarios de los soportes del rango seleccionado.</p>
+            <p style={styles.sectionText}>Valores diarios por centro y tipo de operación del rango seleccionado.</p>
           </div>
 
           <div style={styles.chartMiniStats}>

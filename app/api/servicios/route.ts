@@ -64,6 +64,27 @@ function normalizarTipoOperacion(valor: unknown) {
   return "servicioVehiculo";
 }
 
+function normalizarTipoUsoTarifa(valor: unknown) {
+  const tipo = limpiarTexto(valor || "terceros")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (tipo === "interno" || tipo === "movimiento" || tipo === "movimiento interno") {
+    return "interno";
+  }
+
+  if (tipo === "ambos" || tipo === "general") {
+    return "ambos";
+  }
+
+  return "terceros";
+}
+
+function tipoUsoRequeridoParaOperacion(tipoOperacion: string) {
+  return tipoOperacion === "movimientoInterno" ? "interno" : "terceros";
+}
+
 const IVA_PORCENTAJE = 0.19;
 const RETEIVA_PORCENTAJE = 0.04;
 
@@ -135,6 +156,8 @@ export async function GET(req: Request) {
     const placa = limpiarTexto(searchParams.get("placa"));
     const fechaInicio = limpiarTexto(searchParams.get("fechaInicio"));
     const fechaFin = limpiarTexto(searchParams.get("fechaFin"));
+    const centroOperacionId = Number(searchParams.get("centroOperacionId") || 0);
+    const tipoUso = limpiarTexto(searchParams.get("tipoUso"));
 
     const where: any = {};
 
@@ -142,6 +165,19 @@ export async function GET(req: Request) {
       where.vehiculo = {
         placa: {
           contains: placa.toUpperCase(),
+        },
+      };
+    }
+
+    if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
+      where.centroOperacionId = centroOperacionId;
+    }
+
+    if (tipoUso) {
+      const tipoNormalizado = normalizarTipoUsoTarifa(tipoUso);
+      where.tarifa = {
+        is: {
+          OR: [{ tipoUso: tipoNormalizado }, { tipoUso: "ambos" }],
         },
       };
     }
@@ -194,12 +230,18 @@ export async function POST(req: Request) {
     const fechaHoy = fechaInputHoy();
     const usuario = user?.email || user?.nombre || "sin usuario";
 
-    const cierre = await prisma.cierreCaja.findUnique({
+    const centroOperacionIdCierre = Number(body.centroOperacionId);
+
+    const cierre = await prisma.cierreCaja.findFirst({
       where: {
-        fecha_usuario: {
-          fecha: fechaHoy,
-          usuario,
-        },
+        fecha: fechaHoy,
+        usuario,
+        OR: [
+          { centroOperacionId: null },
+          Number.isFinite(centroOperacionIdCierre) && centroOperacionIdCierre > 0
+            ? { centroOperacionId: centroOperacionIdCierre }
+            : { centroOperacionId: null },
+        ],
       },
     });
 
@@ -282,6 +324,33 @@ export async function POST(req: Request) {
         { error: "Tarifa no encontrada" },
         { status: 404 }
       );
+    }
+
+    if (!esSoloCarpa && tarifa?.centroOperacionId && tarifa.centroOperacionId !== centroOperacionId) {
+      return NextResponse.json(
+        {
+          error:
+            "La tarifa seleccionada no pertenece al centro de operación elegido.",
+        },
+        { status: 400 }
+      );
+    }
+
+    if (!esSoloCarpa && tarifa) {
+      const tipoTarifa = normalizarTipoUsoTarifa(tarifa.tipoUso);
+      const tipoRequerido = tipoUsoRequeridoParaOperacion(tipoOperacion);
+
+      if (tipoTarifa !== "ambos" && tipoTarifa !== tipoRequerido) {
+        return NextResponse.json(
+          {
+            error:
+              tipoRequerido === "interno"
+                ? "Esta tarifa no está marcada para movimientos internos."
+                : "Esta tarifa no está marcada para cobro a terceros.",
+          },
+          { status: 400 }
+        );
+      }
     }
 
     if (!cliente) {

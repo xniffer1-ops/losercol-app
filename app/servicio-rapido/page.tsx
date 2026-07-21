@@ -43,6 +43,12 @@ type Tarifa = {
   descripcion: string;
   valorUnitario: number;
   unidadMedida?: string;
+  centroOperacionId?: number | null;
+  tipoUso?: "terceros" | "interno" | "ambos" | string | null;
+  centroOperacion?: {
+    id: number;
+    nombre: string;
+  } | null;
 };
 
 type MensajeTipo = "ok" | "error" | "info";
@@ -219,10 +225,27 @@ const mapTarifa = (item: AnyRecord): Tarifa | null => {
     item.valorUnitario ?? item.valor_unitario ?? item.valor
   );
   const unidadMedida = toStringSafe(item.unidadMedida ?? item.unidad_medida ?? item.unidad).trim();
+  const centroOperacionId = toNumberSafe(item.centroOperacionId ?? item.centro_operacion_id);
+  const tipoUso = toStringSafe(item.tipoUso ?? item.tipo_uso).trim().toLowerCase();
+  const centroOperacion = isRecord(item.centroOperacion)
+    ? {
+        id: toNumberSafe(item.centroOperacion.id),
+        nombre: toStringSafe(item.centroOperacion.nombre).trim(),
+      }
+    : null;
 
   if (!id || !descripcion) return null;
 
-  return { id, codigo, descripcion, valorUnitario, unidadMedida };
+  return {
+    id,
+    codigo,
+    descripcion,
+    valorUnitario,
+    unidadMedida,
+    centroOperacionId: centroOperacionId || null,
+    tipoUso: tipoUso || "terceros",
+    centroOperacion,
+  };
 };
 
 const mapVehiculoFromResponse = (value: unknown): Vehiculo | null => {
@@ -285,6 +308,25 @@ const esTarifaMovimientoInterno = (tarifa: Tarifa) => {
     texto.includes("movimiento") ||
     texto.includes("interno")
   );
+};
+
+const normalizarTipoUsoTarifa = (tarifa: Tarifa) => {
+  const tipo = String(tarifa.tipoUso || "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (tipo === "interno" || tipo === "movimiento" || tipo === "movimiento interno") {
+    return "interno";
+  }
+
+  if (tipo === "ambos" || tipo === "general") {
+    return "ambos";
+  }
+
+  // Compatibilidad con tarifas antiguas si todavía no tienen tipoUso.
+  return esTarifaMovimientoInterno(tarifa) ? "interno" : "terceros";
 };
 
 type SoportePDFData = {
@@ -846,14 +888,28 @@ export default function ServicioRapidoPage() {
   const tarifasDisponibles = useMemo(() => {
     if (esSoloCarpa) return [];
 
-    const tarifasSinCarpa = tarifas.filter((tarifa) => !esTarifaDeCarpa(tarifa));
+    const centroId = Number(centroOperacionId);
 
-    if (esMovimientoInterno) {
-      return tarifasSinCarpa.filter((tarifa) => esTarifaMovimientoInterno(tarifa));
-    }
+    if (!centroId) return [];
 
-    return tarifasSinCarpa;
-  }, [tarifas, esMovimientoInterno, esSoloCarpa]);
+    const tipoRequerido = esMovimientoInterno ? "interno" : "terceros";
+
+    return tarifas
+      .filter((tarifa) => !esTarifaDeCarpa(tarifa))
+      .filter((tarifa) => {
+        if (!tarifa.centroOperacionId) return false;
+        return tarifa.centroOperacionId === centroId;
+      })
+      .filter((tarifa) => {
+        const tipoTarifa = normalizarTipoUsoTarifa(tarifa);
+        return tipoTarifa === "ambos" || tipoTarifa === tipoRequerido;
+      });
+  }, [tarifas, centroOperacionId, esMovimientoInterno, esSoloCarpa]);
+
+  useEffect(() => {
+    setTarifaId("");
+    setBusquedaTarifa("");
+  }, [centroOperacionId, tipoOperacion]);
 
   const tarifaSeleccionada = useMemo(() => {
     return tarifasDisponibles.find((tarifa) => tarifa.id === Number(tarifaId)) ?? null;
@@ -1526,13 +1582,18 @@ export default function ServicioRapidoPage() {
                   <span style={styles.tarifaValor}>
                     ${tarifa.valorUnitario.toLocaleString("es-CO")}
                   </span>
+                  <small style={styles.helper}>
+                    {tarifa.centroOperacion?.nombre || centroSeleccionado?.nombre || "Centro"} · {normalizarTipoUsoTarifa(tarifa) === "interno" ? "Movimiento interno" : normalizarTipoUsoTarifa(tarifa) === "ambos" ? "General" : "Cobro a terceros"}
+                  </small>
                 </button>
               );
             })}
 
             {!tarifasFiltradas.length && (
               <div style={styles.emptyState}>
-                No se encontraron tarifas con ese criterio.
+                {!centroOperacionId
+                  ? "Selecciona primero el centro para ver sus tarifas."
+                  : "No hay tarifas para este centro y tipo de operación."}
               </div>
             )}
           </div>

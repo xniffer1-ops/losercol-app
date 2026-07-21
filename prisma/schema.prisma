@@ -37,6 +37,8 @@ model CentroOperacion {
   ciudad    String
   servicios Servicio[]
   soportes  Soporte[]
+  tarifas   Tarifa[]
+  cierresCaja CierreCaja[]
   createdAt DateTime   @default(now())
 }
 
@@ -105,8 +107,14 @@ model Tarifa {
   presentacion  String
   categoria     String
   cuentaTonelajeOperativo Boolean @default(true)
+  tipoUso       String     @default("terceros")
+  centroOperacionId Int?
+  centroOperacion   CentroOperacion? @relation(fields: [centroOperacionId], references: [id], onDelete: SetNull)
   servicios     Servicio[]
   createdAt     DateTime   @default(now())
+
+  @@index([centroOperacionId])
+  @@index([tipoUso])
 }
 
 model Seccion {
@@ -170,7 +178,10 @@ model CierreCaja {
   total             Float    @default(0)
   cantidadServicios Int      @default(0)
   cerrado           Boolean  @default(true)
+  centroOperacionId Int?
+  centroOperacion   CentroOperacion? @relation(fields: [centroOperacionId], references: [id], onDelete: SetNull)
   createdAt         DateTime @default(now())
 
-  @@unique([fecha, usuario])
+  @@unique([fecha, usuario, centroOperacionId])
+  @@index([centroOperacionId])
 }

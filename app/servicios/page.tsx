@@ -31,6 +31,8 @@ type Tarifa = {
   unidadMedida: string;
   presentacion: string;
   categoria: string;
+  centroOperacionId?: number | null;
+  tipoUso?: "terceros" | "interno" | "ambos" | string | null;
 };
 
 type Seccion = {
@@ -106,6 +108,7 @@ const initialForm = {
   centroOperacionId: "",
   seccionId: "",
   tarifaId: "",
+  tipoOperacion: "servicioVehiculo",
   tipoCarpa: "",
   formaPago: "efectivo",
   reteIva: false,
@@ -145,6 +148,8 @@ export default function ServiciosPage() {
   const [saving, setSaving] = useState(false);
 
   const [placaBusqueda, setPlacaBusqueda] = useState("");
+  const [centroBusqueda, setCentroBusqueda] = useState("");
+  const [tipoUsoBusqueda, setTipoUsoBusqueda] = useState("");
   const [fechaInicio, setFechaInicio] = useState(fechaHoyInput());
   const [fechaFin, setFechaFin] = useState(fechaHoyInput());
   const [editandoId, setEditandoId] = useState<number | null>(null);
@@ -389,6 +394,8 @@ export default function ServiciosPage() {
     const params = new URLSearchParams();
 
     if (placaBusqueda.trim()) params.set("placa", placaBusqueda.trim());
+    if (centroBusqueda) params.set("centroOperacionId", centroBusqueda);
+    if (tipoUsoBusqueda) params.set("tipoUso", tipoUsoBusqueda);
     if (fechaInicio) params.set("fechaInicio", fechaInicio);
     if (fechaFin) params.set("fechaFin", fechaFin);
 
@@ -432,9 +439,30 @@ export default function ServiciosPage() {
   const puedeWhatsApp = tienePermisoServicios(user, "whatsapp");
   const puedeExportarExcel = puedeExportarExcelServicios(user);
 
+  const normalizarTipoUsoTarifa = (tarifa?: Tarifa | null) => {
+    const tipo = String(tarifa?.tipoUso || "terceros").toLowerCase().trim();
+    if (tipo === "interno" || tipo === "movimiento interno") return "interno";
+    if (tipo === "ambos" || tipo === "general") return "ambos";
+    return "terceros";
+  };
+
+  const tipoUsoFormulario = form.tipoOperacion === "movimientoInterno" ? "interno" : "terceros";
+
   const vehiculosFiltrados = useMemo(() => {
     return vehiculos.filter((v) => v.clienteId === Number(form.clienteId));
   }, [vehiculos, form.clienteId]);
+
+  const tarifasFiltradasFormulario = useMemo(() => {
+    const centroId = Number(form.centroOperacionId);
+    if (!centroId) return [];
+
+    return tarifas
+      .filter((tarifa) => tarifa.centroOperacionId === centroId)
+      .filter((tarifa) => {
+        const tipo = normalizarTipoUsoTarifa(tarifa);
+        return tipo === "ambos" || tipo === tipoUsoFormulario;
+      });
+  }, [tarifas, form.centroOperacionId, tipoUsoFormulario]);
 
   const valorAdicionalCarpa = valorCarpa(form.tipoCarpa);
 
@@ -491,8 +519,19 @@ export default function ServiciosPage() {
       return;
     }
 
+    if (name === "centroOperacionId" || name === "tipoOperacion") {
+      setForm((prev) => ({
+        ...prev,
+        [name]: value,
+        tarifaId: "",
+        descripcion: "",
+        valorUnitario: "",
+      }));
+      return;
+    }
+
     if (name === "tarifaId") {
-      const tarifa = tarifas.find((t) => t.id === Number(value));
+      const tarifa = tarifasFiltradasFormulario.find((t) => t.id === Number(value));
 
       setForm((prev) => ({
         ...prev,
@@ -547,6 +586,7 @@ export default function ServiciosPage() {
         centroOperacionId: Number(form.centroOperacionId),
         seccionId: Number(form.seccionId),
         tarifaId: Number(form.tarifaId),
+        tipoOperacion: form.tipoOperacion,
         tipoCarpa: form.tipoCarpa,
         formaPago: form.formaPago,
         reteIva: form.reteIva,
@@ -595,6 +635,7 @@ export default function ServiciosPage() {
       centroOperacionId: String(s.centroOperacionId),
       seccionId: s.seccionId ? String(s.seccionId) : "",
       tarifaId: s.tarifaId ? String(s.tarifaId) : "",
+      tipoOperacion: normalizarTipoUsoTarifa(s.tarifa) === "interno" ? "movimientoInterno" : "servicioVehiculo",
       tipoCarpa: s.tipoCarpa || "",
       formaPago: s.formaPago || "credito",
       reteIva: Boolean(s.reteIva),
@@ -644,6 +685,8 @@ export default function ServiciosPage() {
     const hoy = fechaHoyInput();
 
     setPlacaBusqueda("");
+    setCentroBusqueda("");
+    setTipoUsoBusqueda("");
     setFechaInicio(hoy);
     setFechaFin(hoy);
     setLoading(true);
@@ -974,6 +1017,29 @@ export default function ServiciosPage() {
             style={styles.input}
           />
 
+          <select
+            value={centroBusqueda}
+            onChange={(e) => setCentroBusqueda(e.target.value)}
+            style={styles.input}
+          >
+            <option value="">Todos los centros</option>
+            {centros.map((centro) => (
+              <option key={centro.id} value={centro.id}>
+                {centro.nombre}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={tipoUsoBusqueda}
+            onChange={(e) => setTipoUsoBusqueda(e.target.value)}
+            style={styles.input}
+          >
+            <option value="">Todos los tipos</option>
+            <option value="terceros">Cobro a terceros</option>
+            <option value="interno">Movimiento interno</option>
+          </select>
+
           <input
             type="date"
             value={fechaInicio}
@@ -1025,8 +1091,8 @@ export default function ServiciosPage() {
         </div>
 
         <div style={styles.statCard}>
-          <div style={styles.statLabel}>Req. factura electrónica</div>
-          <div style={styles.statValue}>{totalFacturaElectronica}</div>
+          <div style={styles.statLabel}>Centro filtrado</div>
+          <div style={styles.statValue}>{centroBusqueda ? centros.find((c) => c.id === Number(centroBusqueda))?.nombre || "Centro" : "Todos"}</div>
         </div>
       </section>
 
@@ -1297,13 +1363,25 @@ export default function ServiciosPage() {
             </select>
 
             <select
+              name="tipoOperacion"
+              value={form.tipoOperacion}
+              onChange={handleChange}
+              style={styles.input}
+            >
+              <option value="servicioVehiculo">Cobro a terceros</option>
+              <option value="movimientoInterno">Movimiento interno</option>
+            </select>
+
+            <select
               name="tarifaId"
               value={form.tarifaId}
               onChange={handleChange}
               style={styles.input}
             >
-              <option value="">Selecciona tarifa</option>
-              {tarifas.map((t) => (
+              <option value="">
+                {form.centroOperacionId ? "Selecciona tarifa" : "Primero selecciona centro"}
+              </option>
+              {tarifasFiltradasFormulario.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.codigo} - {t.descripcion} - $
                   {Number(t.valorUnitario).toLocaleString("es-CO")}

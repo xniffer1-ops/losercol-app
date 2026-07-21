@@ -2,6 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+type Centro = {
+  id: number;
+  nombre: string;
+};
+
 type Tarifa = {
   id: number;
   codigo: string;
@@ -11,6 +16,9 @@ type Tarifa = {
   presentacion: string;
   categoria: string;
   cuentaTonelajeOperativo?: boolean;
+  tipoUso?: "terceros" | "interno" | "ambos" | string | null;
+  centroOperacionId?: number | null;
+  centroOperacion?: Centro | null;
   createdAt?: string;
 };
 
@@ -21,6 +29,8 @@ const initialForm = {
   unidadMedida: "",
   presentacion: "",
   categoria: "",
+  centroOperacionId: "",
+  tipoUso: "terceros",
   cuentaTonelajeOperativo: "si",
 };
 
@@ -28,6 +38,8 @@ const normalizarCodigo = (valor: string) => valor.trim().toUpperCase();
 
 export default function TarifasPage() {
   const [tarifas, setTarifas] = useState<Tarifa[]>([]);
+  const [centros, setCentros] = useState<Centro[]>([]);
+  const [centroFiltro, setCentroFiltro] = useState("");
   const [form, setForm] = useState(initialForm);
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(true);
@@ -40,21 +52,30 @@ export default function TarifasPage() {
   const textoBotonGuardar = editandoId ? "Actualizar tarifa" : "Guardar tarifa";
 
   const tarifasOrdenadas = useMemo(() => {
-    return [...tarifas].sort((a, b) => b.id - a.id);
-  }, [tarifas]);
+    const centroId = Number(centroFiltro);
+    return [...tarifas]
+      .filter((tarifa) => !centroId || tarifa.centroOperacionId === centroId)
+      .sort((a, b) => b.id - a.id);
+  }, [tarifas, centroFiltro]);
 
   const cargarTarifas = async () => {
     try {
-      const res = await fetch("/api/tarifas", { cache: "no-store" });
-      const data = await res.json();
+      const [resTarifas, resCentros] = await Promise.all([
+        fetch("/api/tarifas", { cache: "no-store" }),
+        fetch("/api/centros", { cache: "no-store" }),
+      ]);
 
-      if (!res.ok) {
-        setMensaje(data.error || "Error al cargar tarifas");
+      const dataTarifas = await resTarifas.json();
+      const dataCentros = await resCentros.json();
+
+      if (!resTarifas.ok) {
+        setMensaje(dataTarifas.error || "Error al cargar tarifas");
         setTarifas([]);
         return;
       }
 
-      setTarifas(Array.isArray(data) ? data : []);
+      setTarifas(Array.isArray(dataTarifas) ? dataTarifas : []);
+      setCentros(Array.isArray(dataCentros) ? dataCentros : []);
     } catch {
       setMensaje("Error de conexión");
     } finally {
@@ -97,6 +118,8 @@ export default function TarifasPage() {
       unidadMedida: tarifa.unidadMedida || "",
       presentacion: tarifa.presentacion || "",
       categoria: tarifa.categoria || "",
+      centroOperacionId: tarifa.centroOperacionId ? String(tarifa.centroOperacionId) : "",
+      tipoUso: String(tarifa.tipoUso || "terceros"),
       cuentaTonelajeOperativo: tarifa.cuentaTonelajeOperativo === false ? "no" : "si",
     });
 
@@ -115,7 +138,8 @@ export default function TarifasPage() {
       !form.valorUnitario ||
       !form.unidadMedida.trim() ||
       !form.presentacion.trim() ||
-      !form.categoria.trim()
+      !form.categoria.trim() ||
+      !form.centroOperacionId
     ) {
       setMensaje("Completa todos los campos");
       return;
@@ -155,6 +179,8 @@ export default function TarifasPage() {
           codigo,
           descripcion: form.descripcion.trim().toUpperCase(),
           valorUnitario,
+          centroOperacionId: Number(form.centroOperacionId),
+          tipoUso: form.tipoUso,
           cuentaTonelajeOperativo: form.cuentaTonelajeOperativo !== "no",
         }),
       });
@@ -202,6 +228,8 @@ export default function TarifasPage() {
           unidadMedida: tarifa.unidadMedida,
           presentacion: tarifa.presentacion,
           categoria: tarifa.categoria,
+          centroOperacionId: tarifa.centroOperacionId,
+          tipoUso: tarifa.tipoUso || "terceros",
           cuentaTonelajeOperativo: nuevoValor,
         }),
       });
@@ -284,14 +312,34 @@ export default function TarifasPage() {
         </div>
       </div>
 
+      <section style={styles.filterCard}>
+        <label style={styles.filterLabel}>
+          Ver tarifas por centro
+          <select
+            value={centroFiltro}
+            onChange={(event) => setCentroFiltro(event.target.value)}
+            style={styles.input}
+          >
+            <option value="">Todos los centros</option>
+            {centros.map((centro) => (
+              <option key={centro.id} value={centro.id}>
+                {centro.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
       <div style={styles.layout}>
         <section style={styles.tableSection}>
           <div style={styles.tableHeader}>
             <span>ID</span>
             <span>Descripción</span>
             <span>Valor Unitario</span>
-            <span>Unidad Medida</span>
-            <span>Tonelaje real</span>
+            <span>Centro</span>
+            <span>Uso</span>
+            <span>Unidad</span>
+            <span>Tonelaje</span>
             <span>Presentación</span>
             <span>Categoría</span>
             <span>Acciones</span>
@@ -314,6 +362,8 @@ export default function TarifasPage() {
                 <span>{t.codigo}</span>
                 <span>{t.descripcion}</span>
                 <span>${t.valorUnitario.toLocaleString("es-CO")}</span>
+                <span>{t.centroOperacion?.nombre || "Sin centro"}</span>
+                <span>{t.tipoUso === "interno" ? "Interno" : t.tipoUso === "ambos" ? "Ambos" : "Terceros"}</span>
                 <span>{t.unidadMedida}</span>
                 <span>
                   <button
@@ -387,6 +437,31 @@ export default function TarifasPage() {
               onChange={handleChange}
               style={styles.input}
             />
+
+            <select
+              name="centroOperacionId"
+              value={form.centroOperacionId}
+              onChange={handleChange}
+              style={styles.input}
+            >
+              <option value="">Centro de operación</option>
+              {centros.map((centro) => (
+                <option key={centro.id} value={centro.id}>
+                  {centro.nombre}
+                </option>
+              ))}
+            </select>
+
+            <select
+              name="tipoUso"
+              value={form.tipoUso}
+              onChange={handleChange}
+              style={styles.input}
+            >
+              <option value="terceros">Cobro a terceros</option>
+              <option value="interno">Movimiento interno</option>
+              <option value="ambos">Ambos / general</option>
+            </select>
 
             <select
               name="unidadMedida"
@@ -497,6 +572,20 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#0b5cab",
     fontWeight: 700,
   },
+  filterCard: {
+    background: "#fff",
+    border: "1px solid #ddd",
+    borderRadius: "14px",
+    padding: "16px",
+    marginBottom: "18px",
+  },
+  filterLabel: {
+    display: "grid",
+    gap: "8px",
+    color: "#374151",
+    fontWeight: 800,
+    maxWidth: "420px",
+  },
   layout: {
     display: "grid",
     gridTemplateColumns: "2fr 1fr",
@@ -511,7 +600,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableHeader: {
     display: "grid",
-    gridTemplateColumns: "0.7fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1.1fr",
+    gridTemplateColumns: "0.6fr 1.35fr 0.85fr 0.85fr 0.75fr 0.75fr 0.75fr 0.85fr 0.8fr 1.1fr",
     gap: "10px",
     background: "#f5c400",
     padding: "14px",
@@ -519,7 +608,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   tableRow: {
     display: "grid",
-    gridTemplateColumns: "0.7fr 1.5fr 1fr 1fr 1fr 1fr 1fr 1.1fr",
+    gridTemplateColumns: "0.6fr 1.35fr 0.85fr 0.85fr 0.75fr 0.75fr 0.75fr 0.85fr 0.8fr 1.1fr",
     gap: "10px",
     padding: "12px 14px",
     borderTop: "1px solid #eee",

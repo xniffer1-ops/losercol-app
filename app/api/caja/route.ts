@@ -55,23 +55,31 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const fecha = searchParams.get("fecha") || fechaColombiaHoy();
+    const centroOperacionId = Number(searchParams.get("centroOperacionId") || 0);
     const usuario = user.email || user.nombre || "sin usuario";
     const esAdmin = user.rol === "admin" || user.rol === "superadmin";
 
     const { inicio, fin } = rangoDiaColombia(fecha);
 
-    const servicios = await prisma.servicio.findMany({
-      where: {
-        createdAt: {
-          gte: inicio,
-          lte: fin,
-        },
+    const whereServicios: any = {
+      createdAt: {
+        gte: inicio,
+        lte: fin,
       },
+    };
+
+    if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
+      whereServicios.centroOperacionId = centroOperacionId;
+    }
+
+    const servicios = await prisma.servicio.findMany({
+      where: whereServicios,
       include: {
         cliente: true,
         vehiculo: true,
         tarifa: true,
         seccion: true,
+        centroOperacion: true,
       },
       orderBy: {
         id: "desc",
@@ -97,24 +105,39 @@ export async function GET(req: Request) {
 
     const total = efectivo + transferencia + credito;
 
-    const cierreUsuarioActual = await prisma.cierreCaja.findUnique({
+    const cierreUsuarioActual = await prisma.cierreCaja.findFirst({
       where: {
-        fecha_usuario: {
-          fecha,
-          usuario,
-        },
+        fecha,
+        usuario,
+        centroOperacionId:
+          Number.isFinite(centroOperacionId) && centroOperacionId > 0
+            ? centroOperacionId
+            : null,
       },
     });
 
+    const whereCierres: any = esAdmin ? { fecha } : { fecha, usuario };
+
+    if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
+      whereCierres.centroOperacionId = centroOperacionId;
+    }
+
     const cierresDelDia = await prisma.cierreCaja.findMany({
-      where: esAdmin ? { fecha } : { fecha, usuario },
+      where: whereCierres,
+      include: { centroOperacion: true },
       orderBy: { id: "desc" },
+    });
+
+    const centros = await prisma.centroOperacion.findMany({
+      orderBy: { nombre: "asc" },
     });
 
     return NextResponse.json({
       fecha,
       usuario,
       esAdmin,
+      centroOperacionId: Number.isFinite(centroOperacionId) && centroOperacionId > 0 ? centroOperacionId : null,
+      centros,
       cerrado: Boolean(cierreUsuarioActual),
       cierre: cierreUsuarioActual,
       cierresDelDia,
@@ -131,6 +154,7 @@ export async function GET(req: Request) {
         cliente: s.cliente?.nombre || "-",
         placa: s.vehiculo?.placa || "-",
         servicio: s.descripcion,
+        centro: s.centroOperacion?.nombre || "-",
         formaPago: normalizarPago(s.formaPago),
         subtotal: Number(s.subtotal || 0),
         totalNeto: Number(s.totalNeto || 0),

@@ -9,7 +9,10 @@ type Params = {
   }>;
 };
 
-function normalizarId(valor: string) {
+const TIPOS_USO = ["terceros", "interno", "ambos"] as const;
+type TipoUso = (typeof TIPOS_USO)[number];
+
+function normalizarId(valor: unknown) {
   const id = Number(valor);
   return Number.isFinite(id) && id > 0 ? id : null;
 }
@@ -21,6 +24,18 @@ function leerTexto(valor: unknown) {
 function normalizarBoolean(valor: unknown, defecto = true) {
   if (valor === undefined || valor === null || valor === "") return defecto;
   return valor === true || valor === "true" || valor === "si" || valor === "sí";
+}
+
+function normalizarTipoUso(valor: unknown): TipoUso {
+  const tipo = String(valor || "terceros")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+  if (tipo === "interno" || tipo === "movimiento" || tipo === "movimiento interno") return "interno";
+  if (tipo === "ambos" || tipo === "general") return "ambos";
+  return "terceros";
 }
 
 export async function PUT(req: Request, { params }: Params) {
@@ -46,6 +61,8 @@ export async function PUT(req: Request, { params }: Params) {
     const unidadMedida = leerTexto(body.unidadMedida);
     const presentacion = leerTexto(body.presentacion);
     const categoria = leerTexto(body.categoria);
+    const centroOperacionId = normalizarId(body.centroOperacionId);
+    const tipoUso = normalizarTipoUso(body.tipoUso);
     const cuentaTonelajeOperativo = normalizarBoolean(
       body.cuentaTonelajeOperativo,
       true
@@ -57,10 +74,11 @@ export async function PUT(req: Request, { params }: Params) {
       !valorUnitario ||
       !unidadMedida ||
       !presentacion ||
-      !categoria
+      !categoria ||
+      !centroOperacionId
     ) {
       return NextResponse.json(
-        { error: "Todos los campos son obligatorios" },
+        { error: "Todos los campos son obligatorios, incluido el centro" },
         { status: 400 }
       );
     }
@@ -72,13 +90,21 @@ export async function PUT(req: Request, { params }: Params) {
       );
     }
 
-    const tarifaActual = await prisma.tarifa.findUnique({
-      where: { id },
-    });
+    const [tarifaActual, centro] = await Promise.all([
+      prisma.tarifa.findUnique({ where: { id } }),
+      prisma.centroOperacion.findUnique({ where: { id: centroOperacionId } }),
+    ]);
 
     if (!tarifaActual) {
       return NextResponse.json(
         { error: "La tarifa no existe" },
+        { status: 404 }
+      );
+    }
+
+    if (!centro) {
+      return NextResponse.json(
+        { error: "Centro de operación no encontrado" },
         { status: 404 }
       );
     }
@@ -103,14 +129,17 @@ export async function PUT(req: Request, { params }: Params) {
         unidadMedida,
         presentacion,
         categoria,
+        centroOperacionId,
+        tipoUso,
         cuentaTonelajeOperativo,
       },
+      include: { centroOperacion: true },
     });
 
     await registrarAccion(
       "EDITAR",
       "Tarifas",
-      `Editó tarifa ${tarifa.codigo} - ${tarifa.descripcion} - Tonelaje real: ${
+      `Editó tarifa ${tarifa.codigo} - ${tarifa.descripcion} - Centro: ${centro.nombre} - Uso: ${tipoUso} - Tonelaje real: ${
         tarifa.cuentaTonelajeOperativo ? "Sí" : "No"
       }`
     );
@@ -167,7 +196,7 @@ export async function DELETE(_req: Request, { params }: Params) {
       return NextResponse.json(
         {
           error:
-            "No se puede eliminar esta tarifa porque ya tiene servicios asociados. Puedes editarla si necesitas corregir nombre, valor o categoría.",
+            "No se puede eliminar esta tarifa porque ya tiene servicios asociados. Puedes editarla si necesitas corregir nombre, valor, centro o categoría.",
         },
         { status: 400 }
       );

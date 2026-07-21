@@ -56,14 +56,17 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const fecha = body.fecha || fechaColombiaHoy();
+    const centroOperacionId = Number(body.centroOperacionId || 0);
     const usuario = user.email || user.nombre || "sin usuario";
 
-    const existe = await prisma.cierreCaja.findUnique({
+    const existe = await prisma.cierreCaja.findFirst({
       where: {
-        fecha_usuario: {
-          fecha,
-          usuario,
-        },
+        fecha,
+        usuario,
+        centroOperacionId:
+          Number.isFinite(centroOperacionId) && centroOperacionId > 0
+            ? centroOperacionId
+            : null,
       },
     });
 
@@ -76,13 +79,19 @@ export async function POST(req: Request) {
 
     const { inicio, fin } = rangoDiaColombia(fecha);
 
-    const servicios = await prisma.servicio.findMany({
-      where: {
-        createdAt: {
-          gte: inicio,
-          lte: fin,
-        },
+    const whereServicios: any = {
+      createdAt: {
+        gte: inicio,
+        lte: fin,
       },
+    };
+
+    if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
+      whereServicios.centroOperacionId = centroOperacionId;
+    }
+
+    const servicios = await prisma.servicio.findMany({
+      where: whereServicios,
     });
 
     let efectivo = 0;
@@ -114,15 +123,21 @@ export async function POST(req: Request) {
         total,
         cantidadServicios: servicios.length,
         cerrado: true,
+        centroOperacionId:
+          Number.isFinite(centroOperacionId) && centroOperacionId > 0
+            ? centroOperacionId
+            : null,
       },
     });
 
     await registrarAccion(
       "CREAR",
       "Caja",
-      `Cerró caja ${fecha} del usuario ${usuario} por valor ${Math.round(
-        total
-      ).toLocaleString("es-CO")}`
+      `Cerró caja ${fecha} del usuario ${usuario}${
+        Number.isFinite(centroOperacionId) && centroOperacionId > 0
+          ? ` para centro ${centroOperacionId}`
+          : ""
+      } por valor ${Math.round(total).toLocaleString("es-CO")}`
     );
 
     return NextResponse.json(cierre, { status: 201 });

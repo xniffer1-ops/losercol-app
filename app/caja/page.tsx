@@ -2,11 +2,17 @@
 
 import { useEffect, useState } from "react";
 
+type Centro = {
+  id: number;
+  nombre: string;
+};
+
 type ServicioCaja = {
   id: number;
   numeroSoporte?: string | null;
   cliente: string;
   placa: string;
+  centro?: string;
   servicio: string;
   formaPago: string;
   subtotal: number;
@@ -19,11 +25,14 @@ type Cierre = {
   fecha: string;
   usuario: string;
   total: number;
+  centroOperacion?: Centro | null;
 };
 
 type CajaData = {
   fecha: string;
   usuario: string;
+  centroOperacionId?: number | null;
+  centros?: Centro[];
   cerrado: boolean;
   esAdmin?: boolean;
   cierresDelDia?: Cierre[];
@@ -40,6 +49,7 @@ type CajaData = {
 export default function CajaPage() {
   const [data, setData] = useState<CajaData | null>(null);
   const [fecha, setFecha] = useState("");
+  const [centroFiltro, setCentroFiltro] = useState("");
   const [loading, setLoading] = useState(true);
   const [cerrando, setCerrando] = useState(false);
   const [mensaje, setMensaje] = useState("");
@@ -64,12 +74,15 @@ export default function CajaPage() {
     }
   };
 
-  const cargarCaja = async (fechaElegida?: string) => {
+  const cargarCaja = async (fechaElegida?: string, centroElegido = centroFiltro) => {
     setLoading(true);
     setMensaje("");
 
     try {
-      const url = fechaElegida ? `/api/caja?fecha=${fechaElegida}` : "/api/caja";
+      const params = new URLSearchParams();
+      if (fechaElegida) params.set("fecha", fechaElegida);
+      if (centroElegido) params.set("centroOperacionId", centroElegido);
+      const url = params.toString() ? `/api/caja?${params.toString()}` : "/api/caja";
       const res = await fetch(url, { cache: "no-store" });
       const json = await leerJsonSeguro(res);
 
@@ -119,7 +132,10 @@ export default function CajaPage() {
       const res = await fetch("/api/caja/cerrar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fecha: data.fecha }),
+        body: JSON.stringify({
+          fecha: data.fecha,
+          centroOperacionId: centroFiltro ? Number(centroFiltro) : null,
+        }),
       });
 
       const json = await leerJsonSeguro(res);
@@ -131,7 +147,7 @@ export default function CajaPage() {
       }
 
       alert("Caja cerrada correctamente");
-      await cargarCaja(data.fecha);
+      await cargarCaja(data.fecha, centroFiltro);
       setCerrando(false);
     } catch {
       alert("Error de conexión cerrando caja");
@@ -160,7 +176,7 @@ export default function CajaPage() {
       }
 
       alert("Caja abierta nuevamente");
-      await cargarCaja(data?.fecha);
+      await cargarCaja(data?.fecha, centroFiltro);
     } catch {
       alert("Error de conexión abriendo caja");
     }
@@ -212,6 +228,25 @@ export default function CajaPage() {
             }}
             style={isMobile ? styles.inputMobile : styles.input}
           />
+        </div>
+
+        <div style={isMobile ? styles.dateFieldMobile : undefined}>
+          <label style={styles.label}>Centro</label>
+          <select
+            value={centroFiltro}
+            onChange={(e) => {
+              setCentroFiltro(e.target.value);
+              void cargarCaja(fecha, e.target.value);
+            }}
+            style={isMobile ? styles.inputMobile : styles.input}
+          >
+            <option value="">Todos los centros</option>
+            {(data?.centros || []).map((centro) => (
+              <option key={centro.id} value={centro.id}>
+                {centro.nombre}
+              </option>
+            ))}
+          </select>
         </div>
 
         <button
@@ -277,7 +312,7 @@ export default function CajaPage() {
             </div>
 
             <span style={isMobile ? styles.userTextMobile : styles.userText}>
-              Usuario actual: {data.usuario}
+              Usuario actual: {data.usuario} · Centro: {centroFiltro ? data.centros?.find((c) => c.id === Number(centroFiltro))?.nombre || "Centro" : "Todos"}
             </span>
           </section>
 
@@ -292,6 +327,7 @@ export default function CajaPage() {
                 >
                   <span>
                     <strong>Usuario:</strong> {c.usuario}
+                    {c.centroOperacion?.nombre ? ` · ${c.centroOperacion.nombre}` : " · Todos"}
                   </span>
 
                   <strong>{dinero(c.total)}</strong>
@@ -332,6 +368,9 @@ export default function CajaPage() {
                         <strong>Placa:</strong> {s.placa}
                       </span>
                       <span>
+                        <strong>Centro:</strong> {s.centro || "-"}
+                      </span>
+                      <span>
                         <strong>Pago:</strong>{" "}
                         <span style={styles.payment}>
                           {normalizarPago(s.formaPago)}
@@ -356,6 +395,7 @@ export default function CajaPage() {
                   <span>Hora</span>
                   <span>Cliente</span>
                   <span>Placa</span>
+                  <span>Centro</span>
                   <span>Servicio</span>
                   <span>Pago</span>
                   <span>Total</span>
@@ -367,6 +407,7 @@ export default function CajaPage() {
                     <span>{horaServicio(s.createdAt)}</span>
                     <span>{s.cliente}</span>
                     <span>{s.placa}</span>
+                    <span>{s.centro || "-"}</span>
                     <span>{s.servicio}</span>
                     <span style={styles.payment}>
                       {normalizarPago(s.formaPago)}
@@ -713,7 +754,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   header: {
     display: "grid",
-    gridTemplateColumns: "1fr 0.8fr 1.4fr 0.8fr 2fr 1fr 1fr",
+    gridTemplateColumns: "1fr 0.8fr 1.35fr 0.8fr 0.9fr 1.8fr 1fr 1fr",
     gap: "10px",
     background: "#f5c400",
     padding: "14px",
@@ -721,7 +762,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   row: {
     display: "grid",
-    gridTemplateColumns: "1fr 0.8fr 1.4fr 0.8fr 2fr 1fr 1fr",
+    gridTemplateColumns: "1fr 0.8fr 1.35fr 0.8fr 0.9fr 1.8fr 1fr 1fr",
     gap: "10px",
     padding: "14px",
     borderTop: "1px solid #eee",
