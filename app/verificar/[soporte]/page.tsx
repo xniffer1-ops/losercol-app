@@ -16,7 +16,7 @@ function redondearPesos(valor: number) {
   return Math.round(valor);
 }
 
-function valorCarpa(tipoCarpa: string) {
+function valorCarpaLegacy(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
   if (tipoCarpa === "Media Tracto Mula") return 23250;
   if (tipoCarpa === "Doble Troque") return 23150;
@@ -26,18 +26,43 @@ function valorCarpa(tipoCarpa: string) {
   return 0;
 }
 
+function calcularValorServicio(servicio: { valorUnitario: number; cantidad: number }) {
+  return redondearPesos(Number(servicio.valorUnitario || 0) * Number(servicio.cantidad || 0));
+}
+
+function calcularValorCarpa(servicio: {
+  valorUnitario: number;
+  cantidad: number;
+  subtotal?: number | null;
+  tipoCarpa?: string | null;
+}) {
+  const tipoCarpa = String(servicio.tipoCarpa || "").trim();
+
+  if (!tipoCarpa) return 0;
+
+  const valorServicio = calcularValorServicio(servicio);
+  const subtotalGuardado = redondearPesos(Number(servicio.subtotal || 0));
+  const valorPorDiferencia = redondearPesos(subtotalGuardado - valorServicio);
+
+  if (valorPorDiferencia > 0) return valorPorDiferencia;
+
+  return redondearPesos(valorCarpaLegacy(tipoCarpa));
+}
+
 function calcularValores(servicio: {
   valorUnitario: number;
   cantidad: number;
+  subtotal?: number | null;
   tipoCarpa?: string | null;
   reteIva?: boolean | null;
   totalNeto?: number | null;
 }) {
-  const valorServicio = redondearPesos(
-    Number(servicio.valorUnitario || 0) * Number(servicio.cantidad || 0)
-  );
-  const valorAdicionalCarpa = redondearPesos(valorCarpa(servicio.tipoCarpa || ""));
-  const totalConIva = redondearPesos(valorServicio + valorAdicionalCarpa);
+  const valorServicio = calcularValorServicio(servicio);
+  const valorAdicionalCarpa = calcularValorCarpa(servicio);
+  const subtotalGuardado = redondearPesos(Number(servicio.subtotal || 0));
+  const totalConIva = subtotalGuardado > 0
+    ? subtotalGuardado
+    : redondearPesos(valorServicio + valorAdicionalCarpa);
   const baseAntesIva = redondearPesos(totalConIva / (1 + IVA_PORCENTAJE));
   const ivaIncluido = redondearPesos(totalConIva - baseAntesIva);
   const valorReteIva = servicio.reteIva
@@ -66,13 +91,40 @@ function textoMayuscula(valor: unknown, respaldo = "-") {
   return texto ? texto.toLocaleUpperCase("es-CO") : respaldo;
 }
 
-function textoTarifa(servicio: {
-  valorUnitario: number;
-  tarifa?: { codigo?: string | null } | null;
-}) {
-  const codigo = textoMayuscula(servicio.tarifa?.codigo || "N/A");
-  const valor = formatoPesos(Number(servicio.valorUnitario || 0));
-  return `${codigo} · ${valor}`;
+function textoTarifa(
+  servicio: {
+    valorUnitario: number;
+    categoria?: string | null;
+    presentacion?: string | null;
+    tarifa?: { codigo?: string | null } | null;
+  },
+  valorAdicionalCarpa = 0
+) {
+  const codigo = String(servicio.tarifa?.codigo || "").trim();
+
+  if (codigo) {
+    return `${textoMayuscula(codigo)} · ${formatoPesos(Number(servicio.valorUnitario || 0))}`;
+  }
+
+  const esCarpa = String(`${servicio.categoria || ""} ${servicio.presentacion || ""}`)
+    .toLowerCase()
+    .includes("carpa");
+
+  if (esCarpa || valorAdicionalCarpa > 0) {
+    return `CARPA · ${formatoPesos(valorAdicionalCarpa)}`;
+  }
+
+  return "N/A";
+}
+
+function textoCarpa(servicio: { tipoCarpa?: string | null }, valorAdicionalCarpa: number) {
+  const tipoCarpa = String(servicio.tipoCarpa || "").trim();
+
+  if (!tipoCarpa || valorAdicionalCarpa <= 0) {
+    return "SIN CARPA";
+  }
+
+  return `${textoMayuscula(tipoCarpa)} · ${formatoPesos(valorAdicionalCarpa)}`;
 }
 
 function formatoFecha(fecha: Date) {
@@ -162,8 +214,8 @@ export default async function VerificarSoportePage({ params }: Params) {
           <Item label="Centro" value={textoMayuscula(servicio.centroOperacion?.nombre)} />
           <Item label="Sección" value={textoMayuscula(servicio.seccion?.nombre)} />
           <Item label="Descripción" value={textoMayuscula(servicio.descripcion)} />
-          <Item label="Tarifa / valor unitario" value={textoTarifa(servicio)} />
-          <Item label="Carpa" value={textoMayuscula(servicio.tipoCarpa || "Sin carpa")} />
+          <Item label="Tarifa / valor unitario" value={textoTarifa(servicio, valores.valorAdicionalCarpa)} />
+          <Item label="Carpa / valor" value={textoCarpa(servicio, valores.valorAdicionalCarpa)} />
           <Item label="Cantidad" value={Number(servicio.cantidad || 0).toLocaleString("es-CO")} />
           <Item label="Forma de pago" value={textoMayuscula(servicio.formaPago)} />
         </div>
