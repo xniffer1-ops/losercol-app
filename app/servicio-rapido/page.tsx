@@ -641,8 +641,8 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
         "Descripción",
         "Unidad",
         "Cantidad",
-        "Valor unit.",
-        "Total con IVA",
+        "Valor unit. sin IVA",
+        "Subtotal",
       ],
     ],
     body: [
@@ -653,7 +653,7 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
         soporte.unidad || "",
         formatearToneladas(soporte.cantidad),
         formatoDinero(soporte.valorUnitario),
-        formatoDinero(soporte.totalConIva),
+        formatoDinero(soporte.baseAntesIva),
       ],
     ],
     theme: "grid",
@@ -670,6 +670,7 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
 
   const finalTablaY = (doc as unknown as { lastAutoTable?: { finalY?: number } })
     .lastAutoTable?.finalY || 116;
+
 
   autoTable(doc, {
     startY: finalTablaY + 8,
@@ -688,20 +689,19 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
       },
     },
     body: [
-      ["Valor unitario con IVA", formatoDinero(soporte.valorUnitario)],
+      ["Valor unitario sin IVA", formatoDinero(soporte.valorUnitario)],
       ["Cantidad", formatearToneladas(soporte.cantidad)],
-      ["Valor carpa con IVA", formatoDinero(soporte.valorAdicionalCarpa)],
-      ["Total con IVA incluido", formatoDinero(soporte.totalConIva)],
-      ["Base antes de IVA", formatoDinero(soporte.baseAntesIva)],
-      ["IVA incluido 19%", formatoDinero(soporte.ivaIncluido)],
+      ["Valor carpa sin IVA", formatoDinero(soporte.valorAdicionalCarpa)],
+      ["Subtotal sin IVA", formatoDinero(soporte.baseAntesIva)],
       [
         "Retefuente 4%",
         soporte.valorReteIva > 0 ? `-${formatoDinero(soporte.valorReteIva)}` : "$0",
       ],
+      ["IVA 19%", formatoDinero(soporte.ivaIncluido)],
       ["Total neto", formatoDinero(soporte.totalNeto)],
     ],
     didParseCell: (data) => {
-      if (data.row.index === 7) {
+      if (data.row.index === 6) {
         data.cell.styles.fontStyle = "bold";
         data.cell.styles.fontSize = 11;
       }
@@ -1039,34 +1039,40 @@ export default function ServicioRapidoPage() {
   const cantidadNumero = convertirKilosAToneladas(cantidad);
   const cantidadOperativa = esSoloCarpa ? 1 : cantidadNumero;
 
-  const valorServicio = esSoloCarpa
-    ? 0
-    : (tarifaSeleccionada?.valorUnitario ?? 0) * cantidadOperativa;
-
   const IVA_PORCENTAJE = 0.19;
   const RETEIVA_PORCENTAJE = 0.04;
 
   const redondearPesos = (valor: number) => Math.round(valor);
 
-  const valorAdicionalCarpa = redondearPesos(
+  const valorSinIva = (valorConIva: number) =>
+    redondearPesos(Number(valorConIva || 0) / (1 + IVA_PORCENTAJE));
+
+  const valorUnitarioConIva = esSoloCarpa
+    ? 0
+    : Number(tarifaSeleccionada?.valorUnitario || 0);
+  const valorUnitarioSinIva = valorSinIva(valorUnitarioConIva);
+
+  const valorCarpaConIva = redondearPesos(
     valorCarpaDesdeOpciones(tipoCarpa, opcionesCarpaDisponibles)
   );
 
-  // La tarifa y la carpa YA tienen IVA incluido.
-  const subtotalBruto = redondearPesos(valorServicio + valorAdicionalCarpa);
+  const valorAdicionalCarpa = valorSinIva(valorCarpaConIva);
 
-  // Base antes de IVA.
-  const baseAntesIva = redondearPesos(subtotalBruto / (1 + IVA_PORCENTAJE));
+  const valorServicioSinIva = esSoloCarpa
+    ? 0
+    : redondearPesos(valorUnitarioSinIva * cantidadOperativa);
 
-  // IVA incluido dentro del subtotal.
-  const ivaIncluido = redondearPesos(subtotalBruto - baseAntesIva);
+  const subtotalSinIva = redondearPesos(valorServicioSinIva + valorAdicionalCarpa);
+  const ivaIncluido = redondearPesos(subtotalSinIva * IVA_PORCENTAJE);
+  const subtotalBruto = redondearPesos(subtotalSinIva + ivaIncluido);
 
-  // Retefuente sobre la base antes de IVA.
+  // La retefuente aplica únicamente sobre el subtotal sin IVA.
   const valorReteIva = aplicaReteIva
-    ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
+    ? redondearPesos(subtotalSinIva * RETEIVA_PORCENTAJE)
     : 0;
 
   const totalNeto = redondearPesos(subtotalBruto - valorReteIva);
+
 
   const limpiarFormulario = () => {
     setTipoOperacion("servicioVehiculo");
@@ -1309,11 +1315,11 @@ export default function ServicioRapidoPage() {
       descripcion: descripcionPDF,
       unidad: esSoloCarpa ? "Servicio" : tarifaSeleccionada?.unidadMedida || "Tonelada",
       cantidad: cantidadOperativa,
-      valorUnitario: esSoloCarpa ? 0 : tarifaSeleccionada?.valorUnitario || 0,
+      valorUnitario: valorUnitarioSinIva,
       tipoCarpa: tipoCarpa || "Sin carpa",
       valorAdicionalCarpa,
       totalConIva: subtotalBruto,
-      baseAntesIva,
+      baseAntesIva: subtotalSinIva,
       ivaIncluido,
       valorReteIva,
       totalNeto,
@@ -1851,9 +1857,9 @@ export default function ServicioRapidoPage() {
             </div>
 
             <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Valor unitario</span>
+              <span style={styles.summaryLabel}>Valor unitario sin IVA</span>
               <span style={styles.summaryValue}>
-                {formatoDinero(esSoloCarpa ? 0 : tarifaSeleccionada?.valorUnitario || 0)}
+                {formatoDinero(valorUnitarioSinIva)}
               </span>
             </div>
 
@@ -1864,15 +1870,9 @@ export default function ServicioRapidoPage() {
               </span>
             </div>
 
-            <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Valor servicio</span>
-              <span style={styles.summaryValue}>
-                {formatoDinero(valorServicio)}
-              </span>
-            </div>
 
             <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Valor carpa</span>
+              <span style={styles.summaryLabel}>Valor carpa sin IVA</span>
               <span style={styles.summaryValue}>
                 {formatoDinero(valorAdicionalCarpa)}
               </span>
@@ -1881,9 +1881,9 @@ export default function ServicioRapidoPage() {
             <div style={styles.summaryDivider} />
 
             <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Subtotal con IVA incluido</span>
+              <span style={styles.summaryLabel}>Subtotal sin IVA</span>
               <span style={styles.summaryValueStrong}>
-                {formatoDinero(subtotalBruto)}
+                {formatoDinero(subtotalSinIva)}
               </span>
             </div>
 
@@ -1894,28 +1894,21 @@ export default function ServicioRapidoPage() {
               </span>
             </div>
 
+            <div style={styles.summaryRow}>
+              <span style={styles.summaryLabel}>IVA 19%</span>
+              <span style={styles.summaryValue}>
+                {formatoDinero(ivaIncluido)}
+              </span>
+            </div>
+
             <div style={styles.summaryTotalRow}>
-              <span style={styles.summaryTotalLabel}>Total a cobrar</span>
+              <span style={styles.summaryTotalLabel}>Total neto</span>
               <span style={styles.summaryTotalValue}>
                 {formatoDinero(totalNeto)}
               </span>
             </div>
 
             <div style={styles.summaryDivider} />
-
-            <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Base antes de IVA</span>
-              <span style={styles.summaryValue}>
-                {formatoDinero(baseAntesIva)}
-              </span>
-            </div>
-
-            <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>IVA incluido 19%</span>
-              <span style={styles.summaryValue}>
-                {formatoDinero(ivaIncluido)}
-              </span>
-            </div>
 
             <div style={styles.summaryRow}>
               <span style={styles.summaryLabel}>Factura electrónica</span>

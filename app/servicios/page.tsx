@@ -230,8 +230,16 @@ export default function ServiciosPage() {
 
   const redondearPesos = (valor: number) => Math.round(valor);
 
+  const valorSinIva = (valorConIva: number) =>
+    redondearPesos(Number(valorConIva || 0) / (1 + IVA_PORCENTAJE));
+
   const calcularValoresServicio = (s: Servicio) => {
-    const valorUnitario = Number(s.valorUnitario || 0);
+    const valorGuardado = Number(s.valorUnitario || 0);
+    const valorTarifaConIva = Number(s.tarifa?.valorUnitario || 0);
+    const valorUnitario =
+      valorTarifaConIva > 0 && Math.abs(valorGuardado - valorTarifaConIva) <= 1
+        ? valorSinIva(valorTarifaConIva)
+        : valorGuardado;
     const cantidad = Number(s.cantidad || 0);
     const valorServicio = redondearPesos(valorUnitario * cantidad);
     const opcionesCarpaServicio = tarifas
@@ -242,20 +250,17 @@ export default function ServiciosPage() {
         valor: Number(tarifa.valorUnitario || 0),
         tarifa,
       }));
-    const valorAdicionalCarpa = redondearPesos(
+    const valorAdicionalCarpaConIva = redondearPesos(
       valorCarpaDesdeOpciones(s.tipoCarpa || "", opcionesCarpaServicio)
     );
+    const valorAdicionalCarpa = valorSinIva(valorAdicionalCarpaConIva);
 
-    // La tarifa y la carpa YA tienen IVA incluido.
-    const totalConIva = redondearPesos(valorServicio + valorAdicionalCarpa);
+    // Se muestra primero la base sin IVA; el IVA 19% se calcula sobre esa base.
+    const baseAntesIva = redondearPesos(valorServicio + valorAdicionalCarpa);
+    const ivaIncluido = redondearPesos(baseAntesIva * IVA_PORCENTAJE);
+    const totalConIva = redondearPesos(baseAntesIva + ivaIncluido);
 
-    // Base antes de IVA.
-    const baseAntesIva = redondearPesos(totalConIva / (1 + IVA_PORCENTAJE));
-
-    // IVA incluido dentro del total.
-    const ivaIncluido = redondearPesos(totalConIva - baseAntesIva);
-
-    // Retefuente 4% sobre base antes de IVA.
+    // Retefuente 4% sobre subtotal sin IVA.
     const valorReteIva = s.reteIva
       ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
       : 0;
@@ -550,18 +555,15 @@ export default function ServiciosPage() {
     opcionesCarpaFormulario
   );
 
+  const valorUnitarioPreviewSinIva = valorSinIva(Number(form.valorUnitario || 0));
   const valorServicioPreview = redondearPesos(
-    Number(form.valorUnitario || 0) * Number(form.cantidad || 0)
+    valorUnitarioPreviewSinIva * Number(form.cantidad || 0)
   );
+  const valorAdicionalCarpaSinIva = valorSinIva(valorAdicionalCarpa);
 
-  // La tarifa y la carpa ya tienen IVA incluido.
-  const subtotalPreview = redondearPesos(valorServicioPreview + valorAdicionalCarpa);
-  const baseAntesIvaPreview = redondearPesos(
-    subtotalPreview / (1 + IVA_PORCENTAJE)
-  );
-  const ivaIncluidoPreview = redondearPesos(
-    subtotalPreview - baseAntesIvaPreview
-  );
+  const baseAntesIvaPreview = redondearPesos(valorServicioPreview + valorAdicionalCarpaSinIva);
+  const ivaIncluidoPreview = redondearPesos(baseAntesIvaPreview * IVA_PORCENTAJE);
+  const subtotalPreview = redondearPesos(baseAntesIvaPreview + ivaIncluidoPreview);
   const retefuentePreview = form.reteIva
     ? redondearPesos(baseAntesIvaPreview * RETEIVA_PORCENTAJE)
     : 0;
@@ -815,12 +817,12 @@ export default function ServiciosPage() {
         Descripcion: s.descripcion,
         Unidad: s.unidadMedida || "",
         Cantidad: valores.cantidad,
-        "Valor unitario con IVA": valores.valorUnitario,
-        "Valor servicio con IVA": valores.valorServicio,
-        "Valor carpa con IVA": valores.valorAdicionalCarpa,
-        "Total con IVA incluido": valores.totalConIva,
-        "Base antes de IVA": valores.baseAntesIva,
-        "IVA incluido 19%": valores.ivaIncluido,
+        "Valor unitario sin IVA": valores.valorUnitario,
+        "Valor servicio sin IVA": valores.valorServicio,
+        "Valor carpa sin IVA": valores.valorAdicionalCarpa,
+        "Subtotal": valores.baseAntesIva,
+        "Total con IVA": valores.totalConIva,
+        "IVA 19%": valores.ivaIncluido,
         "Retefuente 4%": valores.valorReteIva,
         "Total neto": valores.totalNeto,
       };
@@ -890,8 +892,8 @@ export default function ServiciosPage() {
           "Descripción",
           "Unidad",
           "Cantidad",
-          "Valor unit.",
-          "Total con IVA",
+          "Valor unit. sin IVA",
+          "Subtotal",
         ],
       ],
       body: [
@@ -902,7 +904,7 @@ export default function ServiciosPage() {
           s.unidadMedida || "",
           valores.cantidad.toLocaleString("es-CO"),
           `$${valores.valorUnitario.toLocaleString("es-CO")}`,
-          `$${valores.totalConIva.toLocaleString("es-CO")}`,
+          `$${valores.baseAntesIva.toLocaleString("es-CO")}`,
         ],
       ],
       theme: "grid",
@@ -937,29 +939,17 @@ export default function ServiciosPage() {
       },
       body: [
         [
-          "Valor unitario con IVA",
+          "Valor unitario sin IVA",
           `$${valores.valorUnitario.toLocaleString("es-CO")}`,
         ],
         ["Cantidad", valores.cantidad.toLocaleString("es-CO")],
         [
-          "Valor servicio con IVA",
-          `$${valores.valorServicio.toLocaleString("es-CO")}`,
-        ],
-        [
-          "Valor carpa con IVA",
+          "Valor carpa sin IVA",
           `$${valores.valorAdicionalCarpa.toLocaleString("es-CO")}`,
         ],
         [
-          "Total con IVA incluido",
-          `$${valores.totalConIva.toLocaleString("es-CO")}`,
-        ],
-        [
-          "Base antes de IVA",
+          "Subtotal sin IVA",
           `$${valores.baseAntesIva.toLocaleString("es-CO")}`,
-        ],
-        [
-          "IVA incluido 19%",
-          `$${valores.ivaIncluido.toLocaleString("es-CO")}`,
         ],
         [
           "Retefuente 4%",
@@ -967,10 +957,14 @@ export default function ServiciosPage() {
             ? `-$${valores.valorReteIva.toLocaleString("es-CO")}`
             : "$0",
         ],
+        [
+          "IVA 19%",
+          `$${valores.ivaIncluido.toLocaleString("es-CO")}`,
+        ],
         ["Total neto", `$${valores.totalNeto.toLocaleString("es-CO")}`],
       ],
       didParseCell: (data) => {
-        if (data.row.index === 8) {
+        if (data.row.index === 6) {
           data.cell.styles.fontStyle = "bold";
           data.cell.styles.fontSize = 11;
         }
@@ -1563,24 +1557,16 @@ export default function ServiciosPage() {
 
             <div style={styles.preview}>
               <div style={styles.previewLine}>
-                <span>Valor servicio con IVA</span>
+                <span>Valor servicio sin IVA</span>
                 <strong>${valorServicioPreview.toLocaleString("es-CO")}</strong>
               </div>
               <div style={styles.previewLine}>
-                <span>Valor carpa con IVA</span>
-                <strong>${valorAdicionalCarpa.toLocaleString("es-CO")}</strong>
+                <span>Valor carpa sin IVA</span>
+                <strong>${valorAdicionalCarpaSinIva.toLocaleString("es-CO")}</strong>
               </div>
               <div style={styles.previewLine}>
-                <span>Subtotal con IVA incluido</span>
-                <strong>${subtotalPreview.toLocaleString("es-CO")}</strong>
-              </div>
-              <div style={styles.previewLine}>
-                <span>Base antes de IVA</span>
+                <span>Subtotal</span>
                 <strong>${baseAntesIvaPreview.toLocaleString("es-CO")}</strong>
-              </div>
-              <div style={styles.previewLine}>
-                <span>IVA incluido 19%</span>
-                <strong>${ivaIncluidoPreview.toLocaleString("es-CO")}</strong>
               </div>
               <div style={styles.previewLine}>
                 <span>Retefuente 4%</span>
@@ -1589,6 +1575,10 @@ export default function ServiciosPage() {
                     ? `-$${retefuentePreview.toLocaleString("es-CO")}`
                     : "$0"}
                 </strong>
+              </div>
+              <div style={styles.previewLine}>
+                <span>IVA 19%</span>
+                <strong>${ivaIncluidoPreview.toLocaleString("es-CO")}</strong>
               </div>
               <div style={styles.previewTotalLine}>
                 <span>Total neto</span>

@@ -16,6 +16,10 @@ function redondearPesos(valor: number) {
   return Math.round(valor);
 }
 
+function valorSinIva(valorConIva: number) {
+  return redondearPesos(Number(valorConIva || 0) / (1 + IVA_PORCENTAJE));
+}
+
 function valorCarpaLegacy(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
   if (tipoCarpa === "Media Tracto Mula") return 23250;
@@ -30,25 +34,6 @@ function calcularValorServicio(servicio: { valorUnitario: number; cantidad: numb
   return redondearPesos(Number(servicio.valorUnitario || 0) * Number(servicio.cantidad || 0));
 }
 
-function calcularValorCarpa(servicio: {
-  valorUnitario: number;
-  cantidad: number;
-  subtotal?: number | null;
-  tipoCarpa?: string | null;
-}) {
-  const tipoCarpa = String(servicio.tipoCarpa || "").trim();
-
-  if (!tipoCarpa) return 0;
-
-  const valorServicio = calcularValorServicio(servicio);
-  const subtotalGuardado = redondearPesos(Number(servicio.subtotal || 0));
-  const valorPorDiferencia = redondearPesos(subtotalGuardado - valorServicio);
-
-  if (valorPorDiferencia > 0) return valorPorDiferencia;
-
-  return redondearPesos(valorCarpaLegacy(tipoCarpa));
-}
-
 function calcularValores(servicio: {
   valorUnitario: number;
   cantidad: number;
@@ -56,26 +41,32 @@ function calcularValores(servicio: {
   tipoCarpa?: string | null;
   reteIva?: boolean | null;
   totalNeto?: number | null;
+  tarifa?: { valorUnitario?: number | null } | null;
 }) {
-  const valorServicio = calcularValorServicio(servicio);
-  const valorAdicionalCarpa = calcularValorCarpa(servicio);
-  const subtotalGuardado = redondearPesos(Number(servicio.subtotal || 0));
-  const totalConIva = subtotalGuardado > 0
-    ? subtotalGuardado
-    : redondearPesos(valorServicio + valorAdicionalCarpa);
-  const baseAntesIva = redondearPesos(totalConIva / (1 + IVA_PORCENTAJE));
-  const ivaIncluido = redondearPesos(totalConIva - baseAntesIva);
+  const cantidad = Number(servicio.cantidad || 0);
+  const valorGuardado = Number(servicio.valorUnitario || 0);
+  const valorTarifaConIva = Number(servicio.tarifa?.valorUnitario || 0);
+  const valorUnitarioSinIva =
+    valorTarifaConIva > 0 && Math.abs(valorGuardado - valorTarifaConIva) <= 1
+      ? valorSinIva(valorTarifaConIva)
+      : valorGuardado;
+  const valorServicio = redondearPesos(valorUnitarioSinIva * cantidad);
+
+  const valorAdicionalCarpa = valorSinIva(valorCarpaLegacy(String(servicio.tipoCarpa || "")));
+  const subtotalSinIva = redondearPesos(valorServicio + valorAdicionalCarpa);
+  const ivaIncluido = redondearPesos(subtotalSinIva * IVA_PORCENTAJE);
+  const totalConIva = redondearPesos(subtotalSinIva + ivaIncluido);
   const valorReteIva = servicio.reteIva
-    ? redondearPesos(baseAntesIva * RETEFUENTE_PORCENTAJE)
+    ? redondearPesos(subtotalSinIva * RETEFUENTE_PORCENTAJE)
     : 0;
-  const totalNeto = redondearPesos(
-    Number(servicio.totalNeto || totalConIva - valorReteIva)
-  );
+  const totalNeto = redondearPesos(totalConIva - valorReteIva);
 
   return {
+    valorUnitarioSinIva,
     valorServicio,
     valorAdicionalCarpa,
     totalConIva,
+    baseAntesIva: subtotalSinIva,
     ivaIncluido,
     valorReteIva,
     totalNeto,
@@ -93,17 +84,17 @@ function textoMayuscula(valor: unknown, respaldo = "-") {
 
 function textoTarifa(
   servicio: {
-    valorUnitario: number;
     categoria?: string | null;
     presentacion?: string | null;
     tarifa?: { codigo?: string | null } | null;
   },
+  valorUnitarioSinIva: number,
   valorAdicionalCarpa = 0
 ) {
   const codigo = String(servicio.tarifa?.codigo || "").trim();
 
   if (codigo) {
-    return `${textoMayuscula(codigo)} · ${formatoPesos(Number(servicio.valorUnitario || 0))}`;
+    return `${textoMayuscula(codigo)} · ${formatoPesos(valorUnitarioSinIva)}`;
   }
 
   const esCarpa = String(`${servicio.categoria || ""} ${servicio.presentacion || ""}`)
@@ -214,16 +205,16 @@ export default async function VerificarSoportePage({ params }: Params) {
           <Item label="Centro" value={textoMayuscula(servicio.centroOperacion?.nombre)} />
           <Item label="Sección" value={textoMayuscula(servicio.seccion?.nombre)} />
           <Item label="Descripción" value={textoMayuscula(servicio.descripcion)} />
-          <Item label="Tarifa / valor unitario" value={textoTarifa(servicio, valores.valorAdicionalCarpa)} />
-          <Item label="Carpa / valor" value={textoCarpa(servicio, valores.valorAdicionalCarpa)} />
+          <Item label="Tarifa / valor unitario sin IVA" value={textoTarifa(servicio, valores.valorUnitarioSinIva, valores.valorAdicionalCarpa)} />
+          <Item label="Carpa sin IVA" value={textoCarpa(servicio, valores.valorAdicionalCarpa)} />
           <Item label="Cantidad" value={Number(servicio.cantidad || 0).toLocaleString("es-CO")} />
           <Item label="Forma de pago" value={textoMayuscula(servicio.formaPago)} />
         </div>
 
         <div style={styles.totalBox}>
           <div>
-            <span style={styles.totalLabel}>Total con IVA</span>
-            <strong style={styles.totalValue}>{formatoPesos(valores.totalConIva)}</strong>
+            <span style={styles.totalLabel}>Subtotal sin IVA</span>
+            <strong style={styles.totalValue}>{formatoPesos(valores.baseAntesIva)}</strong>
           </div>
 
           <div>
@@ -233,6 +224,11 @@ export default async function VerificarSoportePage({ params }: Params) {
                 ? `-${formatoPesos(valores.valorReteIva)}`
                 : "$0"}
             </strong>
+          </div>
+
+          <div>
+            <span style={styles.totalLabel}>IVA 19%</span>
+            <strong style={styles.totalValue}>{formatoPesos(valores.ivaIncluido)}</strong>
           </div>
 
           <div>

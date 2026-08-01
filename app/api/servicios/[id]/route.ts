@@ -58,6 +58,10 @@ function redondearPesos(valor: number) {
   return Math.round(valor);
 }
 
+function valorSinIva(valorConIva: number) {
+  return redondearPesos(Number(valorConIva || 0) / (1 + IVA_PORCENTAJE));
+}
+
 type Params = {
   params: Promise<{
     id: string;
@@ -170,12 +174,16 @@ export async function PUT(req: Request, { params }: Params) {
       );
     }
 
-    const valorServicio = redondearPesos(Number(tarifa.valorUnitario) * cantidad);
-    const valorAdicionalCarpa = redondearPesos(valorCarpa(tipoCarpa));
-    const subtotal = redondearPesos(valorServicio + valorAdicionalCarpa);
-    const baseAntesIva = redondearPesos(subtotal / (1 + IVA_PORCENTAJE));
+    // La tarifa y la carpa configuradas se toman como valores CON IVA.
+    // En el soporte se guarda y se muestra primero la base sin IVA.
+    const valorUnitarioSinIva = valorSinIva(Number(tarifa.valorUnitario));
+    const valorServicio = redondearPesos(valorUnitarioSinIva * cantidad);
+    const valorAdicionalCarpa = valorSinIva(redondearPesos(valorCarpa(tipoCarpa)));
+    const subtotalSinIva = redondearPesos(valorServicio + valorAdicionalCarpa);
+    const iva = redondearPesos(subtotalSinIva * IVA_PORCENTAJE);
+    const subtotal = redondearPesos(subtotalSinIva + iva);
     const valorReteIva = reteIva
-      ? redondearPesos(baseAntesIva * RETEFUENTE_PORCENTAJE)
+      ? redondearPesos(subtotalSinIva * RETEFUENTE_PORCENTAJE)
       : 0;
     const totalNeto = redondearPesos(subtotal - valorReteIva);
 
@@ -183,7 +191,7 @@ export async function PUT(req: Request, { params }: Params) {
       where: { id },
       data: {
         descripcion: tarifa.descripcion,
-        valorUnitario: tarifa.valorUnitario,
+        valorUnitario: valorUnitarioSinIva,
         tipoCarpa: tipoCarpa || null,
         formaPago,
         unidadMedida: tarifa.unidadMedida,

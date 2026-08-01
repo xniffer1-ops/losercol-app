@@ -145,6 +145,10 @@ function redondearPesos(valor: number) {
   return Math.round(valor);
 }
 
+function valorSinIva(valorConIva: number) {
+  return redondearPesos(Number(valorConIva || 0) / (1 + IVA_PORCENTAJE));
+}
+
 function fechaInputHoy() {
   const partes = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Bogota",
@@ -453,18 +457,22 @@ export async function POST(req: Request) {
     const descripcion = esSoloCarpa
       ? `SERVICIO DE CARPA - ${tipoCarpa}`
       : tarifa?.descripcion || "";
-    const valorUnitario = esSoloCarpa ? 0 : Number(tarifa?.valorUnitario || 0);
+    const valorUnitarioConIva = esSoloCarpa ? 0 : Number(tarifa?.valorUnitario || 0);
+    const valorUnitario = valorSinIva(valorUnitarioConIva);
     const unidadMedida = esSoloCarpa ? "Servicio" : tarifa?.unidadMedida;
     const presentacion = esSoloCarpa ? "Carpa" : tarifa?.presentacion;
     const categoria = esSoloCarpa ? "Carpa" : tarifa?.categoria;
 
+    // Las tarifas y carpas configuradas se toman como valores CON IVA.
+    // Para el soporte se desglosa primero la base sin IVA y luego se calcula IVA 19%.
     const valorServicio = redondearPesos(valorUnitario * cantidad);
-    const valorAdicionalCarpa = valorAdicionalCarpaCalculado;
-    const subtotal = redondearPesos(valorServicio + valorAdicionalCarpa);
-    const baseAntesIva = redondearPesos(subtotal / (1 + IVA_PORCENTAJE));
-    const ivaIncluido = redondearPesos(subtotal - baseAntesIva);
+    const valorAdicionalCarpa = valorSinIva(valorAdicionalCarpaCalculado);
+    const subtotalSinIva = redondearPesos(valorServicio + valorAdicionalCarpa);
+    const ivaIncluido = redondearPesos(subtotalSinIva * IVA_PORCENTAJE);
+    const subtotal = redondearPesos(subtotalSinIva + ivaIncluido);
+    const baseAntesIva = subtotalSinIva;
     const valorReteIva = reteIva
-      ? redondearPesos(baseAntesIva * RETEIVA_PORCENTAJE)
+      ? redondearPesos(subtotalSinIva * RETEIVA_PORCENTAJE)
       : 0;
     const totalNeto = redondearPesos(subtotal - valorReteIva);
 
@@ -505,7 +513,7 @@ export async function POST(req: Request) {
       "Servicios",
       `Creó soporte ${numeroSoporte} - ${descripcion}${
         tipoCarpa ? ` + carpa ${tipoCarpa}` : ""
-      } - pago: ${formaPago} - Base IVA: $${baseAntesIva.toLocaleString("es-CO")} - IVA incluido: $${ivaIncluido.toLocaleString("es-CO")} - Retefuente: ${
+      } - pago: ${formaPago} - Subtotal sin IVA: $${baseAntesIva.toLocaleString("es-CO")} - IVA 19%: $${ivaIncluido.toLocaleString("es-CO")} - Retefuente: ${
         reteIva ? "sí" : "no"
       } - Factura electrónica: ${facturaElectronica ? "sí" : "no"}`
     );

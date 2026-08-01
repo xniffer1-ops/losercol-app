@@ -18,6 +18,10 @@ function redondearPesos(valor: number) {
   return Math.round(valor);
 }
 
+function valorSinIva(valorConIva: number) {
+  return redondearPesos(Number(valorConIva || 0) / (1 + IVA_PORCENTAJE));
+}
+
 function valorCarpaLegacy(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
   if (tipoCarpa === "Media Tracto Mula") return 23250;
@@ -32,25 +36,6 @@ function calcularValorServicio(servicio: { valorUnitario: number; cantidad: numb
   return redondearPesos(Number(servicio.valorUnitario || 0) * Number(servicio.cantidad || 0));
 }
 
-function calcularValorCarpa(servicio: {
-  valorUnitario: number;
-  cantidad: number;
-  subtotal?: number | null;
-  tipoCarpa?: string | null;
-}) {
-  const tipoCarpa = limpiarTexto(servicio.tipoCarpa);
-
-  if (!tipoCarpa) return 0;
-
-  const valorServicio = calcularValorServicio(servicio);
-  const subtotalGuardado = redondearPesos(Number(servicio.subtotal || 0));
-  const valorPorDiferencia = redondearPesos(subtotalGuardado - valorServicio);
-
-  if (valorPorDiferencia > 0) return valorPorDiferencia;
-
-  return redondearPesos(valorCarpaLegacy(tipoCarpa));
-}
-
 function calcularValores(servicio: {
   valorUnitario: number;
   cantidad: number;
@@ -58,25 +43,32 @@ function calcularValores(servicio: {
   tipoCarpa?: string | null;
   reteIva?: boolean | null;
   totalNeto?: number | null;
+  tarifa?: { valorUnitario?: number | null } | null;
 }) {
-  const valorServicio = calcularValorServicio(servicio);
-  const valorAdicionalCarpa = calcularValorCarpa(servicio);
-  const subtotalGuardado = redondearPesos(Number(servicio.subtotal || 0));
-  const totalConIva = subtotalGuardado > 0
-    ? subtotalGuardado
-    : redondearPesos(valorServicio + valorAdicionalCarpa);
-  const baseAntesIva = redondearPesos(totalConIva / (1 + IVA_PORCENTAJE));
-  const ivaIncluido = redondearPesos(totalConIva - baseAntesIva);
+  const cantidad = Number(servicio.cantidad || 0);
+  const valorGuardado = Number(servicio.valorUnitario || 0);
+  const valorTarifaConIva = Number(servicio.tarifa?.valorUnitario || 0);
+  const valorUnitarioSinIva =
+    valorTarifaConIva > 0 && Math.abs(valorGuardado - valorTarifaConIva) <= 1
+      ? valorSinIva(valorTarifaConIva)
+      : valorGuardado;
+  const valorServicio = redondearPesos(valorUnitarioSinIva * cantidad);
+
+  const valorAdicionalCarpa = valorSinIva(valorCarpaLegacy(limpiarTexto(servicio.tipoCarpa)));
+  const subtotalSinIva = redondearPesos(valorServicio + valorAdicionalCarpa);
+  const ivaIncluido = redondearPesos(subtotalSinIva * IVA_PORCENTAJE);
+  const totalConIva = redondearPesos(subtotalSinIva + ivaIncluido);
   const valorReteIva = servicio.reteIva
-    ? redondearPesos(baseAntesIva * RETEFUENTE_PORCENTAJE)
+    ? redondearPesos(subtotalSinIva * RETEFUENTE_PORCENTAJE)
     : 0;
-  const totalNeto = redondearPesos(Number(servicio.totalNeto || totalConIva - valorReteIva));
+  const totalNeto = redondearPesos(totalConIva - valorReteIva);
 
   return {
+    valorUnitarioSinIva,
     valorServicio,
     valorAdicionalCarpa,
     totalConIva,
-    baseAntesIva,
+    baseAntesIva: subtotalSinIva,
     ivaIncluido,
     valorReteIva,
     totalNeto,
@@ -165,7 +157,11 @@ export async function GET(_req: Request, { params }: Params) {
       tarifa: servicio.tarifa?.codigo || "",
       tipoCarpa: servicio.tipoCarpa || "Sin carpa",
       carpaDetalle: textoCarpa(servicio.tipoCarpa, valores.valorAdicionalCarpa),
+      valorUnitarioSinIva: valores.valorUnitarioSinIva,
+      valorServicioSinIva: valores.valorServicio,
       valorAdicionalCarpa: valores.valorAdicionalCarpa,
+      subtotalSinIva: valores.baseAntesIva,
+      iva19: valores.ivaIncluido,
       formaPago: servicio.formaPago || "",
       facturaElectronica: Boolean(servicio.facturaElectronica),
       retefuente: Boolean(servicio.reteIva),
