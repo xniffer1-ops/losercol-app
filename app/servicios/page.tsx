@@ -214,9 +214,19 @@ export default function ServiciosPage() {
 
   const valorCarpaDesdeOpciones = (tipo: string, opciones: OpcionCarpa[]) => {
     const texto = normalizarTextoComparacion(tipo);
-    const encontrada = opciones.find(
-      (opcion) => normalizarTextoComparacion(opcion.etiqueta) === texto
-    );
+    const encontrada = opciones.find((opcion) => {
+      const etiqueta = normalizarTextoComparacion(opcion.etiqueta);
+      const descripcion = normalizarTextoComparacion(opcion.tarifa.descripcion || "");
+      const presentacion = normalizarTextoComparacion(opcion.tarifa.presentacion || "");
+      const codigo = normalizarTextoComparacion(opcion.tarifa.codigo || "");
+
+      return (
+        etiqueta === texto ||
+        descripcion === texto ||
+        presentacion === texto ||
+        codigo === texto
+      );
+    });
 
     if (encontrada) return encontrada.valor;
     return valorCarpaLegacy(tipo);
@@ -715,6 +725,11 @@ export default function ServiciosPage() {
       return;
     }
 
+    const tarifaOriginal = s.tarifa || tarifas.find((t) => t.id === s.tarifaId);
+    const valorUnitarioConIva = tarifaOriginal?.valorUnitario
+      ? Number(tarifaOriginal.valorUnitario)
+      : redondearPesos(Number(s.valorUnitario || 0) * (1 + IVA_PORCENTAJE));
+
     setEditandoId(s.id);
     setForm({
       clienteId: String(s.clienteId),
@@ -722,13 +737,13 @@ export default function ServiciosPage() {
       centroOperacionId: String(s.centroOperacionId),
       seccionId: s.seccionId ? String(s.seccionId) : "",
       tarifaId: s.tarifaId ? String(s.tarifaId) : "",
-      tipoOperacion: normalizarTipoUsoTarifa(s.tarifa) === "interno" ? "movimientoInterno" : "servicioVehiculo",
+      tipoOperacion: normalizarTipoUsoTarifa(tarifaOriginal) === "interno" ? "movimientoInterno" : "servicioVehiculo",
       tipoCarpa: s.tipoCarpa || "",
       formaPago: s.formaPago || "credito",
       reteIva: Boolean(s.reteIva),
       facturaElectronica: Boolean(s.facturaElectronica),
-      descripcion: s.descripcion,
-      valorUnitario: String(s.valorUnitario),
+      descripcion: tarifaOriginal?.descripcion || s.descripcion,
+      valorUnitario: valorUnitarioConIva ? String(valorUnitarioConIva) : "",
       cantidad: String(s.cantidad),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
