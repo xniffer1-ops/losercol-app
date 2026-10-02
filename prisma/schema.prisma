@@ -185,3 +185,26 @@ model CierreCaja {
   @@unique([fecha, usuario, centroOperacionId])
   @@index([centroOperacionId])
 }
+
+
+model ConfiguracionSoporte {
+  id             Int      @id @default(1)
+  siguienteNumero Int     @default(1)
+  prefijo        String   @default("SP-")
+  updatedAt      DateTime @updatedAt
+}
+
+model SoporteEliminado {
+  id                Int      @id @default(autoincrement())
+  originalServicioId Int
+  numeroSoporte     String
+  datos             Json
+  eliminadoPor      String
+  eliminadoAt       DateTime @default(now())
+  restaurado        Boolean  @default(false)
+  restauradoPor     String?
+  restauradoAt      DateTime?
+
+  @@index([numeroSoporte])
+  @@index([restaurado])
+}

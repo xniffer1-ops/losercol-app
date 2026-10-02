@@ -8,6 +8,13 @@ function limpiarTexto(valor: unknown) {
   return String(valor || "").trim();
 }
 
+function normalizarNumeroSoporte(soporte: string) {
+  const texto = String(soporte || "").trim().toUpperCase().replace(/\s+/g, "");
+  const match = texto.match(/^SP-?(\d+)$/);
+  if (!match) return texto;
+  return `SP-${String(Number(match[1])).padStart(6, "0")}`;
+}
+
 function extraerIdDesdeSoporte(soporte: string) {
   const limpio = soporte.toUpperCase().replace("SP-", "");
   const id = Number(limpio);
@@ -101,7 +108,9 @@ type Params = {
 export async function GET(_req: Request, { params }: Params) {
   try {
     const { soporte: soporteParam } = await params;
-    const soporte = limpiarTexto(decodeURIComponent(soporteParam)).toUpperCase();
+    const soporte = normalizarNumeroSoporte(
+      limpiarTexto(decodeURIComponent(soporteParam))
+    );
 
     if (!soporte) {
       return NextResponse.json(

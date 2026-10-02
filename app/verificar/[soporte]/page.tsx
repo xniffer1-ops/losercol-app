@@ -6,6 +6,13 @@ export const dynamic = "force-dynamic";
 const IVA_PORCENTAJE = 0.19;
 const RETEFUENTE_PORCENTAJE = 0.04;
 
+function normalizarNumeroSoporte(soporte: string) {
+  const texto = String(soporte || "").trim().toUpperCase().replace(/\s+/g, "");
+  const match = texto.match(/^SP-?(\d+)$/);
+  if (!match) return texto;
+  return `SP-${String(Number(match[1])).padStart(6, "0")}`;
+}
+
 function extraerIdDesdeSoporte(soporte: string) {
   const limpio = soporte.toUpperCase().replace("SP-", "");
   const id = Number(limpio);
@@ -137,7 +144,9 @@ type Params = {
 
 export default async function VerificarSoportePage({ params }: Params) {
   const { soporte: soporteParam } = await params;
-  const soporte = decodeURIComponent(soporteParam || "").trim().toUpperCase();
+  const soporte = normalizarNumeroSoporte(
+    decodeURIComponent(soporteParam || "").trim()
+  );
   const idDesdeSoporte = extraerIdDesdeSoporte(soporte);
 
   const servicio = await prisma.servicio.findFirst({

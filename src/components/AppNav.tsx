@@ -174,6 +174,9 @@ function esAdmin(usuario: Usuario) {
 
 function puedeVerItem(usuario: Usuario, item: NavItem) {
   if (!usuario) return false;
+  if (item.href === "/servicios" && usuario.email.trim().toLowerCase() === "soporte@losercol.com") {
+    return true;
+  }
   if (esAdmin(usuario)) return true;
 
   if (item.soloRoles) {

@@ -96,6 +96,28 @@ type User = {
   };
 } | null;
 
+type GestionServicio = {
+  id: number;
+  numeroSoporte: string;
+  createdAt: string;
+  cliente: string;
+  placa: string;
+  centro: string;
+  descripcion: string;
+  totalNeto: number;
+};
+
+type SoporteEliminado = {
+  id: number;
+  originalServicioId: number;
+  numeroSoporte: string;
+  eliminadoPor: string;
+  eliminadoAt: string;
+  datos: Record<string, unknown>;
+};
+
+const EMAIL_GESTION_SOPORTES = "soporte@losercol.com";
+
 function tienePermisoServicios(user: User, accion: AccionServicios) {
   if (!user) return false;
   if (user.rol === "superadmin") return true;
@@ -160,6 +182,15 @@ export default function ServiciosPage() {
   const [fechaFin, setFechaFin] = useState(fechaHoyInput());
   const [editandoId, setEditandoId] = useState<number | null>(null);
   const [isMobile, setIsMobile] = useState(false);
+
+  const [gestionAbierta, setGestionAbierta] = useState(false);
+  const [gestionBusqueda, setGestionBusqueda] = useState("");
+  const [gestionSiguiente, setGestionSiguiente] = useState("");
+  const [gestionServicios, setGestionServicios] = useState<GestionServicio[]>([]);
+  const [gestionEliminados, setGestionEliminados] = useState<SoporteEliminado[]>([]);
+  const [gestionCargando, setGestionCargando] = useState(false);
+  const [gestionMensaje, setGestionMensaje] = useState("");
+  const [gestionEditandoNumero, setGestionEditandoNumero] = useState<Record<number, string>>({});
 
   const numeroSoporte = (s: Servicio) =>
     s.numeroSoporte || `SP-${String(s.id).padStart(6, "0")}`;
@@ -483,6 +514,165 @@ export default function ServiciosPage() {
     const data = await res.json();
 
     setServicios(Array.isArray(data) ? data : []);
+  };
+
+  const esUsuarioGestionSoportes =
+    String(user?.email || "").trim().toLowerCase() === EMAIL_GESTION_SOPORTES;
+
+  const cargarGestionSoportes = async (busqueda = gestionBusqueda) => {
+    if (!esUsuarioGestionSoportes) return;
+
+    try {
+      setGestionCargando(true);
+      setGestionMensaje("");
+
+      const params = new URLSearchParams();
+      if (busqueda.trim()) params.set("q", busqueda.trim());
+
+      const res = await fetch(`/api/soportes/gestion?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGestionMensaje(data.error || "No se pudo cargar la gestión de soportes");
+        return;
+      }
+
+      setGestionSiguiente(String(data.siguienteNumero || 1));
+      setGestionServicios(Array.isArray(data.servicios) ? data.servicios : []);
+      setGestionEliminados(Array.isArray(data.eliminados) ? data.eliminados : []);
+
+      setGestionEditandoNumero((prev) => {
+        const next = { ...prev };
+        for (const servicio of Array.isArray(data.servicios) ? data.servicios : []) {
+          if (!(servicio.id in next)) next[servicio.id] = servicio.numeroSoporte;
+        }
+        return next;
+      });
+    } catch {
+      setGestionMensaje("Error de conexión con la gestión de soportes");
+    } finally {
+      setGestionCargando(false);
+    }
+  };
+
+  const cambiarNumeroSoporteGestion = async (servicio: GestionServicio) => {
+    const nuevoNumero = gestionEditandoNumero[servicio.id] || servicio.numeroSoporte;
+
+    try {
+      setGestionCargando(true);
+      setGestionMensaje("");
+
+      const res = await fetch("/api/soportes/gestion", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accion: "cambiarNumero",
+          servicioId: servicio.id,
+          nuevoNumero,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGestionMensaje(data.error || "No se pudo cambiar el soporte");
+        return;
+      }
+
+      setGestionMensaje(
+        `${data.anterior} fue cambiado a ${data.numeroSoporte}. Se actualizaron ${data.serviciosActualizados} servicio(s).`
+      );
+      await cargarGestionSoportes();
+      await cargarServicios();
+    } catch {
+      setGestionMensaje("Error de conexión");
+    } finally {
+      setGestionCargando(false);
+    }
+  };
+
+  const guardarSiguienteNumeroGestion = async () => {
+    try {
+      setGestionCargando(true);
+      setGestionMensaje("");
+
+      const res = await fetch("/api/soportes/gestion", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accion: "siguienteNumero",
+          siguienteNumero: Number(gestionSiguiente),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGestionMensaje(data.error || "No se pudo guardar el consecutivo");
+        return;
+      }
+
+      setGestionSiguiente(String(data.siguienteNumero));
+      setGestionMensaje(
+        `El próximo soporte quedó configurado como SP-${String(data.siguienteNumero).padStart(6, "0")}.`
+      );
+    } catch {
+      setGestionMensaje("Error de conexión");
+    } finally {
+      setGestionCargando(false);
+    }
+  };
+
+  const recuperarSoporteGestion = async (
+    soporte: string,
+    nuevoNumero = soporte
+  ) => {
+    const ok = window.confirm(
+      `¿Recuperar ${soporte} y volverlo a registrar como ${nuevoNumero}?`
+    );
+    if (!ok) return;
+
+    try {
+      setGestionCargando(true);
+      setGestionMensaje("");
+
+      const res = await fetch("/api/soportes/gestion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          accion: "recuperar",
+          numeroSoporte: soporte,
+          nuevoNumero,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setGestionMensaje(data.error || "No se pudo recuperar el soporte");
+        return;
+      }
+
+      setGestionMensaje(
+        `${data.numeroOriginal} fue recuperado como ${data.nuevoNumero} (${data.serviciosRecuperados} servicio(s)).`
+      );
+      await cargarGestionSoportes();
+      await cargarServicios();
+    } catch {
+      setGestionMensaje("Error de conexión");
+    } finally {
+      setGestionCargando(false);
+    }
+  };
+
+  const abrirGestionSoportes = async () => {
+    const nuevoEstado = !gestionAbierta;
+    setGestionAbierta(nuevoEstado);
+    if (nuevoEstado) {
+      await cargarGestionSoportes();
+    }
   };
 
   const cargarTodo = async () => {
@@ -1099,6 +1289,173 @@ export default function ServiciosPage() {
           )}
         </div>
       </div>
+
+      {esUsuarioGestionSoportes && (
+        <section style={styles.gestionSection}>
+          <div style={styles.gestionHeader}>
+            <div>
+              <h2 style={styles.sectionTitle}>Gestión de soportes</h2>
+              <p style={styles.gestionSubtitle}>
+                Acceso exclusivo para soporte@losercol.com: cambiar consecutivos, configurar el próximo número y recuperar soportes eliminados.
+              </p>
+            </div>
+            <button onClick={() => void abrirGestionSoportes()} style={styles.secondaryButton}>
+              {gestionAbierta ? "Cerrar gestión" : "Abrir gestión"}
+            </button>
+          </div>
+
+          {gestionAbierta && (
+            <div style={styles.gestionBody}>
+              <div style={styles.gestionConfig}>
+                <div>
+                  <strong>Próximo consecutivo</strong>
+                  <div style={styles.gestionHint}>
+                    Se guardará como SP-{String(Number(gestionSiguiente || 1)).padStart(6, "0")}.
+                  </div>
+                </div>
+                <div style={styles.gestionConfigRow}>
+                  <input
+                    type="number"
+                    min={1}
+                    value={gestionSiguiente}
+                    onChange={(e) => setGestionSiguiente(e.target.value)}
+                    style={styles.input}
+                  />
+                  <button
+                    onClick={() => void guardarSiguienteNumeroGestion()}
+                    style={styles.saveButton}
+                    disabled={gestionCargando}
+                  >
+                    Guardar próximo
+                  </button>
+                </div>
+              </div>
+
+              <div style={styles.gestionSearchRow}>
+                <input
+                  value={gestionBusqueda}
+                  onChange={(e) => setGestionBusqueda(e.target.value)}
+                  placeholder="Buscar SP-000445, placa o cliente..."
+                  style={styles.input}
+                />
+                <button
+                  onClick={() => void cargarGestionSoportes()}
+                  style={styles.secondaryButton}
+                  disabled={gestionCargando}
+                >
+                  Buscar
+                </button>
+              </div>
+
+              {gestionMensaje && <div style={styles.infoBox}>{gestionMensaje}</div>}
+
+              <div style={isMobile ? styles.gestionGridMobile : styles.gestionGrid}>
+                <div style={styles.gestionPanel}>
+                  <h3 style={styles.gestionPanelTitle}>Soportes actuales</h3>
+                  {gestionServicios.length === 0 ? (
+                    <div style={styles.empty}>No hay resultados.</div>
+                  ) : (
+                    <div style={styles.gestionList}>
+                      {(() => {
+                        const vistos = new Set<string>();
+                        return gestionServicios.map((servicio) => {
+                          if (vistos.has(servicio.numeroSoporte)) return null;
+                          vistos.add(servicio.numeroSoporte);
+
+                          return (
+                            <div key={servicio.id} style={styles.gestionRow}>
+                              <div>
+                                <strong>{servicio.numeroSoporte}</strong>
+                                <div style={styles.gestionHint}>
+                                  {servicio.placa || "-"} · {servicio.cliente || "-"} · {servicio.descripcion || "-"}
+                                </div>
+                              </div>
+                              <div style={styles.gestionActionRow}>
+                                <input
+                                  value={
+                                    gestionEditandoNumero[servicio.id] ||
+                                    servicio.numeroSoporte
+                                  }
+                                  onChange={(e) =>
+                                    setGestionEditandoNumero((prev) => ({
+                                      ...prev,
+                                      [servicio.id]: e.target.value,
+                                    }))
+                                  }
+                                  style={styles.gestionNumberInput}
+                                />
+                                <button
+                                  onClick={() =>
+                                    void cambiarNumeroSoporteGestion(servicio)
+                                  }
+                                  style={styles.editButton}
+                                  disabled={gestionCargando}
+                                >
+                                  Cambiar
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+                </div>
+
+                <div style={styles.gestionPanel}>
+                  <h3 style={styles.gestionPanelTitle}>Soportes eliminados / recuperación</h3>
+                  {gestionEliminados.length === 0 ? (
+                    <div style={styles.empty}>No hay soportes pendientes de recuperación.</div>
+                  ) : (
+                    <div style={styles.gestionList}>
+                      {(() => {
+                        const vistos = new Set<string>();
+                        return gestionEliminados.map((item) => {
+                          if (vistos.has(item.numeroSoporte)) return null;
+                          vistos.add(item.numeroSoporte);
+
+                          return (
+                            <div key={item.id} style={styles.gestionRow}>
+                              <div>
+                                <strong>{item.numeroSoporte}</strong>
+                                <div style={styles.gestionHint}>
+                                  Eliminado {new Date(item.eliminadoAt).toLocaleString("es-CO")}
+                                </div>
+                              </div>
+                              <div style={styles.gestionActionRow}>
+                                <input
+                                  defaultValue={item.numeroSoporte}
+                                  id={`recuperar-${item.id}`}
+                                  style={styles.gestionNumberInput}
+                                />
+                                <button
+                                  onClick={() => {
+                                    const input = document.getElementById(
+                                      `recuperar-${item.id}`
+                                    ) as HTMLInputElement | null;
+                                    void recuperarSoporteGestion(
+                                      item.numeroSoporte,
+                                      input?.value || item.numeroSoporte
+                                    );
+                                  }}
+                                  style={styles.saveButton}
+                                  disabled={gestionCargando}
+                                >
+                                  Recuperar
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        });
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       <section style={styles.filtersCard}>
         <h2 style={styles.sectionTitle}>Búsqueda y filtros</h2>
@@ -1869,6 +2226,101 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: "12px",
     whiteSpace: "nowrap",
+  },
+
+  gestionSection: {
+    background: "#fff",
+    border: "2px solid #111827",
+    borderRadius: "12px",
+    padding: "18px",
+    marginBottom: "18px",
+  },
+  gestionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "14px",
+    flexWrap: "wrap",
+  },
+  gestionSubtitle: {
+    margin: "4px 0 0",
+    color: "#475569",
+    fontSize: "13px",
+  },
+  gestionBody: {
+    marginTop: "16px",
+    display: "grid",
+    gap: "14px",
+  },
+  gestionConfig: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    flexWrap: "wrap",
+    background: "#f8fafc",
+    border: "1px solid #e2e8f0",
+    borderRadius: "10px",
+    padding: "12px",
+  },
+  gestionConfigRow: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+    flexWrap: "wrap",
+  },
+  gestionSearchRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: "8px",
+  },
+  gestionGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "14px",
+  },
+  gestionGridMobile: {
+    display: "grid",
+    gridTemplateColumns: "1fr",
+    gap: "14px",
+  },
+  gestionPanel: {
+    border: "1px solid #e5e7eb",
+    borderRadius: "10px",
+    overflow: "hidden",
+  },
+  gestionPanelTitle: {
+    margin: 0,
+    padding: "12px",
+    background: "#f1f5f9",
+    fontSize: "15px",
+  },
+  gestionList: {
+    display: "grid",
+  },
+  gestionRow: {
+    display: "grid",
+    gap: "8px",
+    padding: "12px",
+    borderTop: "1px solid #e5e7eb",
+  },
+  gestionActionRow: {
+    display: "grid",
+    gridTemplateColumns: "1fr auto",
+    gap: "8px",
+    alignItems: "center",
+  },
+  gestionNumberInput: {
+    width: "100%",
+    border: "1px solid #cbd5e1",
+    borderRadius: "8px",
+    padding: "9px",
+    fontWeight: 700,
+  },
+  gestionHint: {
+    marginTop: "3px",
+    color: "#64748b",
+    fontSize: "12px",
   },
 
   pageMobile: {

@@ -4,6 +4,7 @@ import { requirePermiso } from "@/src/lib/roles";
 import { tienePermiso, type AccionPermiso, type ModuloPermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
 import { getUser } from "@/src/lib/auth";
+import { obtenerSiguienteNumeroSoporte } from "@/src/lib/soporte-gestion";
 
 function limpiarTexto(valor: unknown) {
   return String(valor || "").trim();
@@ -447,12 +448,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const ultimoServicio = await prisma.servicio.findFirst({
-      orderBy: { id: "desc" },
-    });
-
-    const siguienteNumero = (ultimoServicio?.id || 0) + 1;
-    const numeroSoporte = `SP-${String(siguienteNumero).padStart(6, "0")}`;
+    const numeroSoporte = await obtenerSiguienteNumeroSoporte();
 
     const descripcion = esSoloCarpa
       ? `SERVICIO DE CARPA - ${tipoCarpa}`
@@ -533,7 +529,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const { denied } = await requirePermiso("servicios", "eliminar");
+  const { user, denied } = await requirePermiso("servicios", "eliminar");
   if (denied) return denied;
 
   try {
@@ -555,14 +551,27 @@ export async function DELETE(req: Request) {
       );
     }
 
-    await prisma.servicio.delete({
-      where: { id: servicioId },
+    const numeroSoporte = servicio.numeroSoporte || `SP-${String(servicio.id).padStart(6, "0")}`;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.soporteEliminado.create({
+        data: {
+          originalServicioId: servicio.id,
+          numeroSoporte,
+          eliminadoPor: user.email,
+          datos: JSON.parse(JSON.stringify(servicio)),
+        },
+      });
+
+      await tx.servicio.delete({
+        where: { id: servicioId },
+      });
     });
 
     await registrarAccion(
       "ELIMINAR",
       "Servicios",
-      `Eliminó soporte ${servicio.numeroSoporte || servicio.id}`
+      `Eliminó soporte ${numeroSoporte} y quedó disponible en recuperación`
     );
 
     return NextResponse.json({ ok: true });

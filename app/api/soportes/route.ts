@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { requireUser } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
+import { obtenerSiguienteNumeroSoporte } from "@/src/lib/soporte-gestion";
 
 function valorCarpa(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
