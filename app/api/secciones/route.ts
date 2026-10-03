@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireAdmin, requireUser } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
 export async function GET() {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("secciones", "ver");
   if (denied) return denied;
 
   try {
@@ -26,7 +26,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("secciones", "crear");
   if (denied) return denied;
 
   try {

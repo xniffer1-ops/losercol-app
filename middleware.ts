@@ -20,22 +20,6 @@ const rutasPublicas = [
   "/api/verificar",
 ];
 
-const paginasPorRol: Record<Rol, string[]> = {
-  superadmin: ["*"],
-  admin: ["*"],
-  auxiliar: [
-    "/",
-    "/clientes",
-    "/vehiculos",
-    "/centros",
-    "/tarifas",
-    "/servicio-rapido",
-    "/servicios",
-    "/caja",
-    "/reportes",
-  ],
-  operador: ["/", "/servicio-rapido", "/servicios", "/soportes", "/caja"],
-};
 
 function agregarHeadersSeguridad(response: NextResponse) {
   response.headers.set("X-Frame-Options", "DENY");
@@ -49,13 +33,6 @@ function agregarHeadersSeguridad(response: NextResponse) {
   return response;
 }
 
-function coincide(pathname: string, rutas: string[]) {
-  if (rutas.includes("*")) return true;
-
-  return rutas.some(
-    (ruta) => pathname === ruta || pathname.startsWith(`${ruta}/`)
-  );
-}
 
 function esRutaPublica(pathname: string) {
   return rutasPublicas.some(
@@ -176,15 +153,6 @@ export async function middleware(req: NextRequest) {
     esArchivoPublico(pathname) ||
     pathname.startsWith("/_next")
   ) {
-    if (pathname === "/login" && token) {
-      const user = await verificarToken(token);
-      if (user) {
-        return agregarHeadersSeguridad(
-          NextResponse.redirect(new URL("/", req.url))
-        );
-      }
-    }
-
     return agregarHeadersSeguridad(NextResponse.next());
   }
 
@@ -207,8 +175,6 @@ export async function middleware(req: NextRequest) {
         )
       );
     }
-  } else if (!coincide(pathname, paginasPorRol[user.rol])) {
-    return agregarHeadersSeguridad(NextResponse.redirect(new URL("/", req.url)));
   }
 
   return agregarHeadersSeguridad(NextResponse.next());

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
-import { requireAdmin, requireUser } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
 const TIPOS_USO = ["terceros", "interno", "ambos"] as const;
@@ -35,7 +35,7 @@ function normalizarId(valor: unknown) {
 }
 
 export async function GET(req: Request) {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("tarifas", "ver");
   if (denied) return denied;
 
   try {
@@ -73,7 +73,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("tarifas", "crear");
   if (denied) return denied;
 
   try {

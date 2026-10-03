@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireUser } from "@/src/lib/roles";
-import { getUser } from "@/src/lib/auth";
+import { requirePermiso } from "@/src/lib/roles";
 
 function fechaColombiaHoy() {
   const partes = new Intl.DateTimeFormat("en-CA", {
@@ -40,24 +39,15 @@ function valorServicioCaja(servicio: {
 }
 
 export async function GET(req: Request) {
-  const { denied } = await requireUser();
+  const { user, denied } = await requirePermiso("caja", "ver");
   if (denied) return denied;
 
   try {
-    const user = await getUser();
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "No hay sesión activa" },
-        { status: 401 }
-      );
-    }
-
     const { searchParams } = new URL(req.url);
     const fecha = searchParams.get("fecha") || fechaColombiaHoy();
     const centroOperacionId = Number(searchParams.get("centroOperacionId") || 0);
     const usuario = user.email || user.nombre || "sin usuario";
-    const esAdmin = user.rol === "admin" || user.rol === "superadmin";
+    const esAdmin = user.rol === "superadmin" || Boolean(user.permisos?.caja?.reabrir);
 
     const { inicio, fin } = rangoDiaColombia(fecha);
 

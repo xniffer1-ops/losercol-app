@@ -303,7 +303,7 @@ export async function POST(req: Request) {
       },
     });
 
-    if (cierre && user?.rol !== "admin" && user?.rol !== "superadmin") {
+    if (cierre && user?.rol !== "superadmin" && !user?.permisos?.caja?.reabrir) {
       return NextResponse.json(
         {
           error:

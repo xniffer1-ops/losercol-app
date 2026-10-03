@@ -29,7 +29,8 @@ type ModuloPermiso =
   | "reportes"
   | "historial"
   | "usuarios"
-  | "backup";
+  | "backup"
+  | "secciones";
 
 type PermisosUsuario = Record<ModuloPermiso, Partial<Record<AccionPermiso, boolean>>>;
 
@@ -115,6 +116,7 @@ const modulos: {
     acciones: [
       { key: "ver", label: "Ver" },
       { key: "exportar", label: "Exportar" },
+      { key: "eliminar", label: "Eliminar/anular" },
     ],
   },
   {
@@ -147,6 +149,16 @@ const modulos: {
   {
     key: "tarifas",
     label: "Tarifas",
+    acciones: [
+      { key: "ver", label: "Ver" },
+      { key: "crear", label: "Crear" },
+      { key: "editar", label: "Editar" },
+      { key: "eliminar", label: "Eliminar" },
+    ],
+  },
+  {
+    key: "secciones",
+    label: "Secciones",
     acciones: [
       { key: "ver", label: "Ver" },
       { key: "crear", label: "Crear" },
@@ -279,6 +291,11 @@ export default function UsuariosPage() {
     void cargar();
   }, []);
 
+  const puedeCrear = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.crear);
+  const puedeEditar = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.editar);
+  const puedeEliminar = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.eliminar);
+  const puedeCambiarPassword = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.cambiarPassword);
+  const puedeCambiarRol = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.cambiarRol);
   const puedeCrearSuperadmin = usuarioActual?.rol === "superadmin";
 
   const puedeGestionar = (usuario: Usuario) => {
@@ -290,7 +307,7 @@ export default function UsuariosPage() {
       return false;
     }
 
-    return usuarioActual?.rol === "admin" || usuarioActual?.rol === "superadmin";
+    return puedeEditar || puedeCambiarPassword || puedeCambiarRol || puedeEliminar;
   };
 
   const usuariosConPermisos = useMemo(() => {
@@ -311,7 +328,6 @@ export default function UsuariosPage() {
         return {
           ...prev,
           rol,
-          permisos: permisosPorRol(rol),
         };
       }
 
@@ -445,7 +461,6 @@ export default function UsuariosPage() {
         body: JSON.stringify({
           id,
           rol: nuevoRol,
-          permisos: permisosPorRol(nuevoRol),
         }),
       });
 
@@ -606,7 +621,7 @@ export default function UsuariosPage() {
                   <div style={styles.actions}>
                     {puedeGestionar(u) ? (
                       <>
-                        <button
+                        {puedeCambiarPassword && <button
                           type="button"
                           onClick={() => {
                             setPasswordEditandoId(passwordEditandoId === u.id ? null : u.id);
@@ -617,9 +632,9 @@ export default function UsuariosPage() {
                           style={styles.smallButton}
                         >
                           Contraseña
-                        </button>
+                        </button>}
 
-                        <button
+                        {puedeCambiarRol && <button
                           type="button"
                           onClick={() => {
                             setRolEditandoId(rolEditandoId === u.id ? null : u.id);
@@ -630,9 +645,9 @@ export default function UsuariosPage() {
                           style={styles.smallButton}
                         >
                           Rol
-                        </button>
+                        </button>}
 
-                        <button
+                        {puedeEditar && <button
                           type="button"
                           onClick={() => {
                             setPermisosEditandoId(permisosEditandoId === u.id ? null : u.id);
@@ -643,15 +658,15 @@ export default function UsuariosPage() {
                           style={styles.smallButton}
                         >
                           Permisos
-                        </button>
+                        </button>}
 
-                        <button
+                        {puedeEliminar && <button
                           type="button"
                           onClick={() => eliminarUsuario(u)}
                           style={styles.deleteButton}
                         >
                           Eliminar
-                        </button>
+                        </button>}
                       </>
                     ) : (
                       <span style={styles.protectedText}>Protegido</span>
@@ -723,6 +738,7 @@ export default function UsuariosPage() {
           </div>
         </section>
 
+        {puedeCrear && (
         <section style={styles.formCard}>
           <h2 style={styles.formTitle}>Crear usuario</h2>
 
@@ -782,6 +798,7 @@ export default function UsuariosPage() {
             {mensaje && <p style={styles.message}>{mensaje}</p>}
           </form>
         </section>
+        )}
       </div>
     </main>
   );

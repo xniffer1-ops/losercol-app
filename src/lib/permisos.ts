@@ -12,7 +12,8 @@ export type ModuloPermiso =
   | "reportes"
   | "historial"
   | "usuarios"
-  | "backup";
+  | "backup"
+  | "secciones";
 
 export type AccionPermiso =
   | "ver"
@@ -38,10 +39,11 @@ export const PERMISOS_TODOS: PermisosUsuario = {
   servicioRapido: { ver: true, crear: true },
   servicios: { ver: true, crear: true, editar: true, eliminar: true, pdf: true, whatsapp: true },
   caja: { ver: true, cerrar: true, reabrir: true },
-  reportes: { ver: true, exportar: true },
+  reportes: { ver: true, exportar: true, eliminar: true },
   historial: { ver: true },
   usuarios: { ver: true, crear: true, editar: true, eliminar: true, cambiarPassword: true, cambiarRol: true },
   backup: { ver: true, exportar: true },
+  secciones: { ver: true, crear: true, editar: true, eliminar: true },
 };
 
 export const PERMISOS_AUXILIAR: PermisosUsuario = {
@@ -53,10 +55,11 @@ export const PERMISOS_AUXILIAR: PermisosUsuario = {
   servicioRapido: { ver: true, crear: true },
   servicios: { ver: true, crear: true, editar: true, eliminar: false, pdf: true, whatsapp: true },
   caja: { ver: true, cerrar: true, reabrir: false },
-  reportes: { ver: true, exportar: true },
+  reportes: { ver: true, exportar: true, eliminar: false },
   historial: { ver: false },
   usuarios: { ver: false, crear: false, editar: false, eliminar: false, cambiarPassword: false, cambiarRol: false },
   backup: { ver: false, exportar: false },
+  secciones: { ver: false, crear: false, editar: false, eliminar: false },
 };
 
 export const PERMISOS_OPERADOR: PermisosUsuario = {
@@ -68,10 +71,11 @@ export const PERMISOS_OPERADOR: PermisosUsuario = {
   servicioRapido: { ver: true, crear: true },
   servicios: { ver: false, crear: false, editar: false, eliminar: false, pdf: false, whatsapp: false },
   caja: { ver: false, cerrar: false, reabrir: false },
-  reportes: { ver: false, exportar: false },
+  reportes: { ver: false, exportar: false, eliminar: false },
   historial: { ver: false },
   usuarios: { ver: false, crear: false, editar: false, eliminar: false, cambiarPassword: false, cambiarRol: false },
   backup: { ver: false, exportar: false },
+  secciones: { ver: false, crear: false, editar: false, eliminar: false },
 };
 
 export function permisosPorRol(rol: string): PermisosUsuario {

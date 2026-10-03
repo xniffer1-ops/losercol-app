@@ -18,11 +18,11 @@ async function autorizar() {
     };
   }
 
-  if (!esUsuarioGestionSoportes(user.email)) {
+  if (user.rol !== "superadmin" && !user.permisos?.servicios?.editar) {
     return {
       user,
       denied: NextResponse.json(
-        { error: "Solo soporte@losercol.com puede gestionar consecutivos y recuperar soportes" },
+        { error: "No tienes permiso para gestionar soportes" },
         { status: 403 }
       ),
     };

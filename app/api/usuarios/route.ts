@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
 import bcrypt from "bcryptjs";
-import { requireRoles } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 import { limpiarTexto, validarEmail } from "@/src/lib/validaciones";
 import {
@@ -22,14 +22,12 @@ function validarRolUsuario(rol: string): rol is RolUsuario {
 
 function puedeVerUsuario(rolActual: string, rolUsuario: string) {
   if (rolActual === "superadmin") return true;
-  if (rolActual === "admin" && rolUsuario !== "superadmin") return true;
-  return false;
+  return rolUsuario !== "superadmin";
 }
 
 function puedeGestionarUsuario(rolActual: string, rolObjetivo: string) {
   if (rolActual === "superadmin") return true;
-  if (rolActual === "admin" && rolObjetivo !== "superadmin") return true;
-  return false;
+  return rolObjetivo !== "superadmin";
 }
 
 async function contarAdminsDisponibles() {
@@ -61,7 +59,7 @@ function usuarioRespuesta(usuario: {
 }
 
 export async function GET() {
-  const { user, denied } = await requireRoles(["superadmin", "admin"]);
+  const { user, denied } = await requirePermiso("usuarios", "ver");
   if (denied || !user) {
     return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
@@ -94,7 +92,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { user, denied } = await requireRoles(["superadmin", "admin"]);
+  const { user, denied } = await requirePermiso("usuarios", "crear");
   if (denied || !user) {
     return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
@@ -181,7 +179,7 @@ export async function POST(req: Request) {
 }
 
 export async function PUT(req: Request) {
-  const { user, denied } = await requireRoles(["superadmin", "admin"]);
+  const { user, denied } = await requirePermiso("usuarios", "editar");
   if (denied || !user) {
     return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
@@ -217,6 +215,14 @@ export async function PUT(req: Request) {
         { error: "No puedes modificar este usuario" },
         { status: 403 }
       );
+    }
+
+    if (password && user.rol !== "superadmin" && !user.permisos.usuarios.cambiarPassword) {
+      return NextResponse.json({ error: "No tienes permiso para cambiar contraseñas" }, { status: 403 });
+    }
+
+    if (rol && user.rol !== "superadmin" && !user.permisos.usuarios.cambiarRol) {
+      return NextResponse.json({ error: "No tienes permiso para cambiar roles" }, { status: 403 });
     }
 
     const data: {
@@ -310,7 +316,7 @@ export async function PUT(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const { user, denied } = await requireRoles(["superadmin", "admin"]);
+  const { user, denied } = await requirePermiso("usuarios", "eliminar");
   if (denied || !user) {
     return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }

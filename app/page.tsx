@@ -136,9 +136,7 @@ export default function Home() {
         setUser(userData);
 
         if (
-          userData?.rol === "admin" ||
-          userData?.rol === "superadmin" ||
-          userData?.permisos?.dashboard?.ver
+          userData?.rol === "superadmin" || userData?.permisos?.dashboard?.ver
         ) {
           await cargarDashboard();
         }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireUser } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 import { obtenerSiguienteNumeroSoporte } from "@/src/lib/soporte-gestion";
 
@@ -12,7 +12,7 @@ function valorCarpa(tipoCarpa: string) {
 }
 
 export async function GET() {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("servicios", "ver");
   if (denied) return denied;
 
   const soportes = await prisma.soporte.findMany({
@@ -34,7 +34,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("servicios", "crear");
   if (denied) return denied;
 
   try {

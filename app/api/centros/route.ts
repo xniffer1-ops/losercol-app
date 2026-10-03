@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
-import { requireAdmin } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
 export async function GET() {
+  const { denied } = await requirePermiso("centros", "ver");
+  if (denied) return denied;
+
   try {
     const centros = await prisma.centroOperacion.findMany({
       orderBy: { id: "desc" },
@@ -20,7 +23,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("centros", "crear");
   if (denied) return denied;
 
   try {

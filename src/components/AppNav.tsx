@@ -31,7 +31,8 @@ type ModuloPermiso =
   | "reportes"
   | "historial"
   | "usuarios"
-  | "backup";
+  | "backup"
+  | "secciones";
 
 type RolUsuario = "superadmin" | "admin" | "auxiliar" | "operador";
 
@@ -126,7 +127,7 @@ const NAV_ITEMS: NavItem[] = [
     descripcion: "Áreas o secciones de trabajo",
     icon: "□",
     grupo: "Administración",
-    soloRoles: ["superadmin", "admin"],
+    modulo: "secciones",
   },
   {
     href: "/tarifas",
@@ -168,24 +169,10 @@ function esRutaSinNav(pathname: string) {
   );
 }
 
-function esAdmin(usuario: Usuario) {
-  return usuario?.rol === "admin" || usuario?.rol === "superadmin";
-}
-
 function puedeVerItem(usuario: Usuario, item: NavItem) {
   if (!usuario) return false;
-  if (item.href === "/servicios" && usuario.email.trim().toLowerCase() === "soporte@losercol.com") {
-    return true;
-  }
-  if (esAdmin(usuario)) return true;
-
-  if (item.soloRoles) {
-    return item.soloRoles.includes(usuario.rol);
-  }
-
   if (!item.modulo) return true;
-
-  return Boolean(usuario.permisos?.[item.modulo]?.ver);
+  return usuario.rol === "superadmin" || Boolean(usuario.permisos?.[item.modulo]?.ver);
 }
 
 function nombreCorto(nombre?: string) {

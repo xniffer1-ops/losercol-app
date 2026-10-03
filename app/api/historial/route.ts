@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireAdmin } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 
 const EMAIL_OCULTO = "soporte@losercol.com";
 
@@ -9,7 +9,7 @@ function debeOcultarse(usuario: string) {
 }
 
 export async function GET() {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("historial", "ver");
   if (denied) return denied;
 
   try {

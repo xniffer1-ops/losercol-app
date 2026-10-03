@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireUser } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
 const estadosPermitidos = ["pendiente", "proceso", "terminado", "facturado"];
@@ -12,7 +12,7 @@ type Params = {
 };
 
 export async function PUT(req: Request, { params }: Params) {
-  const { denied, user } = await requireUser();
+  const { denied, user } = await requirePermiso("servicios", "editar");
   if (denied) return denied;
 
   try {
@@ -29,7 +29,7 @@ export async function PUT(req: Request, { params }: Params) {
       );
     }
 
-    if (nuevoEstado === "facturado" && user?.rol !== "admin") {
+    if (nuevoEstado === "facturado" && user?.rol !== "superadmin" && !user?.permisos?.servicios?.eliminar) {
       return NextResponse.json(
         { error: "Solo un administrador puede marcar como facturado" },
         { status: 403 }

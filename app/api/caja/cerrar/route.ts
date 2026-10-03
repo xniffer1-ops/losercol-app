@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireUser } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { getUser } from "@/src/lib/auth";
 import { registrarAccion } from "@/src/lib/historial";
 
@@ -41,7 +41,7 @@ function valorServicioCaja(servicio: {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("caja", "cerrar");
   if (denied) return denied;
 
   try {
@@ -152,13 +152,13 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const { denied } = await requireUser();
+  const { denied } = await requirePermiso("caja", "reabrir");
   if (denied) return denied;
 
   try {
     const user = await getUser();
 
-    if (!user || (user.rol !== "admin" && user.rol !== "superadmin")) {
+    if (!user || (user.rol !== "superadmin" && !user.permisos?.caja?.reabrir)) {
       return NextResponse.json(
         { error: "Solo admin o superadmin puede abrir nuevamente la caja" },
         { status: 403 }

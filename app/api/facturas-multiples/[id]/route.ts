@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireAdmin } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 
 type Params = {
   params: Promise<{
@@ -9,7 +9,7 @@ type Params = {
 };
 
 export async function DELETE(req: Request, { params }: Params) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("reportes", "eliminar");
   if (denied) return denied;
 
   try {

@@ -116,8 +116,6 @@ type SoporteEliminado = {
   datos: Record<string, unknown>;
 };
 
-const EMAIL_GESTION_SOPORTES = "soporte@losercol.com";
-
 function tienePermisoServicios(user: User, accion: AccionServicios) {
   if (!user) return false;
   if (user.rol === "superadmin") return true;
@@ -517,7 +515,7 @@ export default function ServiciosPage() {
   };
 
   const esUsuarioGestionSoportes =
-    String(user?.email || "").trim().toLowerCase() === EMAIL_GESTION_SOPORTES;
+    user?.rol === "superadmin" || Boolean(user?.permisos?.servicios?.editar);
 
   const cargarGestionSoportes = async (busqueda = gestionBusqueda) => {
     if (!esUsuarioGestionSoportes) return;

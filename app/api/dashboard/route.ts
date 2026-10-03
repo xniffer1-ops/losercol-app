@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
-import { requireRoles } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 
 function valorCarpa(tipo?: string | null) {
   if (tipo === "Tracto Mula") return 46500;
@@ -138,8 +138,7 @@ function sumarCantidadPorUnidad(
 }
 
 export async function GET(req: Request) {
-  // 🔒 SOLO ADMIN / SUPERADMIN
-  const { denied } = await requireRoles(["superadmin", "admin"]);
+  const { denied } = await requirePermiso("dashboard", "ver");
   if (denied) return denied;
 
   try {

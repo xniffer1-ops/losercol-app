@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requirePermiso } from "@/src/lib/roles";
 import { prisma } from "@/src/lib/prisma";
 
 function calcularSinIVA(valor: number) {
@@ -17,6 +18,8 @@ function valorCarpa(tipo: string | null) {
 }
 
 export async function POST(req: Request) {
+  const { denied } = await requirePermiso("reportes", "exportar");
+  if (denied) return denied;
   try {
     const { ids } = await req.json();
 

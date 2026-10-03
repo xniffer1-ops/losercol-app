@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { requireAdmin } from "@/src/lib/roles";
+import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
 
 type Params = {
@@ -39,7 +39,7 @@ function normalizarTipoUso(valor: unknown): TipoUso {
 }
 
 export async function PUT(req: Request, { params }: Params) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("tarifas", "editar");
   if (denied) return denied;
 
   try {
@@ -161,7 +161,7 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  const { denied } = await requireAdmin();
+  const { denied } = await requirePermiso("tarifas", "eliminar");
   if (denied) return denied;
 
   try {
