@@ -158,7 +158,7 @@ export async function DELETE(req: Request) {
   try {
     const user = await getUser();
 
-    if (!user || (user.rol !== "superadmin" && !user.permisos?.caja?.reabrir)) {
+    if (!user || (user.rol !== "admin" && user.rol !== "superadmin")) {
       return NextResponse.json(
         { error: "Solo admin o superadmin puede abrir nuevamente la caja" },
         { status: 403 }

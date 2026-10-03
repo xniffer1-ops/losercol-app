@@ -138,6 +138,7 @@ function sumarCantidadPorUnidad(
 }
 
 export async function GET(req: Request) {
+  // 🔒 SOLO ADMIN / SUPERADMIN
   const { denied } = await requirePermiso("dashboard", "ver");
   if (denied) return denied;
 

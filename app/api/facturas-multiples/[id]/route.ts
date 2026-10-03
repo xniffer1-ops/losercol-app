@@ -9,7 +9,7 @@ type Params = {
 };
 
 export async function DELETE(req: Request, { params }: Params) {
-  const { denied } = await requirePermiso("reportes", "eliminar");
+  const { denied } = await requirePermiso("servicios", "pdf");
   if (denied) return denied;
 
   try {

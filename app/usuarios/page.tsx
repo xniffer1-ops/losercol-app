@@ -116,7 +116,6 @@ const modulos: {
     acciones: [
       { key: "ver", label: "Ver" },
       { key: "exportar", label: "Exportar" },
-      { key: "eliminar", label: "Eliminar/anular" },
     ],
   },
   {
@@ -157,6 +156,14 @@ const modulos: {
     ],
   },
   {
+    key: "backup",
+    label: "Backup",
+    acciones: [
+      { key: "ver", label: "Ver" },
+      { key: "exportar", label: "Exportar" },
+    ],
+  },
+  {
     key: "secciones",
     label: "Secciones",
     acciones: [
@@ -164,14 +171,6 @@ const modulos: {
       { key: "crear", label: "Crear" },
       { key: "editar", label: "Editar" },
       { key: "eliminar", label: "Eliminar" },
-    ],
-  },
-  {
-    key: "backup",
-    label: "Backup",
-    acciones: [
-      { key: "ver", label: "Ver" },
-      { key: "exportar", label: "Exportar" },
     ],
   },
 ];
@@ -212,6 +211,7 @@ const permisosPorRol = (rol: RolUsuario): PermisosUsuario => {
     p.reportes = { ver: true, exportar: true };
     p.centros = { ver: true };
     p.tarifas = { ver: true };
+    p.secciones = { ver: true };
     return p;
   }
 
@@ -222,6 +222,7 @@ const permisosPorRol = (rol: RolUsuario): PermisosUsuario => {
   p.caja = { ver: true, cerrar: true, reabrir: false };
   p.centros = { ver: true };
   p.tarifas = { ver: true };
+  p.secciones = { ver: false };
   return p;
 };
 
@@ -291,23 +292,14 @@ export default function UsuariosPage() {
     void cargar();
   }, []);
 
-  const puedeCrear = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.crear);
-  const puedeEditar = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.editar);
-  const puedeEliminar = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.eliminar);
-  const puedeCambiarPassword = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.cambiarPassword);
-  const puedeCambiarRol = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.cambiarRol);
   const puedeCrearSuperadmin = usuarioActual?.rol === "superadmin";
+  const puedeVerUsuarios = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.ver);
 
   const puedeGestionar = (usuario: Usuario) => {
-    if (usuario.rol === "superadmin" && usuarioActual?.rol !== "superadmin") {
-      return false;
-    }
-
-    if (usuarioActual?.id === usuario.id && usuario.rol === "superadmin") {
-      return false;
-    }
-
-    return puedeEditar || puedeCambiarPassword || puedeCambiarRol || puedeEliminar;
+    if (!usuarioActual) return false;
+    if (usuario.rol === "superadmin" && usuarioActual.rol !== "superadmin") return false;
+    if (usuarioActual.id === usuario.id && usuario.rol === "superadmin") return false;
+    return usuarioActual.rol === "superadmin" || Boolean(usuarioActual.permisos?.usuarios?.editar);
   };
 
   const usuariosConPermisos = useMemo(() => {
@@ -328,6 +320,7 @@ export default function UsuariosPage() {
         return {
           ...prev,
           rol,
+          permisos: permisosPorRol(rol),
         };
       }
 
@@ -461,6 +454,7 @@ export default function UsuariosPage() {
         body: JSON.stringify({
           id,
           rol: nuevoRol,
+          permisos: permisosPorRol(nuevoRol),
         }),
       });
 
@@ -568,6 +562,10 @@ export default function UsuariosPage() {
     </div>
   );
 
+  if (!puedeVerUsuarios) {
+    return <main style={styles.page}><div style={styles.message}>No tienes permiso para ver usuarios.</div></main>;
+  }
+
   return (
     <main style={styles.page}>
       <div style={styles.topBar}>
@@ -621,7 +619,7 @@ export default function UsuariosPage() {
                   <div style={styles.actions}>
                     {puedeGestionar(u) ? (
                       <>
-                        {puedeCambiarPassword && <button
+                        <button
                           type="button"
                           onClick={() => {
                             setPasswordEditandoId(passwordEditandoId === u.id ? null : u.id);
@@ -632,9 +630,9 @@ export default function UsuariosPage() {
                           style={styles.smallButton}
                         >
                           Contraseña
-                        </button>}
+                        </button>
 
-                        {puedeCambiarRol && <button
+                        <button
                           type="button"
                           onClick={() => {
                             setRolEditandoId(rolEditandoId === u.id ? null : u.id);
@@ -645,9 +643,9 @@ export default function UsuariosPage() {
                           style={styles.smallButton}
                         >
                           Rol
-                        </button>}
+                        </button>
 
-                        {puedeEditar && <button
+                        <button
                           type="button"
                           onClick={() => {
                             setPermisosEditandoId(permisosEditandoId === u.id ? null : u.id);
@@ -658,15 +656,15 @@ export default function UsuariosPage() {
                           style={styles.smallButton}
                         >
                           Permisos
-                        </button>}
+                        </button>
 
-                        {puedeEliminar && <button
+                        <button
                           type="button"
                           onClick={() => eliminarUsuario(u)}
                           style={styles.deleteButton}
                         >
                           Eliminar
-                        </button>}
+                        </button>
                       </>
                     ) : (
                       <span style={styles.protectedText}>Protegido</span>
@@ -738,7 +736,6 @@ export default function UsuariosPage() {
           </div>
         </section>
 
-        {puedeCrear && (
         <section style={styles.formCard}>
           <h2 style={styles.formTitle}>Crear usuario</h2>
 
@@ -798,7 +795,6 @@ export default function UsuariosPage() {
             {mensaje && <p style={styles.message}>{mensaje}</p>}
           </form>
         </section>
-        )}
       </div>
     </main>
   );

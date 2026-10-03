@@ -18,8 +18,9 @@ function valorCarpa(tipo: string | null) {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requirePermiso("reportes", "exportar");
+  const { denied } = await requirePermiso("servicios", "pdf");
   if (denied) return denied;
+
   try {
     const { ids } = await req.json();
 
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "No encontrados" }, { status: 404 });
     }
 
-    let filas: any[] = [];
+    const filas: any[] = [];
     let subtotalSinIVA = 0;
     let totalIVA = 0;
 

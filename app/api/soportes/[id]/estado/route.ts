@@ -29,9 +29,9 @@ export async function PUT(req: Request, { params }: Params) {
       );
     }
 
-    if (nuevoEstado === "facturado" && user?.rol !== "superadmin" && !user?.permisos?.servicios?.eliminar) {
+    if (nuevoEstado === "facturado" && user?.rol !== "superadmin" && !user?.permisos?.servicios?.editar) {
       return NextResponse.json(
-        { error: "Solo un administrador puede marcar como facturado" },
+        { error: "No tienes permiso para marcar servicios como facturados" },
         { status: 403 }
       );
     }

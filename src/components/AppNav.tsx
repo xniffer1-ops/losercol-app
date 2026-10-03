@@ -169,10 +169,20 @@ function esRutaSinNav(pathname: string) {
   );
 }
 
+
 function puedeVerItem(usuario: Usuario, item: NavItem) {
   if (!usuario) return false;
+  if (item.href === "/secciones" && !item.modulo) {
+    return usuario.rol === "superadmin" || usuario.rol === "admin";
+  }
+
+  if (item.soloRoles) {
+    return item.soloRoles.includes(usuario.rol);
+  }
+
   if (!item.modulo) return true;
-  return usuario.rol === "superadmin" || Boolean(usuario.permisos?.[item.modulo]?.ver);
+
+  return Boolean(usuario.permisos?.[item.modulo]?.ver);
 }
 
 function nombreCorto(nombre?: string) {

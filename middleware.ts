@@ -20,7 +20,6 @@ const rutasPublicas = [
   "/api/verificar",
 ];
 
-
 function agregarHeadersSeguridad(response: NextResponse) {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-Content-Type-Options", "nosniff");
@@ -138,11 +137,6 @@ function respuestaNoAutorizado(req: NextRequest) {
   return response;
 }
 
-function rolPuedeUsarApi(_rol: Rol, _pathname: string, _method: string) {
-  // El middleware solo valida sesión y rutas generales.
-  // Los permisos finos se validan dentro de cada API con requirePermiso().
-  return true;
-}
 
 export async function middleware(req: NextRequest) {
   const token = req.cookies.get("token")?.value;
@@ -153,6 +147,15 @@ export async function middleware(req: NextRequest) {
     esArchivoPublico(pathname) ||
     pathname.startsWith("/_next")
   ) {
+    if (pathname === "/login" && token) {
+      const user = await verificarToken(token);
+      if (user) {
+        return agregarHeadersSeguridad(
+          NextResponse.redirect(new URL("/", req.url))
+        );
+      }
+    }
+
     return agregarHeadersSeguridad(NextResponse.next());
   }
 
@@ -164,17 +167,6 @@ export async function middleware(req: NextRequest) {
 
   if (!user || !user.rol) {
     return agregarHeadersSeguridad(respuestaNoAutorizado(req));
-  }
-
-  if (pathname.startsWith("/api")) {
-    if (!rolPuedeUsarApi(user.rol, pathname, req.method)) {
-      return agregarHeadersSeguridad(
-        NextResponse.json(
-          { error: "No tienes permiso para esta API" },
-          { status: 403 }
-        )
-      );
-    }
   }
 
   return agregarHeadersSeguridad(NextResponse.next());

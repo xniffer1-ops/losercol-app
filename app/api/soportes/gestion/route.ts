@@ -1,34 +1,14 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
-import { getUser } from "@/src/lib/auth";
+import { requirePermiso } from "@/src/lib/roles";
 import {
-  esUsuarioGestionSoportes,
   normalizarNumeroSoporte,
   numeroDesdeSoporte,
 } from "@/src/lib/soporte-gestion";
 import { registrarAccion } from "@/src/lib/historial";
 
-async function autorizar() {
-  const user = await getUser();
-
-  if (!user) {
-    return {
-      user: null,
-      denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }),
-    };
-  }
-
-  if (user.rol !== "superadmin" && !user.permisos?.servicios?.editar) {
-    return {
-      user,
-      denied: NextResponse.json(
-        { error: "No tienes permiso para gestionar soportes" },
-        { status: 403 }
-      ),
-    };
-  }
-
-  return { user, denied: null };
+async function autorizar(accion: "ver" | "editar" | "crear") {
+  return requirePermiso("servicios", accion);
 }
 
 function serializarServicio(servicio: any) {
@@ -45,7 +25,7 @@ function serializarServicio(servicio: any) {
 }
 
 export async function GET(req: Request) {
-  const { denied } = await autorizar();
+  const { denied } = await autorizar("ver");
   if (denied) return denied;
 
   const { searchParams } = new URL(req.url);
@@ -112,7 +92,7 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const { user, denied } = await autorizar();
+  const { user, denied } = await autorizar("editar");
   if (denied) return denied;
 
   try {
@@ -290,7 +270,7 @@ export async function PATCH(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { user, denied } = await autorizar();
+  const { user, denied } = await autorizar("crear");
   if (denied) return denied;
 
   try {

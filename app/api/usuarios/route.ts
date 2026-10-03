@@ -22,12 +22,14 @@ function validarRolUsuario(rol: string): rol is RolUsuario {
 
 function puedeVerUsuario(rolActual: string, rolUsuario: string) {
   if (rolActual === "superadmin") return true;
-  return rolUsuario !== "superadmin";
+  if (rolActual === "admin" && rolUsuario !== "superadmin") return true;
+  return false;
 }
 
 function puedeGestionarUsuario(rolActual: string, rolObjetivo: string) {
   if (rolActual === "superadmin") return true;
-  return rolObjetivo !== "superadmin";
+  if (rolActual === "admin" && rolObjetivo !== "superadmin") return true;
+  return false;
 }
 
 async function contarAdminsDisponibles() {
@@ -215,14 +217,6 @@ export async function PUT(req: Request) {
         { error: "No puedes modificar este usuario" },
         { status: 403 }
       );
-    }
-
-    if (password && user.rol !== "superadmin" && !user.permisos.usuarios.cambiarPassword) {
-      return NextResponse.json({ error: "No tienes permiso para cambiar contraseñas" }, { status: 403 });
-    }
-
-    if (rol && user.rol !== "superadmin" && !user.permisos.usuarios.cambiarRol) {
-      return NextResponse.json({ error: "No tienes permiso para cambiar roles" }, { status: 403 });
     }
 
     const data: {
