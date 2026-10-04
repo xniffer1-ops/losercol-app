@@ -219,7 +219,7 @@ export default function LoginPage() {
           max-width: 100%;
           height: auto;
           display: block;
-          filter: brightness(0) invert(1) drop-shadow(0 18px 32px rgba(0, 0, 0, 0.12));
+          filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.12));
         }
 
         .brand-kicker {
