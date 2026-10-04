@@ -4,23 +4,26 @@ import { requirePermiso } from "@/src/lib/roles";
 import { getUser } from "@/src/lib/auth";
 import { tienePermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
+import { idsCentrosConPermiso } from "@/src/lib/permisos-centros";
 
 
 async function requireLecturaCentro() {
   const user = await getUser();
-  if (!user) return { denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
+  if (!user) return { user: null, denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
   if (user.rol === "superadmin" || tienePermiso(user.permisos, "centros", "ver") || tienePermiso(user.permisos, "servicioRapido", "ver")) {
-    return { denied: null };
+    return { user, denied: null };
   }
-  return { denied: NextResponse.json({ error: "No tienes permiso para esta acción" }, { status: 403 }) };
+  return { user, denied: NextResponse.json({ error: "No tienes permiso para esta acción" }, { status: 403 }) };
 }
 
 export async function GET() {
-  const { denied } = await requireLecturaCentro();
-  if (denied) return denied;
+  const { user, denied } = await requireLecturaCentro();
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
+    const ids = idsCentrosConPermiso(user, "ver");
     const centros = await prisma.centroOperacion.findMany({
+      where: ids ? { id: { in: ids } } : undefined,
       orderBy: { id: "desc" },
     });
 

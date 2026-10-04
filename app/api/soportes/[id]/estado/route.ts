@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
+import { tienePermisoCentro } from "@/src/lib/permisos-centros";
 
 const estadosPermitidos = ["pendiente", "proceso", "terminado", "facturado"];
 
@@ -34,6 +35,19 @@ export async function PUT(req: Request, { params }: Params) {
         { error: "No tienes permiso para marcar servicios como facturados" },
         { status: 403 }
       );
+    }
+
+    const soporteActual = await prisma.soporte.findUnique({
+      where: { id: soporteId },
+      select: { centroOperacionId: true },
+    });
+
+    if (!soporteActual) {
+      return NextResponse.json({ error: "Soporte no encontrado" }, { status: 404 });
+    }
+
+    if (!tienePermisoCentro(user!, soporteActual.centroOperacionId, "editar")) {
+      return NextResponse.json({ error: "No tienes permiso para editar soportes en este centro" }, { status: 403 });
     }
 
     const data: {

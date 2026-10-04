@@ -28,7 +28,10 @@ export type AccionPermiso =
   | "cambiarPassword"
   | "cambiarRol";
 
-export type PermisosUsuario = Record<ModuloPermiso, Partial<Record<AccionPermiso, boolean>>>;
+export type CentrosAcceso = Record<string, Partial<Record<AccionPermiso, boolean>>>;
+export type PermisosUsuario = Record<ModuloPermiso, Partial<Record<AccionPermiso, boolean>>> & {
+  centrosAcceso?: CentrosAcceso;
+};
 
 export const PERMISOS_TODOS: PermisosUsuario = {
   dashboard: { ver: true },
@@ -119,6 +122,43 @@ export function parsearPermisos(permisos: unknown, rol = "operador"): PermisosUs
         }
       });
     });
+
+    const centrosEntrada = (parsed as { centrosAcceso?: unknown }).centrosAcceso;
+    if (
+      centrosEntrada &&
+      typeof centrosEntrada === "object" &&
+      !Array.isArray(centrosEntrada)
+    ) {
+      const centrosAcceso: CentrosAcceso = {};
+
+      Object.entries(centrosEntrada as Record<string, unknown>).forEach(
+        ([centroId, acciones]) => {
+          if (
+            !/^\d+$/.test(centroId) ||
+            !acciones ||
+            typeof acciones !== "object" ||
+            Array.isArray(acciones)
+          ) {
+            return;
+          }
+
+          const permitidos: Partial<Record<AccionPermiso, boolean>> = {};
+          Object.entries(acciones as Record<string, unknown>).forEach(
+            ([accion, valor]) => {
+              if (
+                ["ver", "crear", "editar", "eliminar", "pdf", "whatsapp", "cerrar", "reabrir", "exportar"].includes(accion) &&
+                typeof valor === "boolean"
+              ) {
+                permitidos[accion as AccionPermiso] = valor;
+              }
+            }
+          );
+          centrosAcceso[centroId] = permitidos;
+        }
+      );
+
+      base.centrosAcceso = centrosAcceso;
+    }
 
     return base;
   } catch {

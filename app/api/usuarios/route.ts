@@ -3,6 +3,7 @@ import { prisma } from "../../../src/lib/prisma";
 import bcrypt from "bcryptjs";
 import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
+import { puedeAdministrarAccesoCentros } from "@/src/lib/permisos-centros";
 import { limpiarTexto, validarEmail } from "@/src/lib/validaciones";
 import {
   parsearPermisos,
@@ -165,6 +166,16 @@ export async function POST(req: Request) {
       );
     }
 
+    if (
+      body.permisos?.centrosAcceso &&
+      !puedeAdministrarAccesoCentros(user)
+    ) {
+      return NextResponse.json(
+        { error: "Solo Admin@losercol.com y soporte@losercol.com pueden asignar acceso por centro." },
+        { status: 403 }
+      );
+    }
+
     const hash = await bcrypt.hash(password, 10);
     const permisos = serializarPermisos(body.permisos, rol);
 
@@ -207,6 +218,18 @@ export async function PUT(req: Request) {
     const password = limpiarTexto(body.password);
     const rol = limpiarTexto(body.rol);
     const tienePermisosBody = Object.prototype.hasOwnProperty.call(body, "permisos");
+    const permisosIncluyenCentros =
+      Boolean(body.permisos) &&
+      typeof body.permisos === "object" &&
+      body.permisos !== null &&
+      Object.prototype.hasOwnProperty.call(body.permisos, "centrosAcceso");
+
+    if (permisosIncluyenCentros && !puedeAdministrarAccesoCentros(user)) {
+      return NextResponse.json(
+        { error: "Solo Admin@losercol.com y soporte@losercol.com pueden administrar el acceso por centro." },
+        { status: 403 }
+      );
+    }
 
     if (!id) {
       return NextResponse.json(

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
 import { getUser } from "@/src/lib/auth";
+import { tienePermisoCentro, idsCentrosConPermiso } from "@/src/lib/permisos-centros";
 import { tienePermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
 
@@ -38,16 +39,16 @@ function normalizarId(valor: unknown) {
 
 async function requireLecturaTarifa() {
   const user = await getUser();
-  if (!user) return { denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
+  if (!user) return { user: null, denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
   if (user.rol === "superadmin" || tienePermiso(user.permisos, "tarifas", "ver") || tienePermiso(user.permisos, "servicioRapido", "ver")) {
-    return { denied: null };
+    return { user, denied: null };
   }
-  return { denied: NextResponse.json({ error: "No tienes permiso para esta acción" }, { status: 403 }) };
+  return { user, denied: NextResponse.json({ error: "No tienes permiso para esta acción" }, { status: 403 }) };
 }
 
 export async function GET(req: Request) {
-  const { denied } = await requireLecturaTarifa();
-  if (denied) return denied;
+  const { user, denied } = await requireLecturaTarifa();
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const { searchParams } = new URL(req.url);
@@ -57,8 +58,14 @@ export async function GET(req: Request) {
 
     const where: any = {};
 
+    const centrosPermitidos = idsCentrosConPermiso(user, "ver");
     if (centroOperacionId) {
+      if (!tienePermisoCentro(user, centroOperacionId, "ver")) {
+        return NextResponse.json({ error: "No tienes acceso a este centro" }, { status: 403 });
+      }
       where.centroOperacionId = centroOperacionId;
+    } else if (centrosPermitidos) {
+      where.centroOperacionId = { in: centrosPermitidos };
     }
 
     if (tipoUso) {
@@ -84,8 +91,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requirePermiso("tarifas", "crear");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("tarifas", "crear");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const body = await req.json();
@@ -127,6 +134,10 @@ export async function POST(req: Request) {
         { error: "Centro de operación no encontrado" },
         { status: 404 }
       );
+    }
+
+    if (!tienePermisoCentro(user, centroOperacionId, "crear")) {
+      return NextResponse.json({ error: "No tienes permiso para crear tarifas en este centro" }, { status: 403 });
     }
 
     const existe = await prisma.tarifa.findUnique({

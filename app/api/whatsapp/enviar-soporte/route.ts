@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { getUser } from "@/src/lib/auth";
 import { tienePermiso, type AccionPermiso, type ModuloPermiso } from "@/src/lib/permisos";
+import { prisma } from "@/src/lib/prisma";
+import { tienePermisoCentro } from "@/src/lib/permisos-centros";
 
 type WhatsAppBody = {
   telefono?: unknown;
@@ -44,12 +46,13 @@ async function requirePermisoWhatsApp() {
 
   if (!user) {
     return {
+      user: null,
       denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }),
     };
   }
 
   if (user.rol === "superadmin") {
-    return { denied: null };
+    return { user, denied: null };
   }
 
   const permisosPermitidos: Array<[ModuloPermiso, AccionPermiso]> = [
@@ -70,12 +73,12 @@ async function requirePermisoWhatsApp() {
     };
   }
 
-  return { denied: null };
+  return { user, denied: null };
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requirePermisoWhatsApp();
-  if (denied) return denied;
+  const { user, denied } = await requirePermisoWhatsApp();
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const body = (await req.json()) as WhatsAppBody;
@@ -97,6 +100,23 @@ export async function POST(req: Request) {
     const telefono = normalizarTelefonoWhatsApp(body.telefono);
     const numeroSoporte = limpiarTexto(body.numeroSoporte);
     const media = limpiarBase64Pdf(body.pdfBase64);
+
+    if (numeroSoporte) {
+      const servicio = await prisma.servicio.findFirst({
+        where: { numeroSoporte },
+        select: { centroOperacionId: true },
+      });
+
+      if (
+        servicio &&
+        !tienePermisoCentro(user, servicio.centroOperacionId, "whatsapp")
+      ) {
+        return NextResponse.json(
+          { error: "No tienes permiso para enviar soportes por WhatsApp desde este centro" },
+          { status: 403 }
+        );
+      }
+    }
     const fileName = nombreArchivoSeguro(body.fileName, numeroSoporte);
     const caption =
       limpiarTexto(body.caption) ||

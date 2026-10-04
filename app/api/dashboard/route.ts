@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
+import { idsCentrosConPermiso, tienePermisoCentro } from "@/src/lib/permisos-centros";
 
 function valorCarpa(tipo?: string | null) {
   if (tipo === "Tracto Mula") return 46500;
@@ -134,9 +135,8 @@ function sumarCantidadPorUnidad(
 }
 
 export async function GET(req: Request) {
-  // 🔒 SOLO ADMIN / SUPERADMIN
-  const { denied } = await requirePermiso("dashboard", "ver");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("dashboard", "ver");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const { searchParams } = new URL(req.url);
@@ -158,8 +158,14 @@ export async function GET(req: Request) {
       },
     };
 
+    const centrosPermitidos = idsCentrosConPermiso(user, "ver");
     if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
+      if (!tienePermisoCentro(user, centroOperacionId, "ver")) {
+        return NextResponse.json({ error: "No tienes acceso a este centro" }, { status: 403 });
+      }
       whereServicios.centroOperacionId = centroOperacionId;
+    } else if (centrosPermitidos) {
+      whereServicios.centroOperacionId = { in: centrosPermitidos };
     }
 
     if (tipoUso === "terceros" || tipoUso === "interno") {
@@ -171,8 +177,16 @@ export async function GET(req: Request) {
     }
 
     const [totalClientes, totalVehiculos, servicios, centros] = await Promise.all([
-      prisma.cliente.count(),
-      prisma.vehiculo.count(),
+      prisma.cliente.count({
+        where: centrosPermitidos
+          ? { servicios: { some: { centroOperacionId: { in: centrosPermitidos } } } }
+          : undefined,
+      }),
+      prisma.vehiculo.count({
+        where: centrosPermitidos
+          ? { servicios: { some: { centroOperacionId: { in: centrosPermitidos } } } }
+          : undefined,
+      }),
       prisma.servicio.findMany({
         where: whereServicios,
         include: {
@@ -186,7 +200,10 @@ export async function GET(req: Request) {
           createdAt: "desc",
         },
       }),
-      prisma.centroOperacion.findMany({ orderBy: { nombre: "asc" } }),
+      prisma.centroOperacion.findMany({
+        where: centrosPermitidos ? { id: { in: centrosPermitidos } } : undefined,
+        orderBy: { nombre: "asc" },
+      }),
     ]);
 
     const hoyColombia = fechaInputHoy();

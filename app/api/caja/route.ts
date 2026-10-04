@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
 import { getUser } from "@/src/lib/auth";
+import { tienePermisoCentro, idsCentrosConPermiso } from "@/src/lib/permisos-centros";
 
 function fechaColombiaHoy() {
   const partes = new Intl.DateTimeFormat("en-CA", {
@@ -58,6 +59,13 @@ export async function GET(req: Request) {
     const centroOperacionId = Number(searchParams.get("centroOperacionId") || 0);
     const usuario = user.email || user.nombre || "sin usuario";
     const esAdmin = user.rol === "admin" || user.rol === "superadmin";
+    const centrosPermitidos = idsCentrosConPermiso(user, "ver");
+
+    if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
+      if (!tienePermisoCentro(user, centroOperacionId, "ver")) {
+        return NextResponse.json({ error: "No tienes acceso a este centro" }, { status: 403 });
+      }
+    }
 
     const { inicio, fin } = rangoDiaColombia(fecha);
 
@@ -70,6 +78,8 @@ export async function GET(req: Request) {
 
     if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
       whereServicios.centroOperacionId = centroOperacionId;
+    } else if (centrosPermitidos) {
+      whereServicios.centroOperacionId = { in: centrosPermitidos };
     }
 
     const servicios = await prisma.servicio.findMany({
@@ -120,6 +130,8 @@ export async function GET(req: Request) {
 
     if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
       whereCierres.centroOperacionId = centroOperacionId;
+    } else if (centrosPermitidos) {
+      whereCierres.centroOperacionId = { in: centrosPermitidos };
     }
 
     const cierresDelDia = await prisma.cierreCaja.findMany({
@@ -129,6 +141,7 @@ export async function GET(req: Request) {
     });
 
     const centros = await prisma.centroOperacion.findMany({
+      where: centrosPermitidos ? { id: { in: centrosPermitidos } } : undefined,
       orderBy: { nombre: "asc" },
     });
 

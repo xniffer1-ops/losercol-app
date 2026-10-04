@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
+import { tienePermisoCentro } from "@/src/lib/permisos-centros";
 
 type Params = {
   params: Promise<{
@@ -38,8 +39,8 @@ function normalizarTipoUso(valor: unknown): TipoUso {
 }
 
 export async function PUT(req: Request, { params }: Params) {
-  const { denied } = await requirePermiso("tarifas", "editar");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("tarifas", "editar");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const { id: idParam } = await params;
@@ -101,11 +102,19 @@ export async function PUT(req: Request, { params }: Params) {
       );
     }
 
+    if (!tienePermisoCentro(user, tarifaActual.centroOperacionId || centroOperacionId, "editar")) {
+      return NextResponse.json({ error: "No tienes permiso para editar esta tarifa en su centro" }, { status: 403 });
+    }
+
     if (!centro) {
       return NextResponse.json(
         { error: "Centro de operación no encontrado" },
         { status: 404 }
       );
+    }
+
+    if (!tienePermisoCentro(user, centroOperacionId, "editar")) {
+      return NextResponse.json({ error: "No tienes permiso para editar tarifas en este centro" }, { status: 403 });
     }
 
     const codigoUsado = await prisma.tarifa.findUnique({
@@ -160,8 +169,8 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 export async function DELETE(_req: Request, { params }: Params) {
-  const { denied } = await requirePermiso("tarifas", "eliminar");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("tarifas", "eliminar");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const { id: idParam } = await params;
@@ -189,6 +198,10 @@ export async function DELETE(_req: Request, { params }: Params) {
         { error: "La tarifa no existe" },
         { status: 404 }
       );
+    }
+
+    if (!tienePermisoCentro(user, tarifa.centroOperacionId || 0, "eliminar")) {
+      return NextResponse.json({ error: "No tienes permiso para eliminar esta tarifa en su centro" }, { status: 403 });
     }
 
     if (tarifa.servicios.length > 0) {

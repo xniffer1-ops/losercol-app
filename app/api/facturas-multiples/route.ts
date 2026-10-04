@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
-import { getUser } from "@/src/lib/auth";
+import { tienePermisoCentro } from "@/src/lib/permisos-centros";
 
 export async function GET() {
-  const { denied } = await requirePermiso("servicios", "pdf");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("servicios", "pdf");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const facturas = await prisma.facturaMultiple.findMany({
@@ -29,11 +29,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requirePermiso("servicios", "pdf");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("servicios", "pdf");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
-    const user = await getUser();
     const body = await req.json();
 
     const ids: number[] = Array.isArray(body.ids)
@@ -64,6 +63,17 @@ export async function POST(req: Request) {
       return NextResponse.json(
         { error: "No se encontraron servicios" },
         { status: 404 }
+      );
+    }
+
+    if (
+      servicios.some(
+        (servicio) => !tienePermisoCentro(user, servicio.centroOperacionId, "pdf")
+      )
+    ) {
+      return NextResponse.json(
+        { error: "No tienes permiso para facturar servicios de uno o más centros seleccionados." },
+        { status: 403 }
       );
     }
 

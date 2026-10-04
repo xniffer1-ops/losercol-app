@@ -4,6 +4,7 @@ import { requirePermiso } from "@/src/lib/roles";
 import { tienePermiso, type AccionPermiso, type ModuloPermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
 import { getUser } from "@/src/lib/auth";
+import { tienePermisoCentro, idsCentrosConPermiso } from "@/src/lib/permisos-centros";
 import { obtenerSiguienteNumeroSoporte } from "@/src/lib/soporte-gestion";
 
 function limpiarTexto(valor: unknown) {
@@ -206,8 +207,8 @@ async function requirePermisoInterno(
 }
 
 export async function GET(req: Request) {
-  const { denied } = await requirePermiso("servicios", "ver");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("servicios", "ver");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const { searchParams } = new URL(req.url);
@@ -227,8 +228,14 @@ export async function GET(req: Request) {
       };
     }
 
+    const centrosPermitidos = idsCentrosConPermiso(user, "ver");
     if (Number.isFinite(centroOperacionId) && centroOperacionId > 0) {
+      if (!tienePermisoCentro(user, centroOperacionId, "ver")) {
+        return NextResponse.json({ error: "No tienes acceso a este centro" }, { status: 403 });
+      }
       where.centroOperacionId = centroOperacionId;
+    } else if (centrosPermitidos) {
+      where.centroOperacionId = { in: centrosPermitidos };
     }
 
     if (tipoUso) {
@@ -327,6 +334,10 @@ export async function POST(req: Request) {
     const formaPago = normalizarFormaPago(body.formaPago);
     const reteIva = normalizarBoolean(body.reteIva);
     const facturaElectronica = normalizarBoolean(body.facturaElectronica);
+
+    if (!tienePermisoCentro(user, centroOperacionId, "crear")) {
+      return NextResponse.json({ error: "No tienes permiso para crear en este centro" }, { status: 403 });
+    }
 
     if (!seccionId || !clienteId || !vehiculoId || !centroOperacionId) {
       return NextResponse.json(
@@ -549,6 +560,10 @@ export async function DELETE(req: Request) {
         { error: "Servicio no encontrado" },
         { status: 404 }
       );
+    }
+
+    if (!tienePermisoCentro(user, servicio.centroOperacionId, "eliminar")) {
+      return NextResponse.json({ error: "No tienes permiso para eliminar en este centro" }, { status: 403 });
     }
 
     const numeroSoporte = servicio.numeroSoporte || `SP-${String(servicio.id).padStart(6, "0")}`;

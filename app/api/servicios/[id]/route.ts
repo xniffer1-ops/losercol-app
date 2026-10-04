@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../../src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
 import { registrarAccion } from "@/src/lib/historial";
+import { tienePermisoCentro } from "@/src/lib/permisos-centros";
 
 function limpiarTexto(valor: unknown) {
   return String(valor || "").trim();
@@ -159,8 +160,8 @@ type Params = {
 
 // 🔍 GET → necesario para imprimir soporte
 export async function GET(req: Request, { params }: Params) {
-  const { denied } = await requirePermiso("servicios", "ver");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("servicios", "ver");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const { id: rawId } = await params;
@@ -188,6 +189,10 @@ export async function GET(req: Request, { params }: Params) {
       );
     }
 
+    if (!tienePermisoCentro(user, servicio.centroOperacionId, "ver")) {
+      return NextResponse.json({ error: "No tienes acceso a este centro" }, { status: 403 });
+    }
+
     return NextResponse.json(servicio);
   } catch (error) {
     console.error("Error GET /api/servicios/[id]:", error);
@@ -200,8 +205,8 @@ export async function GET(req: Request, { params }: Params) {
 
 // ✏️ PUT → EDITAR
 export async function PUT(req: Request, { params }: Params) {
-  const { denied } = await requirePermiso("servicios", "editar");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("servicios", "editar");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const { id: rawId } = await params;
@@ -209,6 +214,19 @@ export async function PUT(req: Request, { params }: Params) {
 
     if (!id) {
       return NextResponse.json({ error: "ID inválido" }, { status: 400 });
+    }
+
+    const servicioActual = await prisma.servicio.findUnique({
+      where: { id },
+      select: { centroOperacionId: true },
+    });
+
+    if (!servicioActual) {
+      return NextResponse.json({ error: "Servicio no encontrado" }, { status: 404 });
+    }
+
+    if (!tienePermisoCentro(user, servicioActual.centroOperacionId, "editar")) {
+      return NextResponse.json({ error: "No tienes permiso para editar en este centro" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -224,6 +242,10 @@ export async function PUT(req: Request, { params }: Params) {
     const formaPago = normalizarFormaPago(body.formaPago);
     const reteIva = normalizarBoolean(body.reteIva);
     const facturaElectronica = normalizarBoolean(body.facturaElectronica);
+
+    if (!tienePermisoCentro(user, centroOperacionId, "editar")) {
+      return NextResponse.json({ error: "No tienes permiso para editar en este centro" }, { status: 403 });
+    }
 
     if (
       !tarifaId ||

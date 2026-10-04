@@ -32,7 +32,11 @@ type ModuloPermiso =
   | "backup"
   | "secciones";
 
-type PermisosUsuario = Record<ModuloPermiso, Partial<Record<AccionPermiso, boolean>>>;
+type PermisosCentro = Partial<Record<AccionPermiso, boolean>>;
+type CentrosAcceso = Record<string, PermisosCentro>;
+type PermisosUsuario = Record<ModuloPermiso, Partial<Record<AccionPermiso, boolean>>> & {
+  centrosAcceso?: CentrosAcceso;
+};
 
 type Usuario = {
   id: number;
@@ -50,6 +54,44 @@ type UsuarioActual = {
   rol: RolUsuario;
   permisos: PermisosUsuario;
 } | null;
+
+type Centro = {
+  id: number;
+  nombre: string;
+  ciudad: string;
+};
+
+const accionesCentro: { key: AccionPermiso; label: string }[] = [
+  { key: "ver", label: "Ver" },
+  { key: "crear", label: "Crear" },
+  { key: "editar", label: "Editar" },
+  { key: "eliminar", label: "Eliminar" },
+  { key: "pdf", label: "PDF" },
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "cerrar", label: "Cerrar caja" },
+  { key: "reabrir", label: "Reabrir caja" },
+  { key: "exportar", label: "Exportar" },
+];
+
+const esGestorAccesoCentros = (usuario: UsuarioActual) =>
+  Boolean(
+    usuario &&
+      ["admin@losercol.com", "soporte@losercol.com"].includes(
+        usuario.email.trim().toLowerCase()
+      )
+  );
+
+function mapaCentrosInicial(centros: Centro[], permisos?: PermisosUsuario): CentrosAcceso {
+  const existente = permisos?.centrosAcceso;
+  return Object.fromEntries(
+    centros.map((centro) => [
+      String(centro.id),
+      existente?.[String(centro.id)] || Object.fromEntries(
+        accionesCentro.map((accion) => [accion.key, true])
+      ),
+    ])
+  );
+}
 
 const modulos: {
   key: ModuloPermiso;
@@ -232,6 +274,9 @@ const initialForm = {
 export default function UsuariosPage() {
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [usuarioActual, setUsuarioActual] = useState<UsuarioActual>(null);
+  const [centros, setCentros] = useState<Centro[]>([]);
+  const [centrosAccesoFormulario, setCentrosAccesoFormulario] = useState<CentrosAcceso>({});
+  const [centrosAccesoEditando, setCentrosAccesoEditando] = useState<CentrosAcceso>({});
   const [form, setForm] = useState(initialForm);
   const [mensaje, setMensaje] = useState("");
   const [loading, setLoading] = useState(true);
@@ -287,6 +332,29 @@ export default function UsuariosPage() {
     void cargar();
   }, []);
 
+  useEffect(() => {
+    if (!esGestorAccesoCentros(usuarioActual)) return;
+
+    const cargar = async () => {
+      try {
+        const res = await fetch("/api/centros", { cache: "no-store" });
+        const data = await res.json();
+
+        if (res.ok && Array.isArray(data)) {
+          setCentros(data);
+          setCentrosAccesoFormulario((prev) => ({
+            ...mapaCentrosInicial(data),
+            ...prev,
+          }));
+        }
+      } catch {
+        setMensaje("No se pudieron cargar los centros para configurar permisos.");
+      }
+    };
+
+    void cargar();
+  }, [usuarioActual]);
+
   const puedeCrearSuperadmin = usuarioActual?.rol === "superadmin";
   const puedeVerUsuarios = usuarioActual?.rol === "superadmin" || Boolean(usuarioActual?.permisos?.usuarios?.ver);
 
@@ -317,7 +385,10 @@ export default function UsuariosPage() {
         return {
           ...prev,
           rol,
-          permisos: permisosPorRol(rol),
+          permisos: {
+            ...permisosPorRol(rol),
+            centrosAcceso: mapaCentrosInicial(centros),
+          },
         };
       }
 
@@ -378,7 +449,15 @@ export default function UsuariosPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          permisos: esGestorAccesoCentros(usuarioActual)
+            ? {
+                ...form.permisos,
+                centrosAcceso: centrosAccesoFormulario,
+              }
+            : form.permisos,
+        }),
       });
 
       const data = await res.json();
@@ -389,7 +468,14 @@ export default function UsuariosPage() {
       }
 
       setMensaje("Usuario creado correctamente");
-      setForm(initialForm);
+      setCentrosAccesoFormulario(mapaCentrosInicial(centros));
+      setForm({
+        ...initialForm,
+        permisos: {
+          ...permisosPorRol("operador"),
+          centrosAcceso: mapaCentrosInicial(centros),
+        },
+      });
       await cargarUsuarios();
     } catch {
       setMensaje("Error de conexión al crear usuario");
@@ -451,7 +537,12 @@ export default function UsuariosPage() {
         body: JSON.stringify({
           id,
           rol: nuevoRol,
-          permisos: permisosPorRol(nuevoRol),
+          permisos: esGestorAccesoCentros(usuarioActual)
+            ? {
+                ...permisosPorRol(nuevoRol),
+                centrosAcceso: centrosAccesoEditando,
+              }
+            : permisosPorRol(nuevoRol),
         }),
       });
 
@@ -482,7 +573,12 @@ export default function UsuariosPage() {
         },
         body: JSON.stringify({
           id,
-          permisos: permisosEditando,
+          permisos: esGestorAccesoCentros(usuarioActual)
+            ? {
+                ...permisosEditando,
+                centrosAcceso: centrosAccesoEditando,
+              }
+            : permisosEditando,
         }),
       });
 
@@ -532,6 +628,95 @@ export default function UsuariosPage() {
       setMensaje("Error de conexión al eliminar usuario");
     }
   };
+
+  const cambiarPermisoCentro = (
+    destino: "formulario" | "edicion",
+    centroId: number,
+    accion: AccionPermiso,
+    valor: boolean
+  ) => {
+    const setter =
+      destino === "formulario"
+        ? setCentrosAccesoFormulario
+        : setCentrosAccesoEditando;
+
+    setter((prev) => ({
+      ...prev,
+      [String(centroId)]: {
+        ...(prev[String(centroId)] || {}),
+        [accion]: valor,
+      },
+    }));
+  };
+
+  const renderPermisosCentros = (
+    permisos: CentrosAcceso,
+    destino: "formulario" | "edicion"
+  ) => (
+    <div style={styles.centrosPermisosGrid}>
+      {centros.map((centro) => {
+        const centroPermisos = permisos[String(centro.id)] || {};
+        return (
+          <div key={centro.id} style={styles.centroPermissionModule}>
+            <div style={styles.centroPermissionHeader}>
+              <div>
+                <strong>{centro.nombre}</strong>
+                <small style={styles.centroCiudad}>{centro.ciudad}</small>
+              </div>
+              <div style={styles.centroQuickActions}>
+                <button
+                  type="button"
+                  style={styles.linkAction}
+                  onClick={() =>
+                    accionesCentro.forEach((accion) =>
+                      cambiarPermisoCentro(destino, centro.id, accion.key, true)
+                    )
+                  }
+                >
+                  Todos
+                </button>
+                <button
+                  type="button"
+                  style={styles.linkAction}
+                  onClick={() => {
+                    accionesCentro.forEach((accion) =>
+                      cambiarPermisoCentro(
+                        destino,
+                        centro.id,
+                        accion.key,
+                        accion.key === "ver"
+                      )
+                    );
+                  }}
+                >
+                  Solo vista
+                </button>
+              </div>
+            </div>
+            <div style={styles.permissionChecks}>
+              {accionesCentro.map((accion) => (
+                <label key={accion.key} style={styles.permissionCheck}>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(centroPermisos[accion.key])}
+                    onChange={(e) =>
+                      cambiarPermisoCentro(
+                        destino,
+                        centro.id,
+                        accion.key,
+                        e.target.checked
+                      )
+                    }
+                  />
+                  {accion.label}
+                </label>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 
   const renderPermisos = (
     permisos: PermisosUsuario,
@@ -636,6 +821,9 @@ export default function UsuariosPage() {
                             setPasswordEditandoId(null);
                             setPermisosEditandoId(null);
                             setNuevoRol(u.rol);
+                            setCentrosAccesoEditando(
+                              mapaCentrosInicial(centros, u.permisos || permisosPorRol(u.rol))
+                            );
                           }}
                           style={styles.smallButton}
                         >
@@ -648,7 +836,11 @@ export default function UsuariosPage() {
                             setPermisosEditandoId(permisosEditandoId === u.id ? null : u.id);
                             setPasswordEditandoId(null);
                             setRolEditandoId(null);
-                            setPermisosEditando(u.permisos || permisosPorRol(u.rol));
+                            const permisosUsuario = u.permisos || permisosPorRol(u.rol);
+                            setPermisosEditando(permisosUsuario);
+                            setCentrosAccesoEditando(
+                              mapaCentrosInicial(centros, permisosUsuario)
+                            );
                           }}
                           style={styles.smallButton}
                         >
@@ -717,6 +909,16 @@ export default function UsuariosPage() {
                         
                         {renderPermisos(permisosEditando, cambiarPermisoEdicion)}
 
+                        {esGestorAccesoCentros(usuarioActual) && (
+                          <div style={styles.centerAccessBox}>
+                            <h4 style={styles.centerAccessTitle}>Acceso por centro</h4>
+                            <p style={styles.permissionsNote}>
+                              Decide en qué centros puede trabajar este usuario y qué acciones puede realizar en cada uno.
+                            </p>
+                            {renderPermisosCentros(centrosAccesoEditando, "edicion")}
+                          </div>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => guardarPermisos(u.id)}
@@ -783,6 +985,16 @@ export default function UsuariosPage() {
                 Para caja, el usuario puede verla y cerrarla si lo permites. La opción reabrir caja déjala solo para admin/superadmin.
               </p>
               {renderPermisos(form.permisos, cambiarPermisoFormulario)}
+
+              {esGestorAccesoCentros(usuarioActual) && (
+                <div style={styles.centerAccessBox}>
+                  <h4 style={styles.centerAccessTitle}>Acceso por centro</h4>
+                  <p style={styles.permissionsNote}>
+                    Cada centro puede tener sus propios permisos. Los nuevos centros se agregan aquí automáticamente como disponibles y luego puedes restringirlos.
+                  </p>
+                  {renderPermisosCentros(centrosAccesoFormulario, "formulario")}
+                </div>
+              )}
             </div>
 
             <button type="submit" style={styles.saveButton} disabled={saving}>
@@ -1009,6 +1221,50 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#555",
     fontSize: "13px",
     lineHeight: 1.4,
+  },
+  centerAccessBox: {
+    marginTop: "12px",
+    borderTop: "2px solid #e5e7eb",
+    paddingTop: "12px",
+  },
+  centerAccessTitle: {
+    margin: "0 0 6px",
+  },
+  centrosPermisosGrid: {
+    display: "grid",
+    gap: "10px",
+  },
+  centroPermissionModule: {
+    border: "1px solid #dbeafe",
+    borderRadius: "8px",
+    padding: "10px",
+    background: "#fff",
+  },
+  centroPermissionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "8px",
+    alignItems: "center",
+    marginBottom: "8px",
+    flexWrap: "wrap",
+  },
+  centroCiudad: {
+    display: "block",
+    color: "#6b7280",
+    marginTop: "2px",
+  },
+  centroQuickActions: {
+    display: "flex",
+    gap: "6px",
+  },
+  linkAction: {
+    border: "1px solid #bbb",
+    background: "#fff",
+    borderRadius: "6px",
+    padding: "5px 8px",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: 700,
   },
   permisosGrid: {
     display: "grid",

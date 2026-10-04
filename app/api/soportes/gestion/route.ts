@@ -6,6 +6,7 @@ import {
   numeroDesdeSoporte,
 } from "@/src/lib/soporte-gestion";
 import { registrarAccion } from "@/src/lib/historial";
+import { tienePermisoCentro, idsCentrosConPermiso } from "@/src/lib/permisos-centros";
 
 async function autorizar(accion: "ver" | "editar" | "crear") {
   return requirePermiso("servicios", accion);
@@ -25,13 +26,17 @@ function serializarServicio(servicio: any) {
 }
 
 export async function GET(req: Request) {
-  const { denied } = await autorizar("ver");
-  if (denied) return denied;
+  const { user, denied } = await autorizar("ver");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   const { searchParams } = new URL(req.url);
   const q = String(searchParams.get("q") || "").trim();
 
   const where: any = {};
+  const centrosPermitidos = idsCentrosConPermiso(user, "ver");
+  if (centrosPermitidos) {
+    where.centroOperacionId = { in: centrosPermitidos };
+  }
 
   if (q) {
     const numero = normalizarNumeroSoporte(q);
@@ -92,8 +97,8 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const { denied } = await autorizar("editar");
-  if (denied) return denied;
+  const { user, denied } = await autorizar("editar");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
   try {
     const body = await req.json();
@@ -112,11 +117,15 @@ export async function PATCH(req: Request) {
 
       const servicio = await prisma.servicio.findUnique({
         where: { id: servicioId },
-        select: { id: true, numeroSoporte: true },
+        select: { id: true, numeroSoporte: true, centroOperacionId: true },
       });
 
       if (!servicio) {
         return NextResponse.json({ error: "Servicio no encontrado" }, { status: 404 });
+      }
+
+      if (!tienePermisoCentro(user, servicio.centroOperacionId, "editar")) {
+        return NextResponse.json({ error: "No tienes permiso para editar soportes en este centro" }, { status: 403 });
       }
 
       const anterior =
@@ -312,6 +321,25 @@ export async function POST(req: Request) {
         raw,
       };
     });
+
+    const centrosRestauracion = Array.from(
+      new Set(
+        datos
+          .map(({ raw }) => Number(raw.centroOperacionId))
+          .filter((id) => Number.isInteger(id) && id > 0)
+      )
+    );
+
+    if (
+      centrosRestauracion.some(
+        (centroId) => !tienePermisoCentro(user, centroId, "editar")
+      )
+    ) {
+      return NextResponse.json(
+        { error: "No tienes permiso para recuperar soportes de uno o más centros." },
+        { status: 403 }
+      );
+    }
 
     const ids = datos.map(({ item }) => item.originalServicioId);
     const idExistente = await prisma.servicio.findFirst({

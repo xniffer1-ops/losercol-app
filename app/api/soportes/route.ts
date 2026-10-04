@@ -4,6 +4,7 @@ import { requirePermiso } from "@/src/lib/roles";
 import { getUser } from "@/src/lib/auth";
 import { tienePermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
+import { tienePermisoCentro, idsCentrosConPermiso } from "@/src/lib/permisos-centros";
 
 function valorCarpa(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;
@@ -13,10 +14,12 @@ function valorCarpa(tipoCarpa: string) {
 }
 
 export async function GET() {
-  const { denied } = await requirePermiso("servicios", "ver");
-  if (denied) return denied;
+  const { user, denied } = await requirePermiso("servicios", "ver");
+  if (denied || !user) return denied ?? NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+  const ids = idsCentrosConPermiso(user, "ver");
   const soportes = await prisma.soporte.findMany({
+    where: ids ? { centroOperacionId: { in: ids } } : undefined,
     include: {
       cliente: true,
       vehiculo: true,
@@ -57,6 +60,10 @@ export async function POST(req: Request) {
     const centroOperacionId = Number(body.centroOperacionId);
     const seccionId = Number(body.seccionId);
     const servicios = Array.isArray(body.servicios) ? body.servicios : [];
+
+    if (!tienePermisoCentro(user, centroOperacionId, "crear")) {
+      return NextResponse.json({ error: "No tienes permiso para crear soportes en este centro" }, { status: 403 });
+    }
 
     if (!clienteId || !vehiculoId || !centroOperacionId || !seccionId) {
       return NextResponse.json(
@@ -101,6 +108,20 @@ export async function POST(req: Request) {
       });
 
       if (!tarifa) continue;
+
+      if (
+        tarifa.centroOperacionId &&
+        tarifa.centroOperacionId !== centroOperacionId
+      ) {
+        continue;
+      }
+
+      if (!tienePermisoCentro(user, centroOperacionId, "crear")) {
+        return NextResponse.json(
+          { error: "No tienes permiso para usar servicios de este centro" },
+          { status: 403 }
+        );
+      }
 
       const valorServicio = Number(tarifa.valorUnitario) * cantidad;
       const valorAdicionalCarpa = valorCarpa(tipoCarpa);

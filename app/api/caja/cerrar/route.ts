@@ -3,6 +3,7 @@ import { prisma } from "@/src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
 import { getUser } from "@/src/lib/auth";
 import { registrarAccion } from "@/src/lib/historial";
+import { tienePermisoCentro } from "@/src/lib/permisos-centros";
 
 function fechaColombiaHoy() {
   const partes = new Intl.DateTimeFormat("en-CA", {
@@ -58,6 +59,10 @@ export async function POST(req: Request) {
     const fecha = body.fecha || fechaColombiaHoy();
     const centroOperacionId = Number(body.centroOperacionId || 0);
     const usuario = user.email || user.nombre || "sin usuario";
+
+    if (centroOperacionId > 0 && !tienePermisoCentro(user, centroOperacionId, "cerrar")) {
+      return NextResponse.json({ error: "No tienes permiso para cerrar caja en este centro" }, { status: 403 });
+    }
 
     const existe = await prisma.cierreCaja.findFirst({
       where: {
@@ -184,6 +189,10 @@ export async function DELETE(req: Request) {
         { error: "Cierre de caja no encontrado" },
         { status: 404 }
       );
+    }
+
+    if (!tienePermisoCentro(user, cierre.centroOperacionId || 0, "reabrir")) {
+      return NextResponse.json({ error: "No tienes permiso para reabrir caja en este centro" }, { status: 403 });
     }
 
     await prisma.cierreCaja.delete({
