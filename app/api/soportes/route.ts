@@ -4,7 +4,6 @@ import { requirePermiso } from "@/src/lib/roles";
 import { getUser } from "@/src/lib/auth";
 import { tienePermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
-import { obtenerSiguienteNumeroSoporte } from "@/src/lib/soporte-gestion";
 
 function valorCarpa(tipoCarpa: string) {
   if (tipoCarpa === "Tracto Mula") return 46500;

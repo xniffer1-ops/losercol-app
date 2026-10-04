@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -212,7 +212,7 @@ export default function ServiciosPage() {
     return 0;
   };
 
-  const esTarifaDeCarpa = (tarifa: Tarifa) => {
+  const esTarifaDeCarpa = useCallback((tarifa: Tarifa) => {
     const codigo = tarifa.codigo.toUpperCase().trim();
     const texto = normalizarTextoComparacion(
       `${tarifa.codigo} ${tarifa.descripcion} ${tarifa.presentacion || ""} ${tarifa.categoria || ""}`
@@ -227,9 +227,9 @@ export default function ServiciosPage() {
       texto.includes("carpe y descarpe") ||
       texto.includes("descarpe")
     );
-  };
+  }, []);
 
-  const nombreCarpaDesdeTarifa = (tarifa: Tarifa) => {
+  const nombreCarpaDesdeTarifa = useCallback((tarifa: Tarifa) => {
     const texto = normalizarTextoComparacion(
       `${tarifa.descripcion} ${tarifa.presentacion || ""} ${tarifa.codigo}`
     );
@@ -241,7 +241,7 @@ export default function ServiciosPage() {
     if (texto.includes("sencillo")) return esMedia ? "Media Sencillo" : "Sencillo";
 
     return tarifa.descripcion || tarifa.presentacion || tarifa.codigo;
-  };
+  }, []);
 
   const valorCarpaDesdeOpciones = (tipo: string, opciones: OpcionCarpa[]) => {
     const texto = normalizarTextoComparacion(tipo);
@@ -687,6 +687,8 @@ export default function ServiciosPage() {
 
   useEffect(() => {
     cargarTodo();
+    // La carga inicial debe ejecutarse una sola vez al montar la pantalla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -700,7 +702,6 @@ export default function ServiciosPage() {
     return () => window.removeEventListener("resize", actualizarVista);
   }, []);
 
-  const puedeVer = tienePermisoServicios(user, "ver");
   const puedeCrear = tienePermisoServicios(user, "crear");
   const puedeEditar = tienePermisoServicios(user, "editar");
   const puedeEliminar = tienePermisoServicios(user, "eliminar");
@@ -732,7 +733,7 @@ export default function ServiciosPage() {
         const tipo = normalizarTipoUsoTarifa(tarifa);
         return tipo === "ambos" || tipo === tipoUsoFormulario;
       });
-  }, [tarifas, form.centroOperacionId, tipoUsoFormulario]);
+  }, [tarifas, form.centroOperacionId, tipoUsoFormulario, esTarifaDeCarpa]);
 
   const opcionesCarpaFormulario = useMemo<OpcionCarpa[]>(() => {
     const centroId = Number(form.centroOperacionId);
@@ -748,7 +749,7 @@ export default function ServiciosPage() {
       }))
       .filter((opcion) => opcion.valor > 0)
       .sort((a, b) => a.etiqueta.localeCompare(b.etiqueta, "es"));
-  }, [tarifas, form.centroOperacionId]);
+  }, [tarifas, form.centroOperacionId, esTarifaDeCarpa, nombreCarpaDesdeTarifa]);
 
   const valorAdicionalCarpa = valorCarpaDesdeOpciones(
     form.tipoCarpa,
@@ -780,10 +781,6 @@ export default function ServiciosPage() {
     (acc, s) => acc + Number(s.cantidad || 0),
     0
   );
-
-  const totalFacturaElectronica = servicios.filter(
-    (s) => s.facturaElectronica
-  ).length;
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>

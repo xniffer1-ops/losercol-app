@@ -57,6 +57,8 @@ export default function CajaPage() {
 
   useEffect(() => {
     void cargarCaja();
+    // La carga inicial debe ejecutarse una sola vez al montar la pantalla.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

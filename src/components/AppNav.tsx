@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 type AccionPermiso =
@@ -343,7 +344,13 @@ export default function AppNav() {
         <aside style={styles.panel} role="menu" aria-label="Lista de páginas">
           <div style={styles.panelHeader}>
             <Link href="/" style={styles.marca} aria-label="Ir al inicio">
-              <img src="/logo-losercol.png" alt="LOSERCOL" style={styles.logo} />
+              <Image
+                src="/logo-losercol.png"
+                alt="LOSERCOL"
+                width={88}
+                height={38}
+                style={styles.logo}
+              />
               <span style={styles.marcaInfo}>
                 <strong style={styles.marcaTitulo}>LOSERCOL</strong>
                 <small style={styles.marcaSubtitulo}>Menú operativo</small>

@@ -149,6 +149,8 @@ export default function Home() {
     };
 
     void cargar();
+    // La carga inicial debe ejecutarse una sola vez al montar el dashboard.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const cerrarSesion = async () => {
@@ -591,49 +593,6 @@ function DetailItem({ label, value }: { label: string; value: string | number })
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
-  );
-}
-
-function MenuGroup({ title, items }: { title: string; items: MenuItem[] }) {
-  if (items.length === 0) return null;
-
-  return (
-    <div style={styles.menuGroup}>
-      <h3 style={styles.menuGroupTitle}>{title}</h3>
-      <div style={styles.menuGrid}>
-        {items.map((item) => (
-          <MenuButton
-            key={item.href}
-            href={item.href}
-            label={item.label}
-            icon={item.icon}
-            desc={item.desc}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function MenuButton({
-  href,
-  label,
-  icon,
-  desc,
-}: {
-  href: string;
-  label: string;
-  icon: string;
-  desc: string;
-}) {
-  return (
-    <Link href={href} style={styles.link}>
-      <button style={styles.menuButton}>
-        <span style={styles.menuIcon}>{icon}</span>
-        <span style={styles.menuLabel}>{label}</span>
-        <small style={styles.menuDesc}>{desc}</small>
-      </button>
-    </Link>
   );
 }
 

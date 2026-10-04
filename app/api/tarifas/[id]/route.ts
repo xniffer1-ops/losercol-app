@@ -9,8 +9,7 @@ type Params = {
   }>;
 };
 
-const TIPOS_USO = ["terceros", "interno", "ambos"] as const;
-type TipoUso = (typeof TIPOS_USO)[number];
+type TipoUso = "terceros" | "interno" | "ambos";
 
 function normalizarId(valor: unknown) {
   const id = Number(valor);

@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 
 export default function LoginPage() {
@@ -50,10 +51,13 @@ export default function LoginPage() {
       <section className="login-shell">
         <aside className="brand-side">
           <div className="brand-content">
-            <img
+            <Image
               src="/logo-losercol-transparente.png"
               alt="LOSERCOL"
+              width={360}
+              height={120}
               className="brand-logo"
+              priority
             />
 
             <div className="brand-copy">
@@ -86,9 +90,11 @@ export default function LoginPage() {
         <section className="form-side">
           <div className="form-card">
             <div className="mobile-logo-wrap">
-              <img
+              <Image
                 src="/logo-losercol-transparente.png"
                 alt="LOSERCOL"
+                width={260}
+                height={90}
                 className="mobile-logo"
               />
             </div>

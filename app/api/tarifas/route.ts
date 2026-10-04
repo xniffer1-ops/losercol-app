@@ -5,8 +5,7 @@ import { getUser } from "@/src/lib/auth";
 import { tienePermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
 
-const TIPOS_USO = ["terceros", "interno", "ambos"] as const;
-type TipoUso = (typeof TIPOS_USO)[number];
+type TipoUso = "terceros" | "interno" | "ambos";
 
 function normalizarBoolean(valor: unknown, defecto = true) {
   if (valor === undefined || valor === null || valor === "") return defecto;

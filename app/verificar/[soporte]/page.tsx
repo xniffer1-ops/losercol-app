@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { prisma } from "@/src/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -35,10 +34,6 @@ function valorCarpaLegacy(tipoCarpa: string) {
   if (tipoCarpa === "Sencillo") return 16950;
   if (tipoCarpa === "Media Sencillo") return 8475;
   return 0;
-}
-
-function calcularValorServicio(servicio: { valorUnitario: number; cantidad: number }) {
-  return redondearPesos(Number(servicio.valorUnitario || 0) * Number(servicio.cantidad || 0));
 }
 
 function calcularValores(servicio: {

@@ -92,7 +92,7 @@ export async function GET(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const { user, denied } = await autorizar("editar");
+  const { denied } = await autorizar("editar");
   if (denied) return denied;
 
   try {

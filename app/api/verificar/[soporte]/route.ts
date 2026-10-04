@@ -39,10 +39,6 @@ function valorCarpaLegacy(tipoCarpa: string) {
   return 0;
 }
 
-function calcularValorServicio(servicio: { valorUnitario: number; cantidad: number }) {
-  return redondearPesos(Number(servicio.valorUnitario || 0) * Number(servicio.cantidad || 0));
-}
-
 function calcularValores(servicio: {
   valorUnitario: number;
   cantidad: number;

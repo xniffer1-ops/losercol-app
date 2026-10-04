@@ -43,10 +43,6 @@ function rangoDiaColombia(fecha: string) {
   };
 }
 
-function fechaColombiaDesdeDate(fecha: Date) {
-  return fechaColombiaInput(fecha);
-}
-
 function fechaColombiaLegible(fecha: Date) {
   return new Intl.DateTimeFormat("es-CO", {
     timeZone: "America/Bogota",
