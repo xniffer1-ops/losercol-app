@@ -211,18 +211,13 @@ const permisosPorRol = (rol: RolUsuario): PermisosUsuario => {
     p.reportes = { ver: true, exportar: true };
     p.centros = { ver: true };
     p.tarifas = { ver: true };
-    p.secciones = { ver: true };
     return p;
   }
 
-  p.clientes = { ver: true, crear: true, editar: false, eliminar: false };
-  p.vehiculos = { ver: true, crear: true, editar: false, eliminar: false };
+  // El operario trabaja por Servicio rápido. Los datos de apoyo (clientes,
+  // vehículos, centros, secciones y tarifas) se consultan mediante ese permiso,
+  // sin concederle acceso a los módulos administrativos completos.
   p.servicioRapido = { ver: true, crear: true };
-  p.servicios = { ver: true, crear: true, editar: false, eliminar: false, pdf: true, whatsapp: true };
-  p.caja = { ver: true, cerrar: true, reabrir: false };
-  p.centros = { ver: true };
-  p.tarifas = { ver: true };
-  p.secciones = { ver: false };
   return p;
 };
 
@@ -303,10 +298,12 @@ export default function UsuariosPage() {
   };
 
   const usuariosConPermisos = useMemo(() => {
-    return usuarios.map((usuario) => ({
+    return usuarios
+      .filter((usuario) => usuario.email.trim().toLowerCase() !== "soporte@losercol.com")
+      .map((usuario) => ({
       ...usuario,
       permisos: usuario.permisos || permisosPorRol(usuario.rol),
-    }));
+      }));
   }, [usuarios]);
 
   const handleChange = (

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
+import { getUser } from "@/src/lib/auth";
+import { tienePermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
 import { obtenerSiguienteNumeroSoporte } from "@/src/lib/soporte-gestion";
 
@@ -34,8 +36,19 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const { denied } = await requirePermiso("servicios", "crear");
-  if (denied) return denied;
+  const user = await getUser();
+  if (!user) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  const permitido =
+    user.rol === "superadmin" ||
+    tienePermiso(user.permisos, "servicios", "crear") ||
+    tienePermiso(user.permisos, "servicioRapido", "crear");
+
+  if (!permitido) {
+    return NextResponse.json({ error: "No tienes permiso para crear soportes" }, { status: 403 });
+  }
 
   try {
     const body = await req.json();

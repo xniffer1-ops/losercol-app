@@ -1,10 +1,22 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
+import { getUser } from "@/src/lib/auth";
+import { tienePermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
 
+
+async function requireLecturaSeccion() {
+  const user = await getUser();
+  if (!user) return { denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
+  if (user.rol === "superadmin" || tienePermiso(user.permisos, "secciones", "ver") || tienePermiso(user.permisos, "servicioRapido", "ver")) {
+    return { denied: null };
+  }
+  return { denied: NextResponse.json({ error: "No tienes permiso para esta acción" }, { status: 403 }) };
+}
+
 export async function GET() {
-  const { denied } = await requirePermiso("secciones", "ver");
+  const { denied } = await requireLecturaSeccion();
   if (denied) return denied;
 
   try {

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../src/lib/prisma";
 import { requirePermiso } from "@/src/lib/roles";
+import { getUser } from "@/src/lib/auth";
+import { tienePermiso } from "@/src/lib/permisos";
 import { registrarAccion } from "@/src/lib/historial";
 
 const TIPOS_USO = ["terceros", "interno", "ambos"] as const;
@@ -34,8 +36,18 @@ function normalizarId(valor: unknown) {
   return Number.isFinite(id) && id > 0 ? id : null;
 }
 
+
+async function requireLecturaTarifa() {
+  const user = await getUser();
+  if (!user) return { denied: NextResponse.json({ error: "No autorizado" }, { status: 401 }) };
+  if (user.rol === "superadmin" || tienePermiso(user.permisos, "tarifas", "ver") || tienePermiso(user.permisos, "servicioRapido", "ver")) {
+    return { denied: null };
+  }
+  return { denied: NextResponse.json({ error: "No tienes permiso para esta acción" }, { status: 403 }) };
+}
+
 export async function GET(req: Request) {
-  const { denied } = await requirePermiso("tarifas", "ver");
+  const { denied } = await requireLecturaTarifa();
   if (denied) return denied;
 
   try {

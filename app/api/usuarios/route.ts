@@ -11,6 +11,12 @@ import {
 
 type RolUsuario = "superadmin" | "admin" | "auxiliar" | "operador";
 
+const EMAIL_USUARIO_PROTEGIDO = "soporte@losercol.com";
+
+function esUsuarioProtegido(email: string | null | undefined) {
+  return String(email || "").trim().toLowerCase() === EMAIL_USUARIO_PROTEGIDO;
+}
+
 function validarRolUsuario(rol: string): rol is RolUsuario {
   return (
     rol === "superadmin" ||
@@ -80,6 +86,7 @@ export async function GET() {
     });
 
     const usuariosPermitidos = usuarios
+      .filter((usuario) => !esUsuarioProtegido(usuario.email))
       .filter((usuario) => puedeVerUsuario(user.rol, usuario.rol))
       .map(usuarioRespuesta);
 
@@ -120,6 +127,13 @@ export async function POST(req: Request) {
 
     if (!validarEmail(email)) {
       return NextResponse.json({ error: "Email inválido" }, { status: 400 });
+    }
+
+    if (esUsuarioProtegido(email)) {
+      return NextResponse.json(
+        { error: "Ese usuario está reservado por el sistema y no puede ser creado ni administrado desde este módulo." },
+        { status: 403 }
+      );
     }
 
     if (password.length < 8) {
@@ -209,6 +223,13 @@ export async function PUT(req: Request) {
       return NextResponse.json(
         { error: "Usuario no encontrado" },
         { status: 404 }
+      );
+    }
+
+    if (esUsuarioProtegido(usuarioObjetivo.email)) {
+      return NextResponse.json(
+        { error: "Este usuario está protegido y no puede modificarse." },
+        { status: 403 }
       );
     }
 
@@ -341,6 +362,13 @@ export async function DELETE(req: Request) {
       return NextResponse.json(
         { error: "Usuario no encontrado" },
         { status: 404 }
+      );
+    }
+
+    if (esUsuarioProtegido(usuarioObjetivo.email)) {
+      return NextResponse.json(
+        { error: "Este usuario está protegido y no puede eliminarse." },
+        { status: 403 }
       );
     }
 
