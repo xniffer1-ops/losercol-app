@@ -990,7 +990,7 @@ export default function UsuariosPage() {
                 <div style={styles.centerAccessBox}>
                   <h4 style={styles.centerAccessTitle}>Acceso por centro</h4>
                   <p style={styles.permissionsNote}>
-                    Cada centro puede tener sus propios permisos. Los nuevos centros se agregan aquí automáticamente como disponibles y luego puedes restringirlos.
+                    Cada centro puede tener sus propios permisos.
                   </p>
                   {renderPermisosCentros(centrosAccesoFormulario, "formulario")}
                 </div>
