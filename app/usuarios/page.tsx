@@ -982,7 +982,7 @@ export default function UsuariosPage() {
             <div style={styles.permissionsCreateBox}>
               <h3 style={styles.permissionCreateTitle}>Permisos del usuario</h3>
               <p style={styles.permissionsNote}>
-                Para caja, el usuario puede verla y cerrarla si lo permites. La opción reabrir caja déjala solo para admin/superadmin.
+               
               </p>
               {renderPermisos(form.permisos, cambiarPermisoFormulario)}
 
