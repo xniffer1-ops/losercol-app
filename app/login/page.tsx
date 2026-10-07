@@ -95,7 +95,7 @@ export default function LoginPage() {
             <div className="mobile-logo-wrap">
               <div className="mobile-logo-plaque">
                 <Image
-                  src="/logo-losercol.png"
+                  src="/logo-losercol-transparente.png"
                   alt="LOSERCOL — Logística y Servicios de Colombia"
                   width={800}
                   height={330}
@@ -316,21 +316,23 @@ export default function LoginPage() {
         }
 
         .mobile-logo-plaque {
-          width: min(100%, 420px);
-          padding: 12px 14px;
+          width: min(100%, 380px);
+          padding: 0;
           box-sizing: border-box;
-          border-radius: 18px;
-          background: #ffffff;
-          border: 1px solid #e2e8f0;
-          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+          border-radius: 0;
+          background: transparent;
+          border: 0;
+          box-shadow: none;
         }
 
         .mobile-logo {
           width: 100%;
           max-width: 100%;
           height: auto;
+          max-height: 150px;
           display: block;
           object-fit: contain;
+          object-position: center;
         }
 
         .form-header {
@@ -468,8 +470,7 @@ export default function LoginPage() {
           }
 
           .mobile-logo-plaque {
-            padding: 10px 12px;
-            border-radius: 16px;
+            width: min(100%, 330px);
           }
 
           .form-header h2 {

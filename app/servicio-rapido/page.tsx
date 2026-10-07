@@ -10,8 +10,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import type jsPDF from "jspdf";
 
 type Cliente = {
   id: number;
@@ -408,7 +407,6 @@ type SoportePDFData = {
   ivaIncluido: number;
   valorReteIva: number;
   totalNeto: number;
-  facturaElectronica: boolean;
 };
 
 const formatoDinero = (valor: number) =>
@@ -595,7 +593,11 @@ const crearQRVerificacionBase64 = async (url: string): Promise<string> => {
 };
 
 const descargarSoportePDF = async (soporte: SoportePDFData) => {
-  const doc = new jsPDF();
+  const [{ default: JsPDF }, { default: autoTable }] = await Promise.all([
+    import("jspdf"),
+    import("jspdf-autotable"),
+  ]);
+  const doc = new JsPDF();
   const pageHeight = doc.internal.pageSize.getHeight();
 
   try {
@@ -708,23 +710,6 @@ const descargarSoportePDF = async (soporte: SoportePDFData) => {
     },
   });
 
-  const finalResumenY = (doc as unknown as { lastAutoTable?: { finalY?: number } })
-    .lastAutoTable?.finalY || finalTablaY + 52;
-
-  const aviso =
-    "Si desea solicitar la facturación electrónica envía un correo al: Auxfacturacion@losercol.com o al celular: 3147897436";
-
-  const avisoY = Math.max(finalResumenY + 12, pageHeight - 34);
-
-  doc.setDrawColor(220, 220, 220);
-  doc.setFillColor(248, 248, 248);
-  doc.roundedRect(14, avisoY, 182, 18, 2, 2, "FD");
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(9);
-  const textoAviso = doc.splitTextToSize(aviso, 174);
-  doc.text(textoAviso, 18, avisoY + 7);
-
   try {
     const marcaAguaBase64 = await crearMarcaAguaSuperiorBase64("/logo-losercol.png");
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -806,6 +791,8 @@ export default function ServicioRapidoPage() {
   const [tipoOperacion, setTipoOperacion] = useState<TipoOperacion>("servicioVehiculo");
   const [placa, setPlaca] = useState("");
   const [clienteId, setClienteId] = useState("");
+  const [busquedaCliente, setBusquedaCliente] = useState("");
+  const [selectorClienteAbierto, setSelectorClienteAbierto] = useState(false);
   const [clienteFueManual, setClienteFueManual] = useState(false);
   const [vehiculoId, setVehiculoId] = useState("");
   const [centroOperacionId, setCentroOperacionId] = useState("");
@@ -817,7 +804,6 @@ export default function ServicioRapidoPage() {
   const [formaPago, setFormaPago] = useState("efectivo");
 
   const [aplicaReteIva, setAplicaReteIva] = useState(false);
-  const [facturaElectronica, setFacturaElectronica] = useState(false);
 
   const [crearClienteAbierto, setCrearClienteAbierto] = useState(false);
   const [nuevoClienteNombre, setNuevoClienteNombre] = useState("");
@@ -892,6 +878,20 @@ export default function ServicioRapidoPage() {
   const clienteSeleccionado = useMemo(() => {
     return clientes.find((cliente) => cliente.id === Number(clienteId)) ?? null;
   }, [clienteId, clientes]);
+
+  const clientesFiltrados = useMemo(() => {
+    const normalizar = (valor: string) => valor
+      .toLocaleLowerCase("es-CO")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "");
+    const termino = normalizar(busquedaCliente.trim());
+    if (!termino) return clientes;
+    return clientes.filter((cliente) =>
+      normalizar(String(cliente.nombre || "")).includes(termino) ||
+      String(cliente.ccNit || "").toLocaleLowerCase("es-CO").includes(termino) ||
+      String(cliente.id) === termino
+    );
+  }, [busquedaCliente, clientes]);
 
   const centroSeleccionado = useMemo(() => {
     return centros.find((centro) => centro.id === Number(centroOperacionId)) ?? null;
@@ -1086,7 +1086,6 @@ export default function ServicioRapidoPage() {
     setTipoCarpa("");
     setFormaPago("efectivo");
     setAplicaReteIva(false);
-    setFacturaElectronica(false);
     setMensaje("");
     setMensajeTipo("info");
     placaRef.current?.focus();
@@ -1285,7 +1284,6 @@ export default function ServicioRapidoPage() {
       tipoCarpa: tipoCarpa.trim() || null,
       formaPago,
       reteIva: aplicaReteIva,
-      facturaElectronica,
     });
 
     if (!respuestaServicio.ok) {
@@ -1323,7 +1321,6 @@ export default function ServicioRapidoPage() {
       ivaIncluido,
       valorReteIva,
       totalNeto,
-      facturaElectronica,
     };
 
     try {
@@ -1355,7 +1352,6 @@ export default function ServicioRapidoPage() {
     setTipoCarpa("");
     setFormaPago("efectivo");
     setAplicaReteIva(false);
-    setFacturaElectronica(false);
     setTipoOperacion("servicioVehiculo");
     placaRef.current?.focus();
   };
@@ -1492,23 +1488,82 @@ export default function ServicioRapidoPage() {
                 Cliente *
               </label>
 
-              <select
-                id="cliente"
-                value={clienteId}
-                onChange={(event: ChangeEvent<HTMLSelectElement>) => {
-                  setClienteId(event.target.value);
-                  setClienteFueManual(true);
-                }}
-                style={styles.select}
-              >
-                <option value="">Selecciona cliente</option>
-                {clientes.map((cliente) => (
-                  <option key={cliente.id} value={cliente.id}>
-                    {cliente.nombre}
-                    {cliente.ccNit ? ` - ${cliente.ccNit}` : ""}
-                  </option>
-                ))}
-              </select>
+              <div style={styles.clientPicker}>
+                <input
+                  id="cliente"
+                  type="text"
+                  role="combobox"
+                  aria-label="Buscar cliente por nombre o documento/NIT"
+                  aria-expanded={selectorClienteAbierto}
+                  aria-controls="lista-clientes-servicio-rapido"
+                  aria-autocomplete="list"
+                  autoComplete="off"
+                  value={selectorClienteAbierto ? busquedaCliente : (clienteSeleccionado ? `${clienteSeleccionado.nombre}${clienteSeleccionado.ccNit ? ` - ${clienteSeleccionado.ccNit}` : ""}` : "")}
+                  onFocus={() => {
+                    setBusquedaCliente("");
+                    setSelectorClienteAbierto(true);
+                  }}
+                  onBlur={() => {
+                    window.setTimeout(() => {
+                      setSelectorClienteAbierto(false);
+                      setBusquedaCliente("");
+                    }, 120);
+                  }}
+                  onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                    setBusquedaCliente(event.target.value);
+                    setSelectorClienteAbierto(true);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setSelectorClienteAbierto(false);
+                      setBusquedaCliente("");
+                    }
+                    if (event.key === "Enter" && selectorClienteAbierto && clientesFiltrados.length === 1) {
+                      event.preventDefault();
+                      const cliente = clientesFiltrados[0];
+                      setClienteId(String(cliente.id));
+                      setClienteFueManual(true);
+                      setSelectorClienteAbierto(false);
+                      setBusquedaCliente("");
+                    }
+                  }}
+                  placeholder="Buscar por nombre, cédula o NIT..."
+                  style={styles.clientSearchInput}
+                />
+                {selectorClienteAbierto && (
+                  <div id="lista-clientes-servicio-rapido" role="listbox" style={styles.clientOptions}>
+                    {clientesFiltrados.length > 0 ? (
+                      clientesFiltrados.slice(0, 100).map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          role="option"
+                          aria-selected={Number(clienteId) === cliente.id}
+                          onPointerDown={(event) => event.preventDefault()}
+                          onClick={() => {
+                            setClienteId(String(cliente.id));
+                            setClienteFueManual(true);
+                            setSelectorClienteAbierto(false);
+                            setBusquedaCliente("");
+                          }}
+                          style={{
+                            ...styles.clientOption,
+                            ...(Number(clienteId) === cliente.id ? styles.clientOptionSelected : {}),
+                          }}
+                        >
+                          <span style={styles.clientOptionName}>{cliente.nombre}</span>
+                          <span style={styles.clientOptionDocument}>{cliente.ccNit ? `CC/NIT: ${cliente.ccNit}` : `Cliente #${cliente.id}`}</span>
+                        </button>
+                      ))
+                    ) : (
+                      <div style={styles.clientNoResults}>No se encontraron clientes. Revisa el nombre o el documento.</div>
+                    )}
+                    {clientesFiltrados.length > 100 && (
+                      <div style={styles.clientNoResults}>Escribe más caracteres para afinar la búsqueda.</div>
+                    )}
+                  </div>
+                )}
+              </div>
 
               <button
                 type="button"
@@ -1802,35 +1857,6 @@ export default function ServicioRapidoPage() {
               </div>
             </div>
 
-            <div style={styles.toggleCard}>
-              <span style={styles.toggleTitle}>Factura electrónica</span>
-
-              <div style={styles.toggleGroup}>
-                <button
-                  type="button"
-                  onClick={() => setFacturaElectronica(false)}
-                  style={
-                    !facturaElectronica
-                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
-                      : styles.toggleButton
-                  }
-                >
-                  No
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFacturaElectronica(true)}
-                  style={
-                    facturaElectronica
-                      ? { ...styles.toggleButton, ...styles.toggleButtonActive }
-                      : styles.toggleButton
-                  }
-                >
-                  Sí
-                </button>
-              </div>
-            </div>
           </div>
 
           <div style={styles.summaryBox}>
@@ -1909,13 +1935,6 @@ export default function ServicioRapidoPage() {
             </div>
 
             <div style={styles.summaryDivider} />
-
-            <div style={styles.summaryRow}>
-              <span style={styles.summaryLabel}>Factura electrónica</span>
-              <span style={styles.summaryValue}>
-                {facturaElectronica ? "Sí requiere" : "No requiere"}
-              </span>
-            </div>
           </div>
 
           {cargandoDatos && (
@@ -2090,6 +2109,59 @@ const styles: Record<string, CSSProperties> = {
     background: "#ffffff",
     boxSizing: "border-box",
   },
+  clientPicker: {
+    position: "relative",
+    width: "100%",
+    minWidth: 0,
+    zIndex: 20,
+  },
+  clientSearchInput: {
+    width: "100%",
+    minHeight: 46,
+    boxSizing: "border-box",
+    border: "1px solid #d7e0ec",
+    borderRadius: 12,
+    padding: "11px 13px",
+    background: "#ffffff",
+    color: "#172033",
+    fontSize: 14,
+    outline: "none",
+  },
+  clientOptions: {
+    position: "absolute",
+    top: "calc(100% + 6px)",
+    left: 0,
+    right: 0,
+    maxHeight: "min(280px, 42vh)",
+    overflowY: "auto",
+    overscrollBehavior: "contain",
+    WebkitOverflowScrolling: "touch",
+    border: "1px solid #dbe3ed",
+    borderRadius: 12,
+    background: "#ffffff",
+    boxShadow: "0 12px 28px rgba(15, 23, 42, 0.16)",
+    zIndex: 100,
+  },
+  clientOption: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 4,
+    width: "100%",
+    minHeight: 54,
+    padding: "10px 13px",
+    border: "none",
+    borderBottom: "1px solid #eef2f7",
+    background: "#ffffff",
+    color: "#172033",
+    textAlign: "left",
+    cursor: "pointer",
+    fontSize: 14,
+  },
+  clientOptionSelected: { background: "#effaf5" },
+  clientOptionName: { fontWeight: 700, lineHeight: 1.25 },
+  clientOptionDocument: { color: "#64748b", fontSize: 12, lineHeight: 1.25 },
+  clientNoResults: { padding: "14px 13px", color: "#64748b", fontSize: 13, lineHeight: 1.4 },
   select: {
     width: "100%",
     minHeight: "52px",

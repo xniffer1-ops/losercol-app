@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import * as XLSX from "xlsx";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import type jsPDF from "jspdf";
 
 type Cliente = {
   id: number;
@@ -57,7 +55,6 @@ type Servicio = {
   reteIva?: boolean;
   valorReteIva?: number;
   totalNeto?: number;
-  facturaElectronica?: boolean;
   formaPago?: string | null;
   clienteId: number;
   vehiculoId: number;
@@ -140,7 +137,6 @@ const initialForm = {
   tipoCarpa: "",
   formaPago: "efectivo",
   reteIva: false,
-  facturaElectronica: false,
   descripcion: "",
   valorUnitario: "",
   cantidad: "",
@@ -262,9 +258,6 @@ export default function ServiciosPage() {
     if (encontrada) return encontrada.valor;
     return valorCarpaLegacy(tipo);
   };
-
-  const textoFacturaElectronica = (s: Servicio) =>
-    s.facturaElectronica ? "Sí requiere" : "No requiere";
 
   const IVA_PORCENTAJE = 0.19;
   const RETEIVA_PORCENTAJE = 0.04;
@@ -874,7 +867,6 @@ export default function ServiciosPage() {
         tipoCarpa: form.tipoCarpa,
         formaPago: form.formaPago,
         reteIva: form.reteIva,
-        facturaElectronica: form.facturaElectronica,
         cantidad: Number(form.cantidad),
       };
 
@@ -928,7 +920,6 @@ export default function ServiciosPage() {
       tipoCarpa: s.tipoCarpa || "",
       formaPago: s.formaPago || "credito",
       reteIva: Boolean(s.reteIva),
-      facturaElectronica: Boolean(s.facturaElectronica),
       descripcion: tarifaOriginal?.descripcion || s.descripcion,
       valorUnitario: valorUnitarioConIva ? String(valorUnitarioConIva) : "",
       cantidad: String(s.cantidad),
@@ -1015,7 +1006,6 @@ export default function ServiciosPage() {
         Tarifa: s.tarifa?.codigo || (s.descripcion?.toUpperCase().includes("CARPA") ? "CARPA" : ""),
         "Carpa adicional": s.tipoCarpa || "",
         "Forma de pago": s.formaPago || "credito",
-        "Factura electrónica": textoFacturaElectronica(s),
         Descripcion: s.descripcion,
         Unidad: s.unidadMedida || "",
         Cantidad: valores.cantidad,
@@ -1030,6 +1020,7 @@ export default function ServiciosPage() {
       };
     });
 
+    const XLSX = await import("xlsx");
     const worksheet = XLSX.utils.json_to_sheet(data);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Servicios");
@@ -1043,7 +1034,11 @@ export default function ServiciosPage() {
       return;
     }
 
-    const doc = new jsPDF();
+    const [{ default: JsPDF }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
+    const doc = new JsPDF();
 
     const pageHeight = doc.internal.pageSize.getHeight();
     const soporte = numeroSoporte(s);
@@ -1172,22 +1167,6 @@ export default function ServiciosPage() {
         }
       },
     });
-
-    const finalResumenY = (doc as any).lastAutoTable?.finalY || finalTablaY + 52;
-
-    const aviso =
-      "Si desea solicitar la facturación electrónica envía un correo al: auxfacturacion@losercol.com o al celular: 3147897436";
-
-    const avisoY = Math.max(finalResumenY + 12, pageHeight - 34);
-
-    doc.setDrawColor(220, 220, 220);
-    doc.setFillColor(248, 248, 248);
-    doc.roundedRect(14, avisoY, 182, 18, 2, 2, "FD");
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    const textoAviso = doc.splitTextToSize(aviso, 174);
-    doc.text(textoAviso, 18, avisoY + 7);
 
     try {
       const marcaAguaBase64 = await crearMarcaAguaSuperiorBase64("/logo-losercol.png");
@@ -1579,15 +1558,6 @@ export default function ServiciosPage() {
                         <strong style={styles.mobileSupport}>{numeroSoporte(s)}</strong>
                       </div>
 
-                      <span
-                        style={
-                          s.facturaElectronica
-                            ? styles.facturaSi
-                            : styles.facturaNo
-                        }
-                      >
-                        {textoFacturaElectronica(s)}
-                      </span>
                     </div>
 
                     <div style={styles.mobileInfoGrid}>
@@ -1675,18 +1645,6 @@ export default function ServiciosPage() {
                   <span>{s.vehiculo?.placa || "-"}</span>
                   <span>{s.centroOperacion?.nombre || "-"}</span>
                   <span>{descripcionCompleta}</span>
-
-                  <span>
-                    <span
-                      style={
-                        s.facturaElectronica
-                          ? styles.facturaSi
-                          : styles.facturaNo
-                      }
-                    >
-                      {textoFacturaElectronica(s)}
-                    </span>
-                  </span>
 
                   <span>${Number(totalMostrar || 0).toLocaleString("es-CO")}</span>
 
@@ -1880,16 +1838,6 @@ export default function ServiciosPage() {
                 onChange={handleChange}
               />
               <span>Aplica Retefuente 4%</span>
-            </label>
-
-            <label style={styles.checkboxRow}>
-              <input
-                name="facturaElectronica"
-                type="checkbox"
-                checked={Boolean(form.facturaElectronica)}
-                onChange={handleChange}
-              />
-              <span>Requiere factura electrónica</span>
             </label>
 
             <input
@@ -2204,27 +2152,6 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#111",
     fontWeight: 700,
   },
-  facturaSi: {
-    display: "inline-flex",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    background: "#dcfce7",
-    color: "#166534",
-    fontWeight: 700,
-    fontSize: "12px",
-    whiteSpace: "nowrap",
-  },
-  facturaNo: {
-    display: "inline-flex",
-    padding: "6px 10px",
-    borderRadius: "999px",
-    background: "#f1f5f9",
-    color: "#475569",
-    fontWeight: 700,
-    fontSize: "12px",
-    whiteSpace: "nowrap",
-  },
-
   gestionSection: {
     background: "#fff",
     border: "2px solid #111827",
