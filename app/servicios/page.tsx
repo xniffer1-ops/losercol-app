@@ -981,7 +981,7 @@ export default function ServiciosPage() {
     setLoading(false);
   };
 
-  const exportarExcel = () => {
+  const exportarExcel = async () => {
     if (!puedeExportarExcel) {
       alert("No tienes permiso para exportar Excel.");
       return;
