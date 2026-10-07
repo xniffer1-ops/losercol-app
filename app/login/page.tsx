@@ -51,14 +51,17 @@ export default function LoginPage() {
       <section className="login-shell">
         <aside className="brand-side">
           <div className="brand-content">
-            <Image
-              src="/logo-losercol-transparente.png"
-              alt="LOSERCOL"
-              width={360}
-              height={120}
-              className="brand-logo"
-              priority
-            />
+            <div className="brand-logo-plaque">
+              <Image
+                src="/logo-losercol-transparente.png"
+                alt="LOSERCOL — Logística y Servicios de Colombia"
+                width={800}
+                height={330}
+                className="brand-logo"
+                priority
+                sizes="(max-width: 1200px) 42vw, 520px"
+              />
+            </div>
 
             <div className="brand-copy">
               <p className="brand-kicker">Logística y Servicios de Colombia</p>
@@ -90,13 +93,17 @@ export default function LoginPage() {
         <section className="form-side">
           <div className="form-card">
             <div className="mobile-logo-wrap">
-              <Image
-                src="/logo-losercol-transparente.png"
-                alt="LOSERCOL"
-                width={260}
-                height={90}
-                className="mobile-logo"
-              />
+              <div className="mobile-logo-plaque">
+                <Image
+                  src="/logo-losercol.png"
+                  alt="LOSERCOL — Logística y Servicios de Colombia"
+                  width={800}
+                  height={330}
+                  className="mobile-logo"
+                  priority
+                  sizes="(max-width: 520px) 82vw, 420px"
+                />
+              </div>
             </div>
 
             <div className="form-header">
@@ -214,12 +221,23 @@ export default function LoginPage() {
           gap: 34px;
         }
 
+        .brand-logo-plaque {
+          width: min(100%, 540px);
+          padding: 0;
+          box-sizing: border-box;
+          background: transparent;
+          box-shadow: none;
+          border: 0;
+          border-radius: 0;
+        }
+
         .brand-logo {
-          width: 360px;
+          width: 100%;
           max-width: 100%;
           height: auto;
           display: block;
-          filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.12));
+          object-fit: contain;
+          image-rendering: auto;
         }
 
         .brand-kicker {
@@ -293,13 +311,26 @@ export default function LoginPage() {
         .mobile-logo-wrap {
           display: none;
           justify-content: center;
-          margin-bottom: 22px;
+          width: 100%;
+          margin: 0 auto 26px;
+        }
+
+        .mobile-logo-plaque {
+          width: min(100%, 420px);
+          padding: 12px 14px;
+          box-sizing: border-box;
+          border-radius: 18px;
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
         }
 
         .mobile-logo {
-          width: 260px;
+          width: 100%;
           max-width: 100%;
           height: auto;
+          display: block;
+          object-fit: contain;
         }
 
         .form-header {
@@ -429,7 +460,16 @@ export default function LoginPage() {
           }
 
           .form-side {
-            padding: 30px 22px;
+            padding: 28px 20px;
+          }
+
+          .mobile-logo-wrap {
+            margin-bottom: 22px;
+          }
+
+          .mobile-logo-plaque {
+            padding: 10px 12px;
+            border-radius: 16px;
           }
 
           .form-header h2 {
