@@ -66,7 +66,7 @@ export default function LoginPage() {
             <div className="brand-copy">
               <p className="brand-kicker">Logística y Servicios de Colombia</p>
               <h1 className="brand-title">
-                Gestión operativa LOSERCOL
+                Gestión Operativa LOSERCOL
               </h1>
               <p className="brand-text">
                 Plataforma interna para apoyar el control y seguimiento de las operaciones.
